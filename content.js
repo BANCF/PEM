@@ -744,7 +744,7 @@
                 let rowText = input.closest('tr, .list-item, .w3-row').innerText;
                 for (let name of Object.keys(scoreDict)) {
                     if (rowText.includes(name)) {
-                        let targetScore = scoreDict[name];
+                        let targetScore = scoreDict[name].toString().replace(/,/g, '.'); // Bắt buộc dùng dấu "."
                         let currentValue = String(input.value).trim().replace(/,/g, '.');
 
                         const numCurrent = parseFloat(currentValue);
@@ -752,23 +752,38 @@
                         const isDifferent = isNaN(numCurrent) || isNaN(numTarget) ? currentValue !== targetScore : numCurrent !== numTarget;
 
                         if (isDifferent) {
-                            await applyValue(input, targetScore);
-                            await delay(200);
+                            let successInput = false;
+                            
+                            // VÒNG LẶP RETRY TỐI ĐA 3 LẦN
+                            for (let attempt = 1; attempt <= 3; attempt++) {
+                                await applyValue(input, targetScore);
+                                await delay(300);
 
-                            // BẮT BỆNH MẤT DẤU NGAY LÚC NHẬP
-                            let checkVal = parseFloat(String(input.value).replace(/,/g, '.'));
-                            if (!isNaN(checkVal) && checkVal > 10) {
-                                log(`⚠️ Bị mất dấu (thành ${checkVal}). Ép sửa lại...`);
-                                let fixedDot = (checkVal / 10).toFixed(2);
-                                input.style.border = '2px solid orange';
-                                await applyValue(input, fixedDot); 
-                                input.style.border = '';
-                                await delay(200);
+                                // Kiểm tra có popup lỗi không (nếu có hàm checkAndCloseErrorGrading sẽ tự đóng popup)
+                                let hasErrorPopup = typeof checkAndCloseErrorGrading === "function" ? await checkAndCloseErrorGrading() : false;
+                                
+                                // Kiểm tra lại giá trị thực tế đang hiển thị trong ô input
+                                let checkVal = parseFloat(String(input.value).replace(/,/g, '.'));
+                                
+                                // Nếu không có lỗi popup, không bị NaN và điểm không nhảy vọt > 10 (bị mất dấu) => Thành công
+                                if (!hasErrorPopup && !isNaN(checkVal) && checkVal <= 10) {
+                                    successInput = true;
+                                    countFill++;
+                                    break; // Thoát vòng lặp retry
+                                } else {
+                                    log(`⚠️ Lỗi nhập liệu cho [${name}] (Thử lại lần ${attempt}/3)...`);
+                                    input.style.border = '2px solid red'; // Đánh dấu đỏ để dễ quan sát
+                                    await delay(500);
+                                    input.value = ""; // Xoá trắng để nhập lại ở vòng lặp tiếp theo
+                                }
                             }
 
-                            countFill++;
+                            if (!successInput) {
+                                log(`❌ Bỏ qua [${name}] sau 3 lần thử thất bại.`);
+                                input.style.border = '2px solid orange';
+                            }
                         }
-                        break;
+                        break; // Đã tìm thấy học sinh, không cần tìm thêm trong thư viện Excel
                     }
                 }
             }
