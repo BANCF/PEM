@@ -688,43 +688,36 @@
         // MODULE: ĐỌC EXCEL (AUTO 1 LỚP - BẢN GỐC ĐÃ CHẠY ỔN)
         // ==========================================
         // ==========================================
-        // MODULE: ĐỌC EXCEL (THUẬT TOÁN CÀN QUÉT TỐI THƯỢNG V3)
+        // MODULE 2: RÚT DỮ LIỆU CẤP TỐC (HOẶC ĐỌC FILE LẺ)
         // ==========================================
         const extractAllExcelData = async () => {
-            let fileInput = document.getElementById('excel-file');
-            let targetFile = null;
-            let targetSheetName = null;
-
-            if (window.isBatchMode && window.currentBatchFile) {
-                targetFile = window.currentBatchFile;
-                targetSheetName = window.currentBatchSheetName;
-            } else if (fileInput.files.length > 0) {
-                targetFile = fileInput.files[0];
+            // 1. NẾU ĐANG CHẠY BATCH -> TRẢ VỀ LUÔN THÙNG DỮ LIỆU ĐÃ ĐÓNG GÓI TỪ ĐẦU!
+            if (window.isBatchMode && window.currentBatchScores) {
+                log(`✔️ Xác nhận: Rút từ thùng [${window.currentBatchClassName}] -> Chuẩn ${window.currentBatchCount} điểm.`);
+                return window.currentBatchScores;
             }
 
-            if (!targetFile) { alert("Vui lòng tải lên file Excel!"); return null; }
-
+            // 2. NẾU CHẠY AUTO 1 LỚP TỰ DO -> ĐỌC FILE TẠI CHỖ (VẪN BẰNG LUẬT STT)
+            let fileInput = document.getElementById('excel-file');
+            if (!fileInput.files.length) { alert("Vui lòng tải lên file Excel!"); return null; }
+            let targetFile = fileInput.files[0];
+            
             return new Promise((resolve) => {
                 const reader = new FileReader();
                 reader.onload = (e) => {
                     try {
                         const data = new Uint8Array(e.target.result);
                         const workbook = XLSX.read(data, { type: 'array' });
-                        
-                        let targetSheet = targetSheetName;
-                        if (!targetSheet || !workbook.SheetNames.includes(targetSheet)) {
-                            let validSheets = workbook.SheetNames.filter(n => !n.toLowerCase().includes('hướng') && !n.toLowerCase().includes('huong'));
-                            targetSheet = validSheets.length > 0 ? validSheets[0] : workbook.SheetNames[0];
-                        }
+                        let validSheets = workbook.SheetNames.filter(n => !n.toLowerCase().includes('hướng') && !n.toLowerCase().includes('huong'));
+                        let targetSheet = validSheets.length > 0 ? validSheets[0] : workbook.SheetNames[0];
                         
                         const jsonArray = XLSX.utils.sheet_to_json(workbook.Sheets[targetSheet], { header: 1 });
                         const cleanStr = str => String(str || '').toLowerCase().replace(/[\n\r\s]/g, '');
 
                         let headerRowIdx = jsonArray.findIndex(r => r.some(c => cleanStr(c).includes('họvàtên') || cleanStr(c).includes('họtên')));
-                        if (headerRowIdx === -1) { log("⚠️ Lỗi: Không tìm thấy cột Họ và Tên!"); resolve(null); return; }
+                        if (headerRowIdx === -1) { resolve(null); return; }
 
                         let nameCol = -1, gkCol = -1, ckCol = -1, sTx = -1;
-
                         for (let r = Math.max(0, headerRowIdx - 1); r <= Math.min(jsonArray.length - 1, headerRowIdx + 2); r++) {
                             let row = jsonArray[r] || [];
                             for (let c = 0; c < row.length; c++) {
@@ -739,14 +732,10 @@
                         let txCols = {};
                         if (sTx !== -1 && gkCol !== -1 && gkCol > sTx) {
                             let count = 1;
-                            for (let c = sTx; c < gkCol; c++) {
-                                if (c !== nameCol) { txCols['TX' + count] = c; count++; }
-                            }
+                            for (let c = sTx; c < gkCol; c++) { if (c !== nameCol) { txCols['TX' + count] = c; count++; } }
                         } else if (sTx !== -1) {
                             let count = 1;
-                            for(let c = sTx; c < sTx + 5; c++) { 
-                                if (c !== nameCol) { txCols['TX' + count] = c; count++; } 
-                            }
+                            for(let c = sTx; c < sTx + 5; c++) { if (c !== nameCol) { txCols['TX' + count] = c; count++; } }
                         } else {
                             let count = 1;
                             for(let c = nameCol + 2; c <= nameCol + 6; c++) { txCols['TX' + count] = c; count++; }
@@ -756,25 +745,16 @@
                         for (let i = 1; i <= 15; i++) fullData['TX' + i] = {};
                         
                         let countDiem = 0;
-                        let firstStudent = "";
-
-                        // CÀN QUÉT TOÀN BỘ CÁC DÒNG (BỎ QUA CỘT STT)
                         for (let i = headerRowIdx + 1; i < jsonArray.length; i++) {
                             let rowD = jsonArray[i] || [];
+                            let stt = String(rowD[0] || '').trim();
                             let name = String(rowD[nameCol] || '').trim();
-                            let cName = cleanStr(name);
                             
-                            // Bỏ qua dòng trống, dòng tiêu đề lặp lại, dòng tổng kết thống kê
-                            if (!name || cName.includes('họvàtên') || cName.includes('sốhọcsinh') || cName.includes('đạt') || cName.includes('tốt') || cName.includes('khá')) {
-                                continue;
-                            }
-                            
-                            if (!firstStudent) firstStudent = name;
+                            // CHỐT CHẶN STT CHO CHẠY 1 LỚP
+                            if (stt === '' || isNaN(stt) || !name) continue;
 
                             for (let key in txCols) {
-                                let rawScore = String(rowD[txCols[key]] || '');
-                                // Máy xén: Lọc bỏ toàn bộ chữ, khoảng trắng, chỉ giữ lại số và dấu chấm
-                                let score = rawScore.replace(/,/g, '.').replace(/[^\d.]/g, '');
+                                let score = String(rowD[txCols[key]] || '').replace(/,/g, '.').replace(/[^\d.]/g, '');
                                 if (score !== '') { fullData[key][name] = score; countDiem++; }
                             }
                             if (gkCol !== -1) { 
@@ -787,11 +767,10 @@
                             }
                         }
                         
-                        // LOG KIỂM TRA TÊN HỌC SINH ĐẦU TIÊN
-                        log(`✔️ [${targetSheet || targetFile.name}]: Đã nạp từ HS [${firstStudent}] -> Được ${countDiem} điểm.`);
+                        log(`✔️ Rút tại chỗ [${targetFile.name}]: chuẩn ${countDiem} điểm.`);
                         resolve(fullData);
                         
-                    } catch (e) { log(`❌ Lỗi đọc file! ${e.message}`); resolve(null); }
+                    } catch (e) { resolve(null); }
                 };
                 reader.readAsArrayBuffer(targetFile);
             });
@@ -800,12 +779,15 @@
         // ==========================================
         // MODULE 1: QUÉT NHÃN MÁC TẠO HÀNG ĐỢI (PRE-SCAN)
         // ==========================================
-        const buildBatchQueue = async () => {
+        // ==========================================
+        // MODULE 1: ĐÔNG GÓI DỮ LIỆU TỪ ĐẦU (ĐỌC THEO STT CHUẨN)
+        // ==========================================
+        const parseAllFilesUpfront = async () => {
             const fileInput = document.getElementById('excel-file');
             if (!fileInput.files.length) { alert("Vui lòng tải lên file Excel!"); return null; }
 
             let queue = [];
-            log(`📂 Đang lướt qua ${fileInput.files.length} file để lấy nhãn mác...`);
+            log(`📂 Đang quét và ĐÓNG GÓI dữ liệu từ ${fileInput.files.length} file...`);
 
             for (let f = 0; f < fileInput.files.length; f++) {
                 const file = fileInput.files[f];
@@ -816,15 +798,13 @@
                             const data = new Uint8Array(e.target.result);
                             const workbook = XLSX.read(data, { type: 'array' });
                             
-                            // LỌC SHEET SIÊU MẠNH: Bắt cả "HuongDan" viết liền
-                            let validSheets = workbook.SheetNames.filter(n => {
-                                let txt = n.toLowerCase();
-                                return !txt.includes('hướng') && !txt.includes('huong');
-                            });
+                            let validSheets = workbook.SheetNames.filter(n => !n.toLowerCase().includes('hướng') && !n.toLowerCase().includes('huong'));
                             let targetSheet = validSheets.length > 0 ? validSheets[0] : workbook.SheetNames[0];
-
+                            
                             const jsonArray = XLSX.utils.sheet_to_json(workbook.Sheets[targetSheet], { header: 1 });
+                            const cleanStr = str => String(str || '').toLowerCase().replace(/[\n\r\s]/g, '');
 
+                            // 1. Nhận diện Lớp, Môn
                             let className = "UNKNOWN", subjectName = "UNKNOWN";
                             for (let i = 0; i < Math.min(10, jsonArray.length); i++) {
                                 let rowStr = jsonArray[i].map(c => String(c || '')).join(" "); 
@@ -833,8 +813,68 @@
                                 let sMatch = rowStr.match(/môn(?:\s*học)?:\s*(.*?)(?:\s*-|\s*gv:|,|$)/i);
                                 if (sMatch && subjectName === "UNKNOWN") subjectName = sMatch[1].trim();
                             }
-                            resolve({ className, subjectName, fileObj: file });
-                        } catch (err) { resolve(null); }
+
+                            // 2. Tìm Header
+                            let headerRowIdx = jsonArray.findIndex(r => r.some(c => cleanStr(c).includes('họvàtên') || cleanStr(c).includes('họtên')));
+                            if (headerRowIdx === -1) { resolve(null); return; }
+
+                            let nameCol = -1, gkCol = -1, ckCol = -1, sTx = -1;
+                            for (let r = Math.max(0, headerRowIdx - 1); r <= Math.min(jsonArray.length - 1, headerRowIdx + 2); r++) {
+                                let row = jsonArray[r] || [];
+                                for (let c = 0; c < row.length; c++) {
+                                    let cell = cleanStr(row[c]);
+                                    if (nameCol === -1 && (cell.includes('họvàtên') || cell.includes('họtên'))) nameCol = c;
+                                    if (gkCol === -1 && (cell.includes('giữak') || cell.includes('đđggk'))) gkCol = c;
+                                    if (ckCol === -1 && (cell.includes('cuốik') || cell.includes('đđgck'))) ckCol = c;
+                                    if (sTx === -1 && (cell.includes('thườngxuyên') || cell.includes('đđgtx'))) sTx = c;
+                                }
+                            }
+
+                            let txCols = {};
+                            if (sTx !== -1 && gkCol !== -1 && gkCol > sTx) {
+                                let count = 1;
+                                for (let c = sTx; c < gkCol; c++) { if (c !== nameCol) { txCols['TX' + count] = c; count++; } }
+                            } else if (sTx !== -1) {
+                                let count = 1;
+                                for(let c = sTx; c < sTx + 5; c++) { if (c !== nameCol) { txCols['TX' + count] = c; count++; } }
+                            } else {
+                                let count = 1;
+                                for(let c = nameCol + 2; c <= nameCol + 6; c++) { txCols['TX' + count] = c; count++; }
+                            }
+
+                            let fullData = { 'GK': {}, 'CK': {} };
+                            for (let i = 1; i <= 15; i++) fullData['TX' + i] = {};
+                            
+                            let countDiem = 0;
+
+                            // 3. QUÉT ĐIỂM BẰNG CHỐT CHẶN STT (SIÊU AN TOÀN)
+                            for (let i = headerRowIdx + 1; i < jsonArray.length; i++) {
+                                let rowD = jsonArray[i] || [];
+                                let stt = String(rowD[0] || '').trim(); // Cột STT luôn ở index 0
+                                let name = String(rowD[nameCol] || '').trim();
+                                
+                                // NẾU STT KHÔNG PHẢI LÀ SỐ, HOẶC TÊN RỖNG -> BỎ QUA NGAY
+                                if (stt === '' || isNaN(stt) || !name) continue;
+
+                                for (let key in txCols) {
+                                    let score = String(rowD[txCols[key]] || '').replace(/,/g, '.').replace(/[^\d.]/g, '');
+                                    if (score !== '') { fullData[key][name] = score; countDiem++; }
+                                }
+                                if (gkCol !== -1) { 
+                                    let sc = String(rowD[gkCol] || '').replace(/,/g, '.').replace(/[^\d.]/g, ''); 
+                                    if (sc !== '') { fullData['GK'][name] = sc; countDiem++; } 
+                                }
+                                if (ckCol !== -1) { 
+                                    let sc = String(rowD[ckCol] || '').replace(/,/g, '.').replace(/[^\d.]/g, ''); 
+                                    if (sc !== '') { fullData['CK'][name] = sc; countDiem++; } 
+                                }
+                            }
+                            
+                            // BÁO LOG TỔNG NGAY TỪ ĐẦU
+                            log(`📦 Đã nạp THÙNG [${className}]: chuẩn ${countDiem} điểm.`);
+                            resolve({ className, subjectName, fileObj: file, scores: fullData, countDiem });
+                            
+                        } catch (e) { resolve(null); }
                     };
                     reader.readAsArrayBuffer(file);
                 });
@@ -1440,7 +1480,7 @@
         };
 
         // ==========================================
-        // THE ULTIMATE MASTER LOOP (DELEGATION MODE)
+        // THE ULTIMATE MASTER LOOP (DELEGATION MODE V2)
         // ==========================================
         const updateQueueUI = (id, statusHtml) => {
             let row = document.getElementById(id);
@@ -1450,7 +1490,7 @@
         let btnAutoBatch = document.getElementById('btn-auto-batch');
         if(btnAutoBatch) {
             btnAutoBatch.onclick = async () => {
-                let queue = await buildBatchQueue(); 
+                let queue = await parseAllFilesUpfront(); // CHẠY HÀM ĐÓNG GÓI TRƯỚC
                 if (!queue || queue.length === 0) return;
 
                 let queueList = document.getElementById('queue-list');
@@ -1462,8 +1502,7 @@
                 });
 
                 log(`🚀 BẮT ĐẦU CHẾ ĐỘ BATCH: Lên lịch xử lý ${queue.length} lớp...`);
-                
-                window.isBatchMode = true; // Bật cờ hiệu cho toàn hệ thống
+                window.isBatchMode = true; 
 
                 for (let i = 0; i < queue.length; i++) {
                     let task = queue[i];
@@ -1489,18 +1528,18 @@
                         await delay(3500); 
 
                         try {
-                            // 1. Chỉ định rõ "Thùng hàng" cho Auto 1 Lớp
-                            window.currentBatchFile = task.fileObj;
+                            // NÉM THẲNG THÙNG ĐIỂM VÀO BỘ NHỚ TOÀN CỤC
+                            window.currentBatchScores = task.scores;
+                            window.currentBatchClassName = task.className;
+                            window.currentBatchCount = task.countDiem;
                             
-                            log(`🤖 Đã vào Lớp ${task.className}. Ủy quyền cho Bot Auto 1 Lớp xử lý...`);
+                            log(`🤖 Đã vào Lớp ${task.className}. Mở THÙNG [${task.className}], nạp chuẩn ${task.countDiem} điểm.`);
                             
-                            // 2. KÍCH HOẠT NÚT AUTO LỚP HIỆN TẠI (Tái sử dụng 100% logic cũ)
                             await document.getElementById('btn-auto-full').onclick();
                             
                             log(`✅ HOÀN TẤT LỚP: [${task.className}]`);
                             updateQueueUI(`q-${i}`, `✅`);
                             
-                            // Bôi xám để biết đã xong
                             classBtn.style.background = '#e9ecef'; classBtn.style.opacity = '0.6';
                             if(!classBtn.innerHTML.includes('✅')) classBtn.innerHTML = `✅ ` + classBtn.innerHTML;
 
@@ -1514,9 +1553,8 @@
                     }
                 }
                 
-                // Trả lại trạng thái bình thường
                 window.isBatchMode = false; 
-                window.currentBatchFile = null;
+                window.currentBatchScores = null;
                 alert("🎉 QUY TRÌNH BATCH HOÀN TẤT! Đã cày xong toàn bộ danh sách.");
             };
         }
