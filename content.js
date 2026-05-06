@@ -453,19 +453,19 @@
         };
 
         const handleBatchTransition = async (targetText) => {
-            log(`Đang tiến hành lệnh: [${targetText.toUpperCase()}]...`);
+            log(`⚡ Đang thực thi: [${targetText.toUpperCase()}]...`);
             
-            // 1. Tìm và bấm nút Chuyển Tiếp
+            // 1. Tìm và bấm nút Chuyển Tiếp (Giảm thời gian quét)
             let chuyenTiepBtn = null;
             for (let i = 0; i < 5; i++) {
                 let els = Array.from(document.querySelectorAll('a, button, .ohke-btn')).filter(el => el.offsetWidth > 0 && el.textContent.toLowerCase().includes('chuyển tiếp'));
                 if (els.length > 0) { chuyenTiepBtn = els[0]; break; }
-                await delay(500);
+                await delay(200); 
             }
             if (!chuyenTiepBtn) return false;
 
             forceClick(chuyenTiepBtn);
-            await delay(1500);
+            await delay(400); // Chờ popup mở cực nhanh
 
             // 2. Click tuỳ chọn (Gửi Người Phê Duyệt / Chấp Nhận)
             let activeModals = document.querySelectorAll('.w3-modal.w3-show');
@@ -474,15 +474,15 @@
 
             let options = Array.from(batchModal.querySelectorAll('a, button, label, .ohke-btn')).filter(el => el.offsetWidth > 0 && el.textContent.toLowerCase().includes(targetText.toLowerCase()));
             if (options.length > 0) {
-                forceClick(options[0]); await delay(1500);
+                forceClick(options[0]); 
+                await delay(300); 
             } else {
-                // Nếu không có nút tương ứng, thoát
                 let closeBtn = batchModal.querySelector('.close-btn, a[class*="close-btn"], i.fa-close');
                 if (closeBtn) forceClick(closeBtn);
                 return false;
             }
 
-            // 3. Xử lý popup XÁC NHẬN (Nhập mã)
+            // 3. Xử lý popup XÁC NHẬN & NHẬP CAPTCHA SIÊU TỐC
             activeModals = document.querySelectorAll('.w3-modal.w3-show');
             let confirmModal = activeModals[activeModals.length - 1];
 
@@ -493,66 +493,54 @@
                     let inputField = confirmModal.querySelector('input[name="input"], input[type="text"]');
                     if (inputField) {
                         inputField.value = code;
+                        // Kích hoạt event ngay lập tức không có độ trễ
                         inputField.dispatchEvent(new Event('input', { bubbles: true }));
                         inputField.dispatchEvent(new Event('change', { bubbles: true }));
-                        await delay(500);
                     }
                 }
                 
                 let dongYBtn = Array.from(confirmModal.querySelectorAll('button, a, .ohke-btn')).find(el => el.offsetWidth > 0 && (el.textContent.toLowerCase().includes('đồng ý') || el.textContent.toLowerCase().includes('tiếp tục')));
-                if (dongYBtn) { forceClick(dongYBtn); await delay(1500); }
+                if (dongYBtn) { 
+                    forceClick(dongYBtn); 
+                    await delay(300); // Rút từ 1500ms xuống 300ms
+                }
             }
 
-            // 4. Xử lý popup THÔNG TIN ("A job has been enqueued successfully")
+            // 4. Bỏ qua popup THÔNG TIN cực nhanh
             activeModals = document.querySelectorAll('.w3-modal.w3-show');
             if (activeModals.length > 0) {
                 let infoModal = activeModals[activeModals.length - 1];
-                // Quét text để xem có phải modal thông báo đưa vào hàng đợi thành công không
                 if (infoModal.innerText.toLowerCase().includes('enqueued successfully') || infoModal.innerText.toLowerCase().includes('hàng đợi')) {
                     let dongYBtn2 = Array.from(infoModal.querySelectorAll('button, a, .ohke-btn')).find(el => el.offsetWidth > 0 && el.textContent.toLowerCase().includes('đồng ý'));
                     if (dongYBtn2) { 
                         forceClick(dongYBtn2); 
-                        await delay(1500); // Chờ popup đóng lại
+                        await delay(300);
                     }
                 }
             }
 
             // 5. ĐỌC LOAD BAR TRONG BATCH TRANSITION VÀ CHỜ KẾT THÚC
-            log("⏳ Đang chờ hệ thống xử lý job (Đọc thanh tiến trình)...");
             let isCompleted = false;
-            for (let wait = 0; wait < 60; wait++) { // Đợi tối đa 30s (60 * 500ms)
+            for (let wait = 0; wait < 60; wait++) { // Polling mỗi 500ms là đủ an toàn
                 await delay(500);
                 
                 let modals = document.querySelectorAll('.w3-modal.w3-show');
-                if (modals.length === 0) break; // Lỡ modal bị tắt tự động
+                if (modals.length === 0) break; 
                 let currentModal = modals[modals.length - 1];
                 let modalText = currentModal.innerText.toLowerCase();
 
-                // Dựa vào ảnh của bạn: Trạng thái sẽ chuyển từ 'processing' sang 'completed'
                 if (modalText.includes('trạng thái') && modalText.includes('completed')) {
-                    log("✅ Quá trình hoàn tất (Trạng thái: completed). Đang đóng cửa sổ...");
-                    
-                    // Ưu tiên tìm dấu X trên cùng bên phải theo cấu trúc W3.CSS
                     let closeX = currentModal.querySelector('i.fa-close, .close-btn, .w3-button.w3-display-topright');
-                    
-                    if (!closeX) {
-                        // Tìm dự phòng các nút mang ý nghĩa tắt
-                        closeX = Array.from(currentModal.querySelectorAll('button, a, i')).find(el => 
-                            el.className.includes('close') || 
-                            (el.textContent && el.textContent.toLowerCase().trim() === 'x')
-                        );
-                    }
+                    if (!closeX) closeX = Array.from(currentModal.querySelectorAll('button, a, i')).find(el => el.className.includes('close') || (el.textContent && el.textContent.toLowerCase().trim() === 'x'));
                     
                     if (closeX) forceClick(closeX);
                     isCompleted = true;
-                    await delay(1500); // Chờ hiệu ứng đóng modal
+                    await delay(400); // Rút từ 1500ms xuống 400ms để đóng popup
                     break;
                 }
             }
 
-            // 6. Xử lý trường hợp treo (quá 30s không thấy completed)
             if (!isCompleted) {
-                log("⚠️ Quá thời gian chờ tiến trình. Thử đóng cửa sổ...");
                 let modals = document.querySelectorAll('.w3-modal.w3-show');
                 if (modals.length > 0) {
                     let currentModal = modals[modals.length - 1];
@@ -784,27 +772,26 @@
                 lastLen = inputsToScroll.length;
             }
             
+            // =======================================
+            // GIAI ĐOẠN 2: NHẬP ĐIỂM
+            // =======================================
             log("⬆️ Đang cuộn lên đầu danh sách để chuẩn bị nhập...");
             
-            // 1. Cuộn lớp ngoài
-            window.scrollTo({ top: 0, behavior: 'smooth' });
+            // 1. Dùng 'auto' thay vì 'smooth' để nhảy CẮT CẢNH ngay lập tức lên đầu
+            window.scrollTo({ top: 0, behavior: 'auto' });
             
-            // 2. Cuộn lớp trong (Khung chứa danh sách học sinh)
             let scrollContainer = document.querySelector('.dynamic-content, .agent-list, .tab-content .active');
             if (scrollContainer) {
-                scrollContainer.scrollTo({ top: 0, behavior: 'smooth' });
+                scrollContainer.scrollTo({ top: 0, behavior: 'auto' });
             }
             
-            // 3. Đợi đủ lâu để framework của web render lại các học sinh đầu tiên (Virtual DOM)
-            await delay(1500); 
+            // 2. Giảm delay từ 1500ms xuống chỉ còn 300ms (vừa đủ để DOM ảo vẽ lại thẻ HTML)
+            await delay(300); 
 
             let countFill = 0;
-            
-            // 4. BẮT BUỘC query lại thẻ inputs ở đây (sau khi đã cuộn và chờ)
             let inputs = document.querySelectorAll('input[type="text"][name="quantitative_result"], input[type="text"][placeholder*="Định Lượng"]');
 
             for (let input of inputs) {
-                // KIỂM TRA KHÓA: Nếu ô nhập liệu đã bị khóa (do đã Gửi duyệt / Chấp nhận), bỏ qua luôn
                 if (input.disabled || input.readOnly || input.className.includes('disabled')) {
                     continue; 
                 }
@@ -814,12 +801,10 @@
                     if (rowText.includes(name)) {
                         let targetScore = scoreDict[name].toString().replace(/,/g, '.'); 
 
-                        // BỎ LOGIC SO SÁNH isDifferent CŨ. Tiền hành NHẬP ĐÈ VÔ ĐIỀU KIỆN
                         let successInput = false;
-                        
                         for (let attempt = 1; attempt <= 3; attempt++) {
                             await applyValue(input, targetScore);
-                            await delay(300);
+                            await delay(200); // Ép tốc độ nhập nhanh hơn
 
                             let hasErrorPopup = typeof checkAndCloseErrorGrading === "function" ? await checkAndCloseErrorGrading() : false;
                             let checkVal = parseFloat(String(input.value).replace(/,/g, '.'));
@@ -827,39 +812,29 @@
                             if (!hasErrorPopup && !isNaN(checkVal) && checkVal <= 10) {
                                 successInput = true;
                                 countFill++;
-                                break; // Nhập thành công, thoát vòng lặp retry
+                                break; 
                             } else {
                                 log(`⚠️ Lỗi nhập liệu cho [${name}] (Thử lại lần ${attempt}/3)...`);
                                 input.style.border = '2px solid red';
-                                await delay(500);
+                                await delay(400);
                                 input.value = ""; 
                             }
                         }
 
                         if (!successInput) {
-                            log(`❌ Bỏ qua [${name}] sau 3 lần thử thất bại.`);
                             input.style.border = '2px solid orange';
                         }
                         
-                        break; // Đã tìm thấy học sinh và xử lý xong, chuyển sang input tiếp theo
+                        break; 
                     }
                 }
             }
 
-            if (countFill === 0) return true;
-
-            log(`✔️ Đã nhập ${countFill} điểm. Đang chờ server lưu...`);
-            const startTime = Date.now();
-            let isSaved = false;
-            while (Date.now() - startTime < 8000) { 
-                const bars = document.querySelectorAll('.inno-percent-bar');
-                let isAnyRunning = false;
-                for (let bar of bars) {
-                    const doneBar = bar.querySelector('.bar-done');
-                    if (doneBar && parseFloat(doneBar.style.width || "0") > 0 && parseFloat(doneBar.style.width || "0") < 100) { isAnyRunning = true; break; }
-                }
-                if (!isAnyRunning && Date.now() - startTime > 1500) { isSaved = true; break; }
-                await delay(400);
+            // ĐÃ XÓA TOÀN BỘ VÒNG LẶP CHỜ SERVER LƯU Ở ĐÂY.
+            // Có điểm là JSON tự nhảy, ta đi tiếp luôn!
+            if (countFill > 0) {
+                log(`✔️ Đã xử lý xong ${countFill} điểm.`);
+                await delay(300); // Nghỉ 1 nhịp siêu ngắn rồi chạy Giai đoạn 3 luôn
             }
 
             // =======================================
