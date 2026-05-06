@@ -780,18 +780,39 @@
             // =======================================
             log("⬆️ Đang ép trình duyệt nhảy lên đầu bảng điểm...");
             
-            // Cú trick: Tìm thẳng tiêu đề bảng hoặc học sinh đầu tiên và ép nó lộ diện
-            let topElement = document.querySelector('.tab-content th, thead tr, .w3-table-all tr, .list-item');
-            if (topElement) {
-                // Ép nhảy lên mép trên cùng của phần tử đầu tiên
-                topElement.scrollIntoView({ behavior: 'auto', block: 'start' });
-            }
+            // 1. Ép cuộn cứng mọi thẻ chứa nội dung bằng scrollTop
             window.scrollTo({ top: 0, behavior: 'auto' });
-            
-            // Chờ 500ms để hệ thống (Virtual DOM) kịp vẽ lại các thẻ input của các bạn đầu tiên
-            await delay(500); 
+            let containers = document.querySelectorAll('.dynamic-content, .agent-list, .tab-content, .tab-content .active, div[style*="overflow"]');
+            containers.forEach(c => { 
+                try { c.scrollTop = 0; } catch(e) {} 
+            });
+            await delay(300);
+
+            // 2. TUYỆT CHIÊU: Ép focus và click vào ô nhập liệu đầu tiên (Theo đúng ý tưởng của bạn)
+            let tempInputs = document.querySelectorAll('input[type="text"][name="quantitative_result"], input[type="text"][placeholder*="Định Lượng"]');
+            if (tempInputs.length > 0) {
+                let firstInp = tempInputs[0];
+                firstInp.scrollIntoView({ behavior: 'auto', block: 'center' });
+                await delay(100);
+                
+                // Giả lập click chuột thật mạnh để đánh thức framework
+                firstInp.dispatchEvent(new Event('focus', { bubbles: true }));
+                firstInp.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
+                firstInp.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+                
+                await delay(400); // Chờ UI thực sự load xong và nhả khung hình
+            } else {
+                // Nếu chưa thấy ô điểm nào, thử click vào hàng đầu tiên
+                let topItem = document.querySelector('.list-item, .w3-table-all tr');
+                if (topItem) {
+                    topItem.scrollIntoView({ behavior: 'auto', block: 'center' });
+                    topItem.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+                    await delay(400);
+                }
+            }
 
             let countFill = 0;
+            // BẮT BUỘC phải lấy lại danh sách inputs sau cú click đánh thức
             let inputs = document.querySelectorAll('input[type="text"][name="quantitative_result"], input[type="text"][placeholder*="Định Lượng"]');
 
             for (let input of inputs) {
@@ -807,7 +828,7 @@
                         let successInput = false;
                         for (let attempt = 1; attempt <= 3; attempt++) {
                             await applyValue(input, targetScore);
-                            await delay(200); // Ép tốc độ nhập nhanh hơn
+                            await delay(200); 
 
                             let hasErrorPopup = typeof checkAndCloseErrorGrading === "function" ? await checkAndCloseErrorGrading() : false;
                             let checkVal = parseFloat(String(input.value).replace(/,/g, '.'));
@@ -833,11 +854,9 @@
                 }
             }
 
-            // ĐÃ XÓA TOÀN BỘ VÒNG LẶP CHỜ SERVER LƯU Ở ĐÂY.
-            // Có điểm là JSON tự nhảy, ta đi tiếp luôn!
             if (countFill > 0) {
                 log(`✔️ Đã xử lý xong ${countFill} điểm.`);
-                await delay(300); // Nghỉ 1 nhịp siêu ngắn rồi chạy Giai đoạn 3 luôn
+                await delay(300);
             }
 
             // =======================================
