@@ -780,10 +780,23 @@
                 lastLen = inputsToScroll.length;
             }
             
+            log("⬆️ Đang cuộn lên đầu danh sách để chuẩn bị nhập...");
+            
+            // 1. Cuộn lớp ngoài
             window.scrollTo({ top: 0, behavior: 'smooth' });
-            await delay(500);
+            
+            // 2. Cuộn lớp trong (Khung chứa danh sách học sinh)
+            let scrollContainer = document.querySelector('.dynamic-content, .agent-list, .tab-content .active');
+            if (scrollContainer) {
+                scrollContainer.scrollTo({ top: 0, behavior: 'smooth' });
+            }
+            
+            // 3. Đợi đủ lâu để framework của web render lại các học sinh đầu tiên (Virtual DOM)
+            await delay(1500); 
 
             let countFill = 0;
+            
+            // 4. BẮT BUỘC query lại thẻ inputs ở đây (sau khi đã cuộn và chờ)
             let inputs = document.querySelectorAll('input[type="text"][name="quantitative_result"], input[type="text"][placeholder*="Định Lượng"]');
 
             for (let input of inputs) {
@@ -914,34 +927,37 @@
                     log("⏩ Trở lại [Sổ Điểm] để kiểm tra & chốt...");
                     await clickTabGrading('Sổ Điểm');
                     await delay(2000);
-                }
-            }
 
-            // =======================================
-            // GIAI ĐOẠN 4: AUTO PHÊ DUYỆT BỊ SÓT
-            // =======================================
-            // QUÉT TÌNH TRẠNG KẾT QUẢ ĐỂ XEM CÓ CẦN DUYỆT KHÔNG
-            let needApproval = true;
-            let listItems = document.querySelectorAll('.list-item, .w3-row, td, div');
-            
-            for (let item of listItems) {
-                let text = item.innerText || "";
-                // Tìm kiếm vùng chứa thông tin tình trạng
-                if (text.includes('Tình Trạng Kết Quả')) {
-                    if (text.includes('Đã Được Chấp Nhận')) {
-                        needApproval = false; // Đã được chấp nhận thì không cần chạy lệnh phê duyệt nữa
+                    // --- BỔ SUNG: ÉP TẢI LẠI ĐIỂM ---
+                    log("🔄 Mở hộp thoại Chuyển tiếp để ép hệ thống tải lại điểm mới...");
+                    let chuyenTiepBtn = Array.from(document.querySelectorAll('a, button, .ohke-btn')).find(el => el.offsetWidth > 0 && el.textContent.toLowerCase().includes('chuyển tiếp'));
+                    if (chuyenTiepBtn) {
+                        forceClick(chuyenTiepBtn);
+                        await delay(1500); // Chờ popup mở
+                        let activeModals = document.querySelectorAll('.w3-modal.w3-show');
+                        if (activeModals.length > 0) {
+                            let batchModal = activeModals[activeModals.length - 1];
+                            let closeBtn = batchModal.querySelector('.close-btn, a[class*="close-btn"], i.fa-close');
+                            if (closeBtn) {
+                                forceClick(closeBtn);
+                                await delay(1500); // Chờ load lại bảng điểm
+                            }
+                        }
                     }
-                    break; 
                 }
             }
 
-            if (needApproval) {
-                log("🚀 Phát hiện bảng chưa được duyệt. Tiến hành Gửi & Phê duyệt...");
-                await handleBatchTransition('gửi người phê duyệt'); 
-                await handleBatchTransition('chấp nhận');
-            } else {
-                log("✔️ Bảng này đã 'Đã Được Chấp Nhận'. Bỏ qua lệnh phê duyệt.");
-            }
+            // =======================================
+            // GIAI ĐOẠN 4: AUTO PHÊ DUYỆT (TỐI ƯU MỚI)
+            // =======================================
+            log("🚀 Tiến hành quá trình Gửi & Phê duyệt (Sẽ tự động bỏ qua nếu đã duyệt)...");
+            
+            // Cứ bấm chuyển tiếp, nếu có nút Gửi thì chạy, không có thì tự tắt
+            await handleBatchTransition('gửi người phê duyệt'); 
+            await delay(1000); 
+            
+            // Cứ bấm chuyển tiếp, nếu có nút Chấp nhận thì chạy, không có thì tự tắt
+            await handleBatchTransition('chấp nhận');
 
             return true;
         };
