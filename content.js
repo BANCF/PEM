@@ -82,9 +82,9 @@
         let displayTools = currentToken ? 'block' : 'none';
 
         panel.innerHTML = `
-            <div style="display: flex; background: #004085; color: white; border-bottom: 2px solid #002752;">
-                <div id="tab-grader" style="flex: 1; text-align: center; padding: 12px; font-weight: bold; cursor: pointer; background: #004085;">⚡ NHẬP ĐIỂM (PRO)</div>
-                <div id="tab-attendance" style="flex: 1; text-align: center; padding: 12px; font-weight: bold; cursor: pointer; background: #0056b3;">🙋 ĐIỂM DANH (FREE)</div>
+            <div id="ohke-drag-handle" title="Nhấn giữ để kéo thả" style="display: flex; background: #004085; color: white; border-bottom: 2px solid #002752; cursor: move; user-select: none;">
+                <div id="tab-grader" style="flex: 1; text-align: center; padding: 12px; font-weight: bold; cursor: inherit; background: #004085;">⚡ NHẬP ĐIỂM (PRO)</div>
+                <div id="tab-attendance" style="flex: 1; text-align: center; padding: 12px; font-weight: bold; cursor: inherit; background: #0056b3;">🙋 ĐIỂM DANH (FREE)</div>
             </div>
 
             <div style="padding: 15px;">
@@ -158,6 +158,56 @@
             </div>
         `;
         document.body.appendChild(panel);
+        
+        // ==========================================
+        // MODULE: KÉO THẢ GIAO DIỆN (DRAG & DROP)
+        // ==========================================
+        const dragHandle = document.getElementById('ohke-drag-handle');
+        let isDragging = false;
+        let dragOffsetX = 0;
+        let dragOffsetY = 0;
+
+        dragHandle.addEventListener('mousedown', (e) => {
+            isDragging = true;
+            
+            // Tính toán khoảng cách từ chuột đến viền của Panel
+            const rect = panel.getBoundingClientRect();
+            dragOffsetX = e.clientX - rect.left;
+            dragOffsetY = e.clientY - rect.top;
+            
+            // Chuyển đổi định vị từ right/bottom sang left/top để di chuyển mượt mà
+            panel.style.right = 'auto';
+            panel.style.bottom = 'auto';
+            panel.style.left = rect.left + 'px';
+            panel.style.top = rect.top + 'px';
+            
+            dragHandle.style.cursor = 'grabbing';
+        });
+
+        document.addEventListener('mousemove', (e) => {
+            if (!isDragging) return;
+            e.preventDefault(); // Ngăn chặn bôi đen văn bản khi đang kéo
+            
+            // Tính toán tọa độ mới
+            let newX = e.clientX - dragOffsetX;
+            let newY = e.clientY - dragOffsetY;
+            
+            // Giới hạn không cho kéo văng ra khỏi màn hình
+            let maxX = window.innerWidth - panel.offsetWidth;
+            let maxY = window.innerHeight - panel.offsetHeight;
+            newX = Math.max(0, Math.min(newX, maxX));
+            newY = Math.max(0, Math.min(newY, maxY));
+
+            panel.style.left = newX + 'px';
+            panel.style.top = newY + 'px';
+        });
+
+        document.addEventListener('mouseup', () => {
+            if (isDragging) {
+                isDragging = false;
+                dragHandle.style.cursor = 'move';
+            }
+        });
 
         const log = (msg) => {
             const logEl = document.getElementById('tool-log');
