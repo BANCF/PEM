@@ -449,6 +449,9 @@
         };
 
         const handleBatchTransition = async (targetText) => {
+            log(`Đang tiến hành lệnh: [${targetText.toUpperCase()}]...`);
+            
+            // 1. Tìm và bấm nút Chuyển Tiếp
             let chuyenTiepBtn = null;
             for (let i = 0; i < 5; i++) {
                 let els = Array.from(document.querySelectorAll('a, button, .ohke-btn')).filter(el => el.offsetWidth > 0 && el.textContent.toLowerCase().includes('chuyển tiếp'));
@@ -460,6 +463,7 @@
             forceClick(chuyenTiepBtn);
             await delay(1500);
 
+            // 2. Click tuỳ chọn (Gửi Người Phê Duyệt / Chấp Nhận)
             let activeModals = document.querySelectorAll('.w3-modal.w3-show');
             if (activeModals.length === 0) return false;
             let batchModal = activeModals[activeModals.length - 1];
@@ -468,11 +472,13 @@
             if (options.length > 0) {
                 forceClick(options[0]); await delay(1500);
             } else {
+                // Nếu không có nút tương ứng, thoát
                 let closeBtn = batchModal.querySelector('.close-btn, a[class*="close-btn"], i.fa-close');
                 if (closeBtn) forceClick(closeBtn);
-                await delay(1000); return false;
+                return false;
             }
 
+            // 3. Xử lý popup XÁC NHẬN (Nhập mã)
             activeModals = document.querySelectorAll('.w3-modal.w3-show');
             let confirmModal = activeModals[activeModals.length - 1];
 
@@ -488,29 +494,69 @@
                         await delay(500);
                     }
                 }
+                
+                let dongYBtn = Array.from(confirmModal.querySelectorAll('button, a, .ohke-btn')).find(el => el.offsetWidth > 0 && (el.textContent.toLowerCase().includes('đồng ý') || el.textContent.toLowerCase().includes('tiếp tục')));
+                if (dongYBtn) { forceClick(dongYBtn); await delay(1500); }
             }
 
-            let dongYBtn = Array.from(confirmModal.querySelectorAll('button, a, .ohke-btn')).find(el => el.offsetWidth > 0 && (el.textContent.toLowerCase().includes('đồng ý') || el.textContent.toLowerCase().includes('tiếp tục')));
-            if (dongYBtn) { forceClick(dongYBtn); await delay(2000); }
-
+            // 4. Xử lý popup THÔNG TIN ("A job has been enqueued successfully")
             activeModals = document.querySelectorAll('.w3-modal.w3-show');
             if (activeModals.length > 0) {
-                let successModal = activeModals[activeModals.length - 1];
-                if (successModal && (successModal.innerText.toLowerCase().includes('successfully') || successModal.innerText.toLowerCase().includes('enqueued') || successModal.innerText.toLowerCase().includes('thành công'))) {
-                    let btnOk = Array.from(successModal.querySelectorAll('button, a, .ohke-btn')).find(b => b.offsetWidth > 0 && b.textContent.toLowerCase().includes('đồng ý'));
-                    if (btnOk) { forceClick(btnOk); await delay(1000); }
+                let infoModal = activeModals[activeModals.length - 1];
+                // Quét text để xem có phải modal thông báo đưa vào hàng đợi thành công không
+                if (infoModal.innerText.toLowerCase().includes('enqueued successfully') || infoModal.innerText.toLowerCase().includes('hàng đợi')) {
+                    let dongYBtn2 = Array.from(infoModal.querySelectorAll('button, a, .ohke-btn')).find(el => el.offsetWidth > 0 && el.textContent.toLowerCase().includes('đồng ý'));
+                    if (dongYBtn2) { 
+                        forceClick(dongYBtn2); 
+                        await delay(1500); // Chờ popup đóng lại
+                    }
                 }
             }
 
-            log(`Đợi máy chủ chạy lệnh...`);
-            await delay(5000);
+            // 5. ĐỌC LOAD BAR TRONG BATCH TRANSITION VÀ CHỜ KẾT THÚC
+            log("⏳ Đang chờ hệ thống xử lý job (Đọc thanh tiến trình)...");
+            let isCompleted = false;
+            for (let wait = 0; wait < 60; wait++) { // Đợi tối đa 30s (60 * 500ms)
+                await delay(500);
+                
+                let modals = document.querySelectorAll('.w3-modal.w3-show');
+                if (modals.length === 0) break; // Lỡ modal bị tắt tự động
+                let currentModal = modals[modals.length - 1];
+                let modalText = currentModal.innerText.toLowerCase();
 
-            activeModals = document.querySelectorAll('.w3-modal.w3-show');
-            if (activeModals.length > 0) {
-                let currentBatchModal = activeModals[activeModals.length - 1];
-                let closeBtn = currentBatchModal.querySelector('.close-btn, a[class*="close-btn"], i.fa-close');
-                if (closeBtn) { forceClick(closeBtn); await delay(1500); }
+                // Dựa vào ảnh của bạn: Trạng thái sẽ chuyển từ 'processing' sang 'completed'
+                if (modalText.includes('trạng thái') && modalText.includes('completed')) {
+                    log("✅ Quá trình hoàn tất (Trạng thái: completed). Đang đóng cửa sổ...");
+                    
+                    // Ưu tiên tìm dấu X trên cùng bên phải theo cấu trúc W3.CSS
+                    let closeX = currentModal.querySelector('i.fa-close, .close-btn, .w3-button.w3-display-topright');
+                    
+                    if (!closeX) {
+                        // Tìm dự phòng các nút mang ý nghĩa tắt
+                        closeX = Array.from(currentModal.querySelectorAll('button, a, i')).find(el => 
+                            el.className.includes('close') || 
+                            (el.textContent && el.textContent.toLowerCase().trim() === 'x')
+                        );
+                    }
+                    
+                    if (closeX) forceClick(closeX);
+                    isCompleted = true;
+                    await delay(1500); // Chờ hiệu ứng đóng modal
+                    break;
+                }
             }
+
+            // 6. Xử lý trường hợp treo (quá 30s không thấy completed)
+            if (!isCompleted) {
+                log("⚠️ Quá thời gian chờ tiến trình. Thử đóng cửa sổ...");
+                let modals = document.querySelectorAll('.w3-modal.w3-show');
+                if (modals.length > 0) {
+                    let currentModal = modals[modals.length - 1];
+                    let closeX = currentModal.querySelector('i.fa-close, .close-btn, .w3-button.w3-display-topright');
+                    if (closeX) forceClick(closeX);
+                }
+            }
+            
             return true;
         };
 
