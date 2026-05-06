@@ -688,14 +688,13 @@
         // MODULE: ĐỌC EXCEL (AUTO 1 LỚP - BẢN GỐC ĐÃ CHẠY ỔN)
         // ==========================================
         // ==========================================
-        // MODULE: ĐỌC EXCEL (THUẬT TOÁN BỌC GIÁP "BĂM NÁT KÝ TỰ ẨN")
+        // MODULE: ĐỌC EXCEL (BỌC GIÁP + TIA X QUÉT LỖI)
         // ==========================================
         const extractAllExcelData = async () => {
             let fileInput = document.getElementById('excel-file');
             let targetFile = null;
             let targetSheetName = null;
 
-            // BATCH OVERRIDE: Lấy file của lớp đang được chọn
             if (window.isBatchMode && window.currentBatchFile) {
                 targetFile = window.currentBatchFile;
                 targetSheetName = window.currentBatchSheetName;
@@ -714,26 +713,18 @@
                         
                         let targetSheet = targetSheetName;
                         if (!targetSheet || !workbook.SheetNames.includes(targetSheet)) {
-                            // Lọc sheet Hướng dẫn
-                            let validSheets = workbook.SheetNames.filter(n => {
-                                let txt = n.toLowerCase();
-                                return !txt.includes('hướng') && !txt.includes('huong');
-                            });
+                            let validSheets = workbook.SheetNames.filter(n => !n.toLowerCase().includes('hướng') && !n.toLowerCase().includes('huong'));
                             targetSheet = validSheets.length > 0 ? validSheets[0] : workbook.SheetNames[0];
                         }
                         
                         const jsonArray = XLSX.utils.sheet_to_json(workbook.Sheets[targetSheet], { header: 1 });
-
-                        // Hàm làm sạch triệt để: Xóa mọi dấu cách, xuống dòng
                         const cleanStr = str => String(str || '').toLowerCase().replace(/[\n\r\s]/g, '');
 
-                        // Tìm dòng Header chứa "Họ và tên"
                         let headerRowIdx = jsonArray.findIndex(r => r.some(c => cleanStr(c).includes('họvàtên') || cleanStr(c).includes('họtên')));
                         if (headerRowIdx === -1) { log("⚠️ Lỗi: Không tìm thấy cột Họ và Tên!"); resolve(null); return; }
 
                         let nameCol = -1, gkCol = -1, ckCol = -1, sTx = -1;
 
-                        // QUÉT MỞ RỘNG (3 dòng quanh Header) ĐỂ TÌM CHÍNH XÁC CỘT
                         for (let r = Math.max(0, headerRowIdx - 1); r <= Math.min(jsonArray.length - 1, headerRowIdx + 2); r++) {
                             let row = jsonArray[r] || [];
                             for (let c = 0; c < row.length; c++) {
@@ -745,29 +736,29 @@
                             }
                         }
 
-                        // Ánh xạ các cột điểm Thường Xuyên (TX)
                         let txCols = {};
                         if (sTx !== -1 && gkCol !== -1 && gkCol > sTx) {
                             let count = 1;
                             for (let c = sTx; c < gkCol; c++) {
-                                if (c !== nameCol) { txCols['TX' + count] = c; count++; } // Tránh lấy nhầm cột tên
+                                if (c !== nameCol) { txCols['TX' + count] = c; count++; }
                             }
                         } else if (sTx !== -1) {
                             let count = 1;
                             for(let c = sTx; c < sTx + 5; c++) { 
                                 if (c !== nameCol) { txCols['TX' + count] = c; count++; } 
                             }
+                        } else {
+                            // LƯỚI BẢO VỆ CUỐI CÙNG: Không thấy chữ TX, tự mò 5 cột sau cột Tên
+                            let count = 1;
+                            for(let c = nameCol + 2; c <= nameCol + 6; c++) { txCols['TX' + count] = c; count++; }
                         }
 
-                        // Tìm dòng Học Sinh đầu tiên (Loại trừ dòng STT, dòng trống)
                         let dStart = headerRowIdx + 1;
                         for (let i = headerRowIdx + 1; i < jsonArray.length; i++) {
                             let nameVal = String(jsonArray[i][nameCol] || '').trim();
                             let sttVal = cleanStr(jsonArray[i][0]);
-                            // Nếu cột STT có số và cột Tên có chữ -> Đây là dòng bắt đầu điểm
                             if (nameVal && !nameVal.toLowerCase().includes('họ') && sttVal !== '' && !isNaN(sttVal)) {
-                                dStart = i;
-                                break;
+                                dStart = i; break;
                             }
                         }
 
@@ -775,12 +766,10 @@
                         for (let i = 1; i <= 10; i++) fullData['TX' + i] = {};
                         
                         let countDiem = 0;
-                        // Trích xuất điểm số
                         for (let i = dStart; i < jsonArray.length; i++) {
                             let rowD = jsonArray[i] || [];
                             let name = String(rowD[nameCol] || '').trim();
                             
-                            // Bỏ qua dòng trống hoặc dòng "Số học sinh đạt..." ở cuối bảng
                             if (!name || name.toLowerCase().includes('số học sinh')) continue;
                             
                             for (let key in txCols) {
@@ -797,7 +786,8 @@
                             }
                         }
                         
-                        log(`✔️ Đã mở thùng hàng [${targetFile.name}] -> Rút ra ${countDiem} đầu điểm.`);
+                        // GHI LOG TIA X ĐỂ BẮT BỆNH
+                        log(`✔️ [${targetFile.name}]: CộtTên=${nameCol}, TX=${sTx}, GK=${gkCol}, CK=${ckCol} -> ${countDiem} điểm.`);
                         resolve(fullData);
                         
                     } catch (e) { log(`❌ Lỗi đọc file! ${e.message}`); resolve(null); }
