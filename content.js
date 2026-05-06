@@ -804,49 +804,44 @@
             let inputs = document.querySelectorAll('input[type="text"][name="quantitative_result"], input[type="text"][placeholder*="Định Lượng"]');
 
             for (let input of inputs) {
+                // KIỂM TRA KHÓA: Nếu ô nhập liệu đã bị khóa (do đã Gửi duyệt / Chấp nhận), bỏ qua luôn
+                if (input.disabled || input.readOnly || input.className.includes('disabled')) {
+                    continue; 
+                }
+
                 let rowText = input.closest('tr, .list-item, .w3-row').innerText;
                 for (let name of Object.keys(scoreDict)) {
                     if (rowText.includes(name)) {
-                        let targetScore = scoreDict[name].toString().replace(/,/g, '.'); // Bắt buộc dùng dấu "."
-                        let currentValue = String(input.value).trim().replace(/,/g, '.');
+                        let targetScore = scoreDict[name].toString().replace(/,/g, '.'); 
 
-                        const numCurrent = parseFloat(currentValue);
-                        const numTarget = parseFloat(targetScore);
-                        const isDifferent = isNaN(numCurrent) || isNaN(numTarget) ? currentValue !== targetScore : numCurrent !== numTarget;
+                        // BỎ LOGIC SO SÁNH isDifferent CŨ. Tiền hành NHẬP ĐÈ VÔ ĐIỀU KIỆN
+                        let successInput = false;
+                        
+                        for (let attempt = 1; attempt <= 3; attempt++) {
+                            await applyValue(input, targetScore);
+                            await delay(300);
 
-                        if (isDifferent) {
-                            let successInput = false;
+                            let hasErrorPopup = typeof checkAndCloseErrorGrading === "function" ? await checkAndCloseErrorGrading() : false;
+                            let checkVal = parseFloat(String(input.value).replace(/,/g, '.'));
                             
-                            // VÒNG LẶP RETRY TỐI ĐA 3 LẦN
-                            for (let attempt = 1; attempt <= 3; attempt++) {
-                                await applyValue(input, targetScore);
-                                await delay(300);
-
-                                // Kiểm tra có popup lỗi không (nếu có hàm checkAndCloseErrorGrading sẽ tự đóng popup)
-                                let hasErrorPopup = typeof checkAndCloseErrorGrading === "function" ? await checkAndCloseErrorGrading() : false;
-                                
-                                // Kiểm tra lại giá trị thực tế đang hiển thị trong ô input
-                                let checkVal = parseFloat(String(input.value).replace(/,/g, '.'));
-                                
-                                // Nếu không có lỗi popup, không bị NaN và điểm không nhảy vọt > 10 (bị mất dấu) => Thành công
-                                if (!hasErrorPopup && !isNaN(checkVal) && checkVal <= 10) {
-                                    successInput = true;
-                                    countFill++;
-                                    break; // Thoát vòng lặp retry
-                                } else {
-                                    log(`⚠️ Lỗi nhập liệu cho [${name}] (Thử lại lần ${attempt}/3)...`);
-                                    input.style.border = '2px solid red'; // Đánh dấu đỏ để dễ quan sát
-                                    await delay(500);
-                                    input.value = ""; // Xoá trắng để nhập lại ở vòng lặp tiếp theo
-                                }
-                            }
-
-                            if (!successInput) {
-                                log(`❌ Bỏ qua [${name}] sau 3 lần thử thất bại.`);
-                                input.style.border = '2px solid orange';
+                            if (!hasErrorPopup && !isNaN(checkVal) && checkVal <= 10) {
+                                successInput = true;
+                                countFill++;
+                                break; // Nhập thành công, thoát vòng lặp retry
+                            } else {
+                                log(`⚠️ Lỗi nhập liệu cho [${name}] (Thử lại lần ${attempt}/3)...`);
+                                input.style.border = '2px solid red';
+                                await delay(500);
+                                input.value = ""; 
                             }
                         }
-                        break; // Đã tìm thấy học sinh, không cần tìm thêm trong thư viện Excel
+
+                        if (!successInput) {
+                            log(`❌ Bỏ qua [${name}] sau 3 lần thử thất bại.`);
+                            input.style.border = '2px solid orange';
+                        }
+                        
+                        break; // Đã tìm thấy học sinh và xử lý xong, chuyển sang input tiếp theo
                     }
                 }
             }
@@ -1115,8 +1110,8 @@
                         
                         countDeleted++;
                         
-                        // Nghỉ đúng 10ms giữa mỗi thẻ để tránh trình duyệt bị đơ (Freeze thread)
-                        await delay(10); 
+                        // Đã tăng delay lên 150ms để server kịp phản hồi các gói JSON
+                        await delay(150); 
                     }
                 }
                 
