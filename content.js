@@ -688,7 +688,7 @@
         // MODULE: ĐỌC EXCEL (AUTO 1 LỚP - BẢN GỐC ĐÃ CHẠY ỔN)
         // ==========================================
         // ==========================================
-        // MODULE: ĐỌC EXCEL (BỌC GIÁP + TIA X QUÉT LỖI)
+        // MODULE: ĐỌC EXCEL (THUẬT TOÁN CÀN QUÉT TỐI THƯỢNG V3)
         // ==========================================
         const extractAllExcelData = async () => {
             let fileInput = document.getElementById('excel-file');
@@ -748,46 +748,47 @@
                                 if (c !== nameCol) { txCols['TX' + count] = c; count++; } 
                             }
                         } else {
-                            // LƯỚI BẢO VỆ CUỐI CÙNG: Không thấy chữ TX, tự mò 5 cột sau cột Tên
                             let count = 1;
                             for(let c = nameCol + 2; c <= nameCol + 6; c++) { txCols['TX' + count] = c; count++; }
                         }
 
-                        let dStart = headerRowIdx + 1;
-                        for (let i = headerRowIdx + 1; i < jsonArray.length; i++) {
-                            let nameVal = String(jsonArray[i][nameCol] || '').trim();
-                            let sttVal = cleanStr(jsonArray[i][0]);
-                            if (nameVal && !nameVal.toLowerCase().includes('họ') && sttVal !== '' && !isNaN(sttVal)) {
-                                dStart = i; break;
-                            }
-                        }
-
                         let fullData = { 'GK': {}, 'CK': {} };
-                        for (let i = 1; i <= 10; i++) fullData['TX' + i] = {};
+                        for (let i = 1; i <= 15; i++) fullData['TX' + i] = {};
                         
                         let countDiem = 0;
-                        for (let i = dStart; i < jsonArray.length; i++) {
+                        let firstStudent = "";
+
+                        // CÀN QUÉT TOÀN BỘ CÁC DÒNG (BỎ QUA CỘT STT)
+                        for (let i = headerRowIdx + 1; i < jsonArray.length; i++) {
                             let rowD = jsonArray[i] || [];
                             let name = String(rowD[nameCol] || '').trim();
+                            let cName = cleanStr(name);
                             
-                            if (!name || name.toLowerCase().includes('số học sinh')) continue;
+                            // Bỏ qua dòng trống, dòng tiêu đề lặp lại, dòng tổng kết thống kê
+                            if (!name || cName.includes('họvàtên') || cName.includes('sốhọcsinh') || cName.includes('đạt') || cName.includes('tốt') || cName.includes('khá')) {
+                                continue;
+                            }
                             
+                            if (!firstStudent) firstStudent = name;
+
                             for (let key in txCols) {
-                                let score = String(rowD[txCols[key]] || '').trim().replace(/,/g, '.');
-                                if (score !== '' && !isNaN(score)) { fullData[key][name] = score; countDiem++; }
+                                let rawScore = String(rowD[txCols[key]] || '');
+                                // Máy xén: Lọc bỏ toàn bộ chữ, khoảng trắng, chỉ giữ lại số và dấu chấm
+                                let score = rawScore.replace(/,/g, '.').replace(/[^\d.]/g, '');
+                                if (score !== '') { fullData[key][name] = score; countDiem++; }
                             }
                             if (gkCol !== -1) { 
-                                let sc = String(rowD[gkCol] || '').trim().replace(/,/g, '.'); 
-                                if (sc !== '' && !isNaN(sc)) { fullData['GK'][name] = sc; countDiem++; } 
+                                let sc = String(rowD[gkCol] || '').replace(/,/g, '.').replace(/[^\d.]/g, ''); 
+                                if (sc !== '') { fullData['GK'][name] = sc; countDiem++; } 
                             }
                             if (ckCol !== -1) { 
-                                let sc = String(rowD[ckCol] || '').trim().replace(/,/g, '.'); 
-                                if (sc !== '' && !isNaN(sc)) { fullData['CK'][name] = sc; countDiem++; } 
+                                let sc = String(rowD[ckCol] || '').replace(/,/g, '.').replace(/[^\d.]/g, ''); 
+                                if (sc !== '') { fullData['CK'][name] = sc; countDiem++; } 
                             }
                         }
                         
-                        // GHI LOG TIA X ĐỂ BẮT BỆNH
-                        log(`✔️ [${targetFile.name}]: CộtTên=${nameCol}, TX=${sTx}, GK=${gkCol}, CK=${ckCol} -> ${countDiem} điểm.`);
+                        // LOG KIỂM TRA TÊN HỌC SINH ĐẦU TIÊN
+                        log(`✔️ [${targetSheet || targetFile.name}]: Đã nạp từ HS [${firstStudent}] -> Được ${countDiem} điểm.`);
                         resolve(fullData);
                         
                     } catch (e) { log(`❌ Lỗi đọc file! ${e.message}`); resolve(null); }
