@@ -212,18 +212,8 @@
         const log = (msg) => {
             const logEl = document.getElementById('tool-log');
             if (!logEl) return;
-            
-            const newLog = document.createElement('div');
-            newLog.style.borderBottom = "1px dotted #ccc";
-            newLog.style.padding = "2px 0";
-            newLog.innerHTML = `<small style="color:#888;">[${new Date().toLocaleTimeString()}]</small> 👉 ${msg}`;
-            
-            logEl.prepend(newLog); // Đưa log mới lên đầu để người dùng đỡ phải cuộn
-
-            // Dọn rác log: Chỉ giữ lại 50 dòng gần nhất cho nhẹ trình duyệt
-            if (logEl.childNodes.length > 50) {
-                logEl.removeChild(logEl.lastChild);
-            }
+            logEl.innerHTML += `<div>👉 ${msg}</div>`;
+            logEl.scrollTop = logEl.scrollHeight;
         };
 
         // ==========================================
@@ -1168,7 +1158,7 @@
 
             let countFill = 0;
             // BẮT BUỘC phải lấy lại danh sách inputs sau cú click đánh thức
-            for (let [idx, input] of Array.from(inputs).entries()) {
+            for (let input of inputs) {
                 if (input.disabled || input.readOnly || input.className.includes('disabled')) {
                     continue;
                 }
@@ -1191,26 +1181,17 @@
                             if (!hasErrorPopup && !isNaN(checkVal) && checkVal <= 10) {
                                 successInput = true;
                                 countFill++;
-
-                                // LOG CHI TIẾT VÀO CONSOLE (F12) ĐỂ ĐỠ NẶNG UI
-                                console.log(`[Auto] Đã nhập: ${name} -> ${targetScore}`);
-
-                                // CHỈ LOG LÊN UI MỖI 10 HỌC SINH
-                                if (countFill % 10 === 0 && countFill > 0) {
-                                    log(`⚡ Đang xử lý đến học sinh thứ ${countFill}...`);
-                                }
                                 break;
                             } else {
-                                console.warn(`⚠️ Lỗi nhập cho [${name}] (Thử lại ${attempt}/3)`);
+                                log(`⚠️ Lỗi nhập liệu cho [${name}] (Thử lại lần ${attempt}/3)...`);
                                 input.style.border = '2px solid red';
-                                await delay(400);
+                                await delay(400); // Lỗi thì dừng lại 1 chút để DOM thở
                                 input.value = "";
                             }
                         }
 
                         if (!successInput) {
                             input.style.border = '2px solid orange';
-                            log(`❌ Thất bại: Không thể nhập điểm cho ${name}`);
                         }
 
                         break;
@@ -1679,14 +1660,12 @@
                             window.currentBatchClassName = task.className;
                             window.currentBatchCount = task.countDiem;
 
-                             // RESET LOG CHO LỚP MỚI (DỌN RÁC UI)
-                             document.getElementById('tool-log').innerHTML = `<div style="background:#e3f2fd; padding:5px; border-radius:4px;"><b>--- BẮT ĐẦU LỚP: ${task.className} ---</b></div>`;
+                            log(`🤖 Đã vào Lớp ${task.className}. Mở THÙNG [${task.className}], nạp chuẩn ${task.countDiem} điểm.`);
 
-                             await document.getElementById('btn-auto-full').onclick();
+                            await document.getElementById('btn-auto-full').onclick();
 
-                             log(`✅ HOÀN TẤT LỚP: [${task.className}]. Nghỉ ngơi 1s...`);
-                             await delay(1000); // Nghỉ 1 nhịp để trình duyệt giải phóng bộ nhớ (GC)
-                             updateQueueUI(`q-${i}`, `✅`);
+                            log(`✅ HOÀN TẤT LỚP: [${task.className}]`);
+                            updateQueueUI(`q-${i}`, `✅`);
 
                             classBtn.style.background = '#e9ecef'; classBtn.style.opacity = '0.6';
                             if (!classBtn.innerHTML.includes('✅')) classBtn.innerHTML = `✅ ` + classBtn.innerHTML;
