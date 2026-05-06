@@ -834,8 +834,10 @@
                                 let headerRowIdx = jsonArray.findIndex(r => r.some(c => cleanStr(c).includes('họvàtên') || cleanStr(c).includes('họtên')));
                                 if (headerRowIdx === -1) continue;
 
-                                // RADAR DÒ CỘT TỰ ĐỘNG
+                                // RADAR DÒ CỘT TỰ ĐỘNG (V8 - DYNAMIC RANGE)
                                 let sttCol = -1, nameCol = -1, gkCol = -1, ckCol = -1, sTx = -1;
+                                let headers = jsonArray[headerRowIdx] || [];
+
                                 for (let r = Math.max(0, headerRowIdx - 1); r <= Math.min(jsonArray.length - 1, headerRowIdx + 2); r++) {
                                     let row = jsonArray[r] || [];
                                     for (let c = 0; c < row.length; c++) {
@@ -850,15 +852,38 @@
                                 if (sttCol === -1) sttCol = 0;
 
                                 let txCols = {};
-                                if (sTx !== -1 && gkCol !== -1 && gkCol > sTx) {
-                                    let count = 1;
-                                    for (let c = sTx; c < gkCol; c++) { if (c !== nameCol && c !== sttCol) { txCols['TX' + count] = c; count++; } }
-                                } else if (sTx !== -1) {
-                                    let count = 1;
-                                    for (let c = sTx; c < sTx + 5; c++) { if (c !== nameCol && c !== sttCol) { txCols['TX' + count] = c; count++; } }
-                                } else {
-                                    let count = 1;
-                                    for (let c = nameCol + 2; c <= nameCol + 6; c++) { txCols['TX' + count] = c; count++; }
+                                let txCount = 1;
+
+                                // CHIẾN THUẬT 1: Tìm đích danh cột "1", "2", "3", "4" trong vùng tìm kiếm
+                                let searchStart = sTx !== -1 ? sTx : (nameCol !== -1 ? nameCol + 1 : 0);
+                                let searchEnd = gkCol !== -1 ? gkCol : searchStart + 12;
+
+                                for (let c = searchStart; c < searchEnd; c++) {
+                                    let cell = String(headers[c] || '').trim();
+                                    // Nếu tiêu đề là số (1, 2, 3...)
+                                    if (/^[1-9]$/.test(cell)) {
+                                        txCols['TX' + txCount] = c;
+                                        txCount++;
+                                    }
+                                }
+
+                                // CHIẾN THUẬT 2: Nếu ko thấy 1,2,3.. -> Kích hoạt "Vùng Động" (Lấy tất cả giữa TX và GK)
+                                if (Object.keys(txCols).length === 0 && sTx !== -1 && gkCol !== -1) {
+                                    log("⚠️ Không thấy cột 1,2,3. Kích hoạt Dò tìm Vùng Động...");
+                                    for (let c = sTx; c < gkCol; c++) {
+                                        if (c !== nameCol && c !== sttCol) {
+                                            txCols['TX' + txCount] = c;
+                                            txCount++;
+                                        }
+                                    }
+                                }
+
+                                // CHIẾN THUẬT 3: Fallback cuối cùng (Mặc định 5 cột sau Tên)
+                                if (Object.keys(txCols).length === 0) {
+                                    let base = sTx !== -1 ? sTx : (nameCol !== -1 ? nameCol + 2 : 2);
+                                    for (let i = 0; i < 5; i++) {
+                                        txCols['TX' + (i + 1)] = base + i;
+                                    }
                                 }
 
                                 let fullData = { 'GK': {}, 'CK': {} };
