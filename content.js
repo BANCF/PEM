@@ -641,8 +641,13 @@
         const processSingleColumn = async (scoreDict, mode, colKey = '') => {
             const autoCreate = (mode === 'create');
 
+            // HÀM NHẬP ĐIỂM (Tối ưu giả lập người thật)
             const applyValue = async (targetInput, val) => {
                 let formattedVal = val.toString().replace(',', '.');
+                
+                targetInput.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                await delay(50);
+                
                 targetInput.dispatchEvent(new Event('focus', { bubbles: true }));
                 targetInput.dispatchEvent(new Event('click', { bubbles: true }));
                 await delay(50); 
@@ -653,11 +658,15 @@
                 targetInput.dispatchEvent(new KeyboardEvent('keyup', { bubbles: true, key: 'Enter', code: 'Enter', keyCode: 13, which: 13 }));
                 targetInput.dispatchEvent(new Event('change', { bubbles: true }));
                 targetInput.dispatchEvent(new Event('blur', { bubbles: true }));
-                
-                // TĂNG DELAY: Chờ web xử lý xong và hiện viền đỏ (nếu có lỗi)
-                await delay(500); 
-                
+                await delay(300);
                 if (typeof checkAndCloseErrorGrading === "function") return await checkAndCloseErrorGrading();
+            };
+
+            // HÀM QUÉT LỖI VIỀN ĐỎ (Chính xác hơn)
+            const hasErrorBorder = (inputElement) => {
+                const style = window.getComputedStyle(inputElement);
+                const parentStyle = window.getComputedStyle(inputElement.parentElement);
+                return style.borderColor.includes('255, 0, 0') || style.borderColor.includes('244, 67, 54') || parentStyle.borderColor.includes('255, 0, 0') || style.boxShadow.includes('255, 0, 0');
             };
 
             if (Object.keys(scoreDict).length === 0) return true;
@@ -666,25 +675,23 @@
             // GIAI ĐOẠN 1: CHỈ TẠO BẢNG
             // =======================================
             if (autoCreate) {
-                // Tối ưu cuộn thông minh: Cuộn đến thẻ chức năng cuối cùng thay vì dùng pixel
-                let lastControl = Array.from(document.querySelectorAll('.ohke-control')).pop();
-                if (lastControl) lastControl.scrollIntoView({ behavior: 'smooth', block: 'end' });
-                await delay(800);
+                window.scrollBy({ top: 400, behavior: 'smooth' });
+                await delay(500);
                 
                 let taoBangBtn = Array.from(document.querySelectorAll('a, button, .ohke-btn')).find(el => el.offsetWidth > 0 && el.textContent.toLowerCase().includes('tạo bảng tiêu chí'));
                 if (taoBangBtn) {
-                    log(`🔨 Bảng [${colKey}] chưa có. Đang tạo mới...`);
+                    log(`🔨 Đang tạo bảng [${colKey}]...`);
                     forceClick(taoBangBtn); await delay(1000);
                     let tiepTucBtn = document.querySelector('.ohke-popup .btn-continue, .w3-modal .btn-continue');
                     if (!tiepTucBtn) {
                         tiepTucBtn = Array.from(document.querySelectorAll('.ohke-popup a, .w3-modal a, button')).find(el => el.offsetWidth > 0 && el.textContent.trim() === 'Tiếp Tục');
                     }
                     if (tiepTucBtn) {
-                        forceClick(tiepTucBtn); await delay(3000);
+                        forceClick(tiepTucBtn); await delay(1500); // GIẢM DELAY CHỜ TẠO
                         let dongBtn = Array.from(document.querySelectorAll('.w3-modal.w3-show a, .w3-modal.w3-show button')).find(el => el.offsetWidth > 0 && (el.textContent.includes('Đóng') || el.textContent.includes('Đồng ý') || el.textContent.includes('OK')));
-                        if (dongBtn) { forceClick(dongBtn); await delay(1500); }
+                        if (dongBtn) { forceClick(dongBtn); await delay(1000); } // GIẢM DELAY ĐÓNG
                     }
-                }
+                } 
                 return true; 
             }
 
@@ -693,33 +700,26 @@
             // =======================================
             let openedTabNhanh = await clickTabGrading('Nhập Nhanh');
             if (!openedTabNhanh) return false;
+            
+            await delay(1500); // TĂNG DELAY CHỜ LOAD TAB NHẬP NHANH
+            log("Cuộn màn hình để tải danh sách học sinh...");
 
-            // TỐI ƯU CUỘN MÀN HÌNH: Neo thẳng vào tab Nhập Nhanh để căn chỉnh tầm nhìn
-            let activeTabBtn = document.querySelector('.ohke-tab-btn.active');
-            if(activeTabBtn) {
-                activeTabBtn.scrollIntoView({behavior: 'smooth', block: 'start'});
-                window.scrollBy(0, -80); // Lùi lại một chút để né cái menu trên cùng
-            }
-            await delay(1000);
-
-            // Lazy Load: Kéo lưới input
+            // SỬA LỖI GIẬT MÀN HÌNH: Cuộn mượt mà bằng scrollBy thay vì scrollIntoView liên tục
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+            await delay(500);
+            
             let lastLen = 0;
-            for (let k = 0; k < 10; k++) {
+            for (let k = 0; k < 8; k++) {
+                window.scrollBy({ top: 800, behavior: 'smooth' }); // Lăn chuột xuống dần
+                await delay(600);
                 let inputsToScroll = document.querySelectorAll('.tab-content input[type="text"][placeholder*="Định Lượng"], .tab-content input[type="text"][name="quantitative_result"]');
-                if (inputsToScroll.length > 0) {
-                    inputsToScroll[inputsToScroll.length - 1].scrollIntoView({ behavior: 'smooth', block: 'center' });
-                }
-                await delay(500);
                 if (inputsToScroll.length === lastLen && inputsToScroll.length > 0) break;
                 lastLen = inputsToScroll.length;
             }
             
-            // Cuộn ngược lên học sinh đầu tiên để bắt đầu gõ
-            let firstInput = document.querySelector('.tab-content input[type="text"][placeholder*="Định Lượng"], .tab-content input[type="text"][name="quantitative_result"]');
-            if(firstInput) {
-                firstInput.scrollIntoView({behavior: 'smooth', block: 'center'});
-                await delay(500);
-            }
+            // Kéo về đầu bảng
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+            await delay(500);
 
             let countFill = 0;
             let inputs = document.querySelectorAll('input[type="text"][placeholder*="Định Lượng"], input[type="text"][placeholder*="gõ đủ 4 chữ số"], .w3-table-all input[type="text"], .list-item input[type="text"]');
@@ -736,35 +736,37 @@
                         const isDifferent = isNaN(numCurrent) || isNaN(numTarget) ? currentValue !== targetScore : numCurrent !== numTarget;
 
                         if (isDifferent) {
-                            input.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                            await delay(50);
-                            let retryCount = 0; let success = false;
-                            
-                            while (retryCount < 3 && !success) {
-                                await applyValue(input, targetScore);
-                                // Quét lỗi viền đỏ kỹ hơn ở cả thẻ cha
-                                const style = window.getComputedStyle(input);
-                                const parentStyle = window.getComputedStyle(input.parentElement);
-                                const hasRedBorder = style.borderColor.includes('255, 0, 0') || style.borderColor.includes('244, 67, 54') || parentStyle.borderColor.includes('255, 0, 0');
-                                
-                                if (!hasRedBorder) { success = true; } 
-                                else { retryCount++; log(`⚠️ Lỗi viền đỏ. Đang thử lại...`); input.value = ''; await delay(300); }
-                            }
+                            // SỬA LỖI BỎ QUA ĐIỂM LỖI: Cấu trúc lại logic retry và fix lỗi format
+                            await applyValue(input, targetScore);
+                            await delay(300);
 
-                            if (!success) {
-                                log(`❌ Xóa và bỏ qua học sinh lỗi.`);
-                                input.value = ''; input.dispatchEvent(new Event('input', { bubbles: true })); input.dispatchEvent(new Event('change', { bubbles: true }));
-                            } else {
-                                const fixedVal = String(input.value).trim();
-                                const fixedNum = parseFloat(fixedVal.replace(/,/g, '.'));
-                                if (!isNaN(fixedNum) && fixedNum > 10) {
-                                    log(`⚠️ Lỗi mất dấu. Sửa lại...`);
-                                    let correctedDot = fixedVal.slice(0, -1) + '.' + fixedVal.slice(-1);
-                                    input.style.border = '2px solid orange';
-                                    await applyValue(input, correctedDot); input.style.border = '';
-                                }
-                                countFill++;
-                            }
+                            if (hasErrorBorder(input)) {
+                                log(`⚠️ Phát hiện lỗi định dạng điểm của ${name}. Kích hoạt cơ chế Sửa Lỗi...`);
+                                
+                                // Cách sửa 1: Thêm số 0 vào trước dấu chấm nếu cần (ví dụ: .5 -> 0.5)
+                                let fixedVal1 = targetScore.startsWith('.') ? '0' + targetScore : targetScore;
+                                await applyValue(input, fixedVal1);
+                                await delay(300);
+
+                                if (hasErrorBorder(input)) {
+                                    // Cách sửa 2: Loại bỏ dấu chấm, coi như hệ thống nhân 10 (ví dụ 8.5 -> 85)
+                                    let fixedVal2 = targetScore.replace('.', '');
+                                    await applyValue(input, fixedVal2);
+                                    await delay(300);
+                                    
+                                    if (hasErrorBorder(input)) {
+                                        // Cách sửa 3: Thử định dạng chuẩn X.XX (ví dụ 8 -> 8.00)
+                                        let fixedVal3 = parseFloat(targetScore).toFixed(2);
+                                        await applyValue(input, fixedVal3);
+                                        await delay(300);
+                                        
+                                        if (hasErrorBorder(input)){
+                                             log(`❌ Bó tay với lỗi của ${name}. Sẽ bỏ qua để chạy tiếp.`);
+                                             input.value = ''; input.dispatchEvent(new Event('input', { bubbles: true })); input.dispatchEvent(new Event('change', { bubbles: true }));
+                                        } else { countFill++; }
+                                    } else { countFill++; }
+                                } else { countFill++; }
+                            } else { countFill++; }
                         }
                         break;
                     }
@@ -773,7 +775,7 @@
 
             if (countFill === 0) return true;
 
-            log(`✔️ Đã ghi đè ${countFill} điểm mới. Đang chờ server lưu...`);
+            log(`✔️ Đã ghi đè ${countFill} điểm. Đang chờ server lưu...`);
             const startTime = Date.now();
             let isSaved = false;
             while (Date.now() - startTime < 10000) { 
@@ -781,63 +783,77 @@
                 let isAnyRunning = false;
                 for (let bar of bars) {
                     const doneBar = bar.querySelector('.bar-done');
-                    if (doneBar) {
-                        const width = parseFloat(doneBar.style.width || "0");
-                        if (width > 0 && width < 100) { isAnyRunning = true; break; }
+                    if (doneBar && parseFloat(doneBar.style.width || "0") > 0 && parseFloat(doneBar.style.width || "0") < 100) {
+                        isAnyRunning = true; break; 
                     }
                 }
-                if (!isAnyRunning) { if (Date.now() - startTime > 1500) { isSaved = true; break; } }
+                if (!isAnyRunning && Date.now() - startTime > 1500) { isSaved = true; break; }
                 await delay(500);
             }
 
             // =======================================
-            // GIAI ĐOẠN 3: QUÉT LỖI > 10 SỔ ĐIỂM
+            // GIAI ĐOẠN 3: SỬA LỖI ĐIỂM > 10
             // =======================================
+            let openedSoDiem = await clickTabGrading('Sổ Điểm');
+            if (!openedSoDiem) return false;
+            await delay(2500); // Chờ Sổ Điểm Load HTML
+
             let studentsToFix = [];
-            let allInputsAfterSave = document.querySelectorAll('input[type="text"]');
-            for (let input of allInputsAfterSave) {
-                let val = parseFloat(String(input.value).replace(/,/g, '.'));
+            // Quét các ô chứa điểm trong Sổ Điểm
+            let scoreDivs = document.querySelectorAll('.control-number .content, .list-item [class*="evaluation_result"]'); 
+            for (let div of scoreDivs) {
+                let textContent = div.innerText.trim();
+                // Bỏ qua nếu là chuỗi không chứa số
+                if(textContent === '' || isNaN(parseFloat(textContent.replace(/,/g, '.')))) continue;
+                
+                let val = parseFloat(textContent.replace(/,/g, '.'));
                 if (val > 10) {
-                    let rowText = input.closest('tr, .list-item, .w3-row').innerText;
+                    let rowText = div.closest('tr, .list-item, .w3-row').innerText;
                     for (let name of Object.keys(scoreDict)) {
                         if (rowText.includes(name)) {
                             studentsToFix.push({ name, targetScore: scoreDict[name] });
-                            log(`❌ Phát hiện ${name} bị vượt thang 10. Sẽ sửa lại.`);
+                            log(`❌ Cảnh báo: ${name} có điểm bất thường (${val}).`);
                             break;
                         }
                     }
                 }
             }
 
+            // SỬA LỖI LOGIC: Chuyển lại Nhập Nhanh để sửa, rồi mới qua lại Sổ Điểm
             if (studentsToFix.length > 0) {
-                const soDiemTab = Array.from(document.querySelectorAll('.ohke-tab-btn')).find(btn => btn.innerText.includes('[1414] Sổ Điểm'));
-                if (soDiemTab) {
-                    log("📂 Chuyển sang [Sổ Điểm] để sửa lỗi...");
-                    soDiemTab.click(); await delay(3000); 
-
+                log(`🛠️ Có ${studentsToFix.length} bạn bị lỗi >10. Lùi về [Nhập Nhanh] để sửa...`);
+                let openedTabNhanhAgain = await clickTabGrading('Nhập Nhanh');
+                if (openedTabNhanhAgain) {
+                    await delay(2000); // Chờ tab load
+                    
                     for (let student of studentsToFix) {
-                        let targetInputs = document.querySelectorAll('input[type="text"]');
+                        let targetInputs = document.querySelectorAll('input[type="text"][placeholder*="Định Lượng"], input[type="text"][name="quantitative_result"]');
                         for (let input of targetInputs) {
                             let rowText = input.closest('tr, .list-item, .w3-row').innerText;
                             if (rowText.includes(student.name)) {
-                                log(`🛠️ Sửa điểm cho ${student.name}...`);
-                                input.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                                await delay(100); await applyValue(input, student.targetScore); await delay(500);
+                                log(`🔨 Fix điểm cho ${student.name} -> ${student.targetScore}`);
+                                
+                                // Nếu điểm yêu cầu là 8, nhưng web đang hiểu là 80 (hoặc 0.8), ta ép nó hiểu chuẩn 8.00
+                                let fixedTarget = parseFloat(student.targetScore).toFixed(2);
+                                await applyValue(input, fixedTarget);
+                                await delay(500);
                                 break;
                             }
                         }
                     }
-                    log("⏳ Đang chờ lưu sửa lỗi..."); await delay(2000);
+                    log("⏳ Đang chờ lưu các sửa đổi..."); 
+                    await delay(2500);
+                    
+                    // Xong xuôi, quay lại Sổ Điểm
+                    log("⏩ Trở lại [Sổ Điểm]...");
+                    await clickTabGrading('Sổ Điểm');
+                    await delay(2000);
                 }
             }
 
             // =======================================
             // GIAI ĐOẠN 4: AUTO PHÊ DUYỆT
             // =======================================
-            let openedSoDiem = await clickTabGrading('Sổ Điểm');
-            if (!openedSoDiem) return false;
-            await delay(1500);
-
             await handleBatchTransition('gửi người phê duyệt'); await delay(2000);
             await handleBatchTransition('chấp nhận');
 
@@ -853,16 +869,15 @@
 
             // 1. Mở Cánh Cửa [959]
             let isReady = await switchToVerticalAssessment();
-            if (!isReady) return;
-
-            // 2. Định danh chính xác danh sách các bảng điểm (Tránh trùng lặp HTML)
+            if (!isReady) return; 
+            
             let evalRows = Array.from(document.querySelectorAll('.list-item[data-entity]')).filter(r => r.innerText.includes('Tiến Trình Đánh Giá'));
             if (evalRows.length === 0) { alert("⚠️ Lớp này chưa có đầu điểm nào."); return; }
 
             // =====================================
-            // PHASE 1: CHỈ TẠO BẢNG (Như bản cũ)
+            // PHASE 1: CHỈ TẠO BẢNG
             // =====================================
-            log("🚀 [GIAI ĐOẠN 1]: Khởi tạo trước các bảng điểm...");
+            log("🚀 [GIAI ĐOẠN 1]: Khởi tạo các bảng điểm...");
             let firstValidRow = null;
 
             for (let row of evalRows) {
@@ -872,33 +887,30 @@
                 else if (text.includes('hs1-4')) key = 'TX4'; else if (text.includes('hs1-5')) key = 'TX5'; else if (text.includes('hs2')) key = 'GK'; else if (text.includes('hs3')) key = 'CK';
 
                 if (key && fullData[key] && Object.keys(fullData[key]).length > 0) {
-                    if (!firstValidRow) firstValidRow = row; // Chốt lưu dòng TX1
+                    if (!firstValidRow) firstValidRow = row; 
 
-                    // Tối ưu: Cuộn nội bộ khung chứa (Inner scroll) để không bị giật trang
                     let scrollContainer = row.closest('.dynamic-content, .agent-list, div[style*="overflow"]');
                     if (scrollContainer) scrollContainer.scrollTo({ top: row.offsetTop - 50, behavior: 'smooth' });
                     await delay(300);
 
-                    // Click mở bảng
                     let radioBtn = row.querySelector('.switch-check, .check, input[type="checkbox"], input[type="radio"]') || row;
                     forceClick(radioBtn);
-                    await delay(3000); // Chờ web load lưới bên phải
+                    await delay(2500); 
                     
                     await processSingleColumn(fullData[key], 'create', key); 
                 }
             }
 
-            // Lùi về bảng đầu tiên chuẩn bị cho Giai đoạn 2
             if(firstValidRow) {
                 let scrollContainer = firstValidRow.closest('.dynamic-content, .agent-list, div[style*="overflow"]');
                 if (scrollContainer) scrollContainer.scrollTo({ top: 0, behavior: 'smooth' });
                 let radioBtn = firstValidRow.querySelector('.switch-check, .check, input[type="checkbox"], input[type="radio"]') || firstValidRow;
                 forceClick(radioBtn);
-                await delay(2500);
+                await delay(2000);
             }
 
             // =====================================
-            // PHASE 2: NHẬP LIỆU & PHÊ DUYỆT CUỐN CHIẾU
+            // PHASE 2: NHẬP LIỆU & PHÊ DUYỆT
             // =====================================
             log("\n🚀 [GIAI ĐOẠN 2]: Bắt đầu Nhập điểm & Phê duyệt...");
             for (let row of evalRows) {
@@ -909,26 +921,24 @@
 
                 if (key && fullData[key] && Object.keys(fullData[key]).length > 0) {
                     log(`\n-------------------------------------------`);
-                    log(`🎯 ĐANG NHẬP CỘT: [${key}]`);
+                    log(`🎯 ĐANG XỬ LÝ CỘT: [${key}]`);
 
-                    // Kiểm tra xem có lỡ bị văng tab không
                     let isVertical = document.body.innerText.includes('Bộ Chọn Điểm Đánh Giá');
                     if (!isVertical) {
                         let tabVertical = Array.from(document.querySelectorAll('.ohke-tab-btn')).find(el => el.innerText.includes('[959]'));
-                        if (tabVertical) { forceClick(tabVertical); await delay(2500); }
+                        if (tabVertical) { forceClick(tabVertical); await delay(2000); }
                     }
 
-                    // Cuộn nội bộ khung chứa (Inner scroll)
                     let scrollContainer = row.closest('.dynamic-content, .agent-list, div[style*="overflow"]');
                     if (scrollContainer) scrollContainer.scrollTo({ top: row.offsetTop - 50, behavior: 'smooth' });
                     await delay(300);
                     
                     let btn = row.querySelector('.switch-check, .check, input[type="checkbox"], input[type="radio"]') || row;
                     forceClick(btn);
-                    await delay(2500); 
+                    await delay(2000); 
 
                     let success = await processSingleColumn(fullData[key], 'fill', key); 
-                    if (!success) { log("🛑 Dừng AUTO do có lỗi trong quá trình xử lý."); return; }
+                    if (!success) { log("🛑 Dừng AUTO do có lỗi."); return; }
                 }
             }
             alert("🎉 ĐÃ HOÀN TẤT TOÀN BỘ!\nCác cột điểm đã được Khởi tạo, Nhập liệu, Sửa lỗi và Phê duyệt thành công.");
