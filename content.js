@@ -216,6 +216,15 @@
             logEl.scrollTop = logEl.scrollHeight;
         };
 
+        const clearLogUI = (className) => {
+            const logEl = document.getElementById('tool-log');
+            if (logEl) {
+                logEl.innerHTML = `<div style="color: #666; font-style: italic; border-bottom: 1px dashed #ccc; margin-bottom: 5px;">
+                    🧹 Đã dọn dẹp bộ nhớ đệm. Đang bắt đầu lớp: <b>${className}</b>...
+                </div>`;
+            }
+        };
+
         // ==========================================
         // MODULE: TỪ ĐIỂN TỰ ĐỘNG LƯU (DICTIONARY)
         // ==========================================
@@ -1158,6 +1167,8 @@
 
             let countFill = 0;
             // BẮT BUỘC phải lấy lại danh sách inputs sau cú click đánh thức
+            let inputs = document.querySelectorAll('input[type="text"][name="quantitative_result"], input[type="text"][placeholder*="Định Lượng"]');
+
             for (let input of inputs) {
                 if (input.disabled || input.readOnly || input.className.includes('disabled')) {
                     continue;
@@ -1171,6 +1182,9 @@
                         let successInput = false;
                         for (let attempt = 1; attempt <= 3; attempt++) {
 
+                            // CÔNG THỨC TỐC ĐỘ (Cập nhật an toàn): 
+                            // - 3 bạn đầu tiên hoặc đang phải thử lại do lỗi: Chờ 400ms để ổn định.
+                            // - Từ bạn thứ 4 trở đi: Chạy đều ở tốc độ 200ms.
                             let speedDelay = (countFill < 3 || attempt > 1) ? 400 : 200;
 
                             await applyValue(input, targetScore, false, speedDelay);
@@ -1621,6 +1635,12 @@
 
                 for (let i = 0; i < queue.length; i++) {
                     let task = queue[i];
+                    
+                    // LOGIC DỌN RÁC: Nếu i > 0 (tức là từ lớp thứ 2 trở đi)
+                    if (i > 0) {
+                        clearLogUI(task.className);
+                    }
+
                     log(`\n======================================`);
                     log(`🎯 TÌM LỚP: [${task.className}] - Môn [${task.subjectName}]`);
                     updateQueueUI(`q-${i}`, `🏃`);
