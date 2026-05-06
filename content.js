@@ -212,8 +212,18 @@
         const log = (msg) => {
             const logEl = document.getElementById('tool-log');
             if (!logEl) return;
-            logEl.innerHTML += `<div>👉 ${msg}</div>`;
-            logEl.scrollTop = logEl.scrollHeight;
+            
+            const newLog = document.createElement('div');
+            newLog.style.borderBottom = "1px dotted #ccc";
+            newLog.style.padding = "2px 0";
+            newLog.innerHTML = `<small style="color:#888;">[${new Date().toLocaleTimeString()}]</small> 👉 ${msg}`;
+            
+            logEl.prepend(newLog); // Đưa log mới lên đầu để người dùng đỡ phải cuộn
+
+            // Dọn rác log: Chỉ giữ lại 50 dòng gần nhất cho nhẹ trình duyệt
+            if (logEl.childNodes.length > 50) {
+                logEl.removeChild(logEl.lastChild);
+            }
         };
 
         // ==========================================
@@ -1158,9 +1168,7 @@
 
             let countFill = 0;
             // BẮT BUỘC phải lấy lại danh sách inputs sau cú click đánh thức
-            let inputs = document.querySelectorAll('input[type="text"][name="quantitative_result"], input[type="text"][placeholder*="Định Lượng"]');
-
-            for (let input of inputs) {
+            for (let [idx, input] of Array.from(inputs).entries()) {
                 if (input.disabled || input.readOnly || input.className.includes('disabled')) {
                     continue;
                 }
@@ -1173,9 +1181,6 @@
                         let successInput = false;
                         for (let attempt = 1; attempt <= 3; attempt++) {
 
-                            // CÔNG THỨC TỐC ĐỘ (Cập nhật an toàn): 
-                            // - 3 bạn đầu tiên hoặc đang phải thử lại do lỗi: Chờ 400ms để ổn định.
-                            // - Từ bạn thứ 4 trở đi: Chạy đều ở tốc độ 200ms.
                             let speedDelay = (countFill < 3 || attempt > 1) ? 400 : 200;
 
                             await applyValue(input, targetScore, false, speedDelay);
@@ -1186,17 +1191,26 @@
                             if (!hasErrorPopup && !isNaN(checkVal) && checkVal <= 10) {
                                 successInput = true;
                                 countFill++;
+
+                                // LOG CHI TIẾT VÀO CONSOLE (F12) ĐỂ ĐỠ NẶNG UI
+                                console.log(`[Auto] Đã nhập: ${name} -> ${targetScore}`);
+
+                                // CHỈ LOG LÊN UI MỖI 10 HỌC SINH
+                                if (countFill % 10 === 0 && countFill > 0) {
+                                    log(`⚡ Đang xử lý đến học sinh thứ ${countFill}...`);
+                                }
                                 break;
                             } else {
-                                log(`⚠️ Lỗi nhập liệu cho [${name}] (Thử lại lần ${attempt}/3)...`);
+                                console.warn(`⚠️ Lỗi nhập cho [${name}] (Thử lại ${attempt}/3)`);
                                 input.style.border = '2px solid red';
-                                await delay(400); // Lỗi thì dừng lại 1 chút để DOM thở
+                                await delay(400);
                                 input.value = "";
                             }
                         }
 
                         if (!successInput) {
                             input.style.border = '2px solid orange';
+                            log(`❌ Thất bại: Không thể nhập điểm cho ${name}`);
                         }
 
                         break;
@@ -1665,12 +1679,14 @@
                             window.currentBatchClassName = task.className;
                             window.currentBatchCount = task.countDiem;
 
-                            log(`🤖 Đã vào Lớp ${task.className}. Mở THÙNG [${task.className}], nạp chuẩn ${task.countDiem} điểm.`);
+                             // RESET LOG CHO LỚP MỚI (DỌN RÁC UI)
+                             document.getElementById('tool-log').innerHTML = `<div style="background:#e3f2fd; padding:5px; border-radius:4px;"><b>--- BẮT ĐẦU LỚP: ${task.className} ---</b></div>`;
 
-                            await document.getElementById('btn-auto-full').onclick();
+                             await document.getElementById('btn-auto-full').onclick();
 
-                            log(`✅ HOÀN TẤT LỚP: [${task.className}]`);
-                            updateQueueUI(`q-${i}`, `✅`);
+                             log(`✅ HOÀN TẤT LỚP: [${task.className}]. Nghỉ ngơi 1s...`);
+                             await delay(1000); // Nghỉ 1 nhịp để trình duyệt giải phóng bộ nhớ (GC)
+                             updateQueueUI(`q-${i}`, `✅`);
 
                             classBtn.style.background = '#e9ecef'; classBtn.style.opacity = '0.6';
                             if (!classBtn.innerHTML.includes('✅')) classBtn.innerHTML = `✅ ` + classBtn.innerHTML;
