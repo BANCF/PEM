@@ -1099,9 +1099,8 @@
                 }
                 
                 if (countDeleted > 0) {
-                    log(`✔️ Đã xoá siêu tốc ${countDeleted} ô điểm. Đang chờ server đồng bộ...`);
-                    // Chờ 3 giây ở cuối cùng để server có thời gian lưu hết đống dữ liệu vừa xoá
-                    await delay(3000); 
+                    log(`✔️ Đã xoá siêu tốc ${countDeleted} ô điểm. Chuyển sang bước tiếp theo...`);
+                    // Đã bỏ delay(3000) ở đây để tool chạy lướt qua các bảng liên tục
                     if(typeof checkAndCloseErrorGrading === 'function') await checkAndCloseErrorGrading();
                 } else {
                     log(`✔️ Bảng này đã trống sẵn.`);
