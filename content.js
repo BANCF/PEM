@@ -1065,9 +1065,9 @@
         };
 
         // ==========================================
-        // MODULE: LOGIC RESET ĐIỂM
+        // MODULE: LOGIC RESET ĐIỂM (TURBO SPEED)
         // ==========================================
-        // Hàm dùng chung: Thực hiện Reset 1 bảng đang được chọn
+        // Hàm dùng chung: Thực hiện Reset 1 bảng đang được chọn với tốc độ cao
         const resetCurrentTable = async () => {
             let openedSoDiem = await clickTabGrading('Sổ Điểm');
             if (!openedSoDiem) return false;
@@ -1078,32 +1078,57 @@
 
             let openedTabNhanh = await clickTabGrading('Nhập Nhanh');
             if (openedTabNhanh) {
-                log("🧹 Đang xoá trắng điểm số...");
+                log("🧹 Đang xoá trắng điểm số (Chế độ Turbo Max Speed)...");
+                
+                // Kéo xuống cuối siêu tốc để DOM load toàn bộ học sinh
                 let lastLen = 0;
-                for (let k = 0; k < 15; k++) {
+                let tabContent = document.querySelector('.tab-content .active .dynamic-content, .tab-content .active .agent-list') || document.querySelector('.tab-content');
+                for (let k = 0; k < 10; k++) {
                     let items = document.querySelectorAll('tr, .list-item');
-                    if (items.length > 0) items[items.length - 1].scrollIntoView({ behavior: 'smooth', block: 'end' });
-                    await delay(800);
+                    if (items.length > 0) items[items.length - 1].scrollIntoView({ behavior: 'auto', block: 'end' });
+                    if (tabContent) tabContent.scrollBy({ top: 1200, behavior: 'auto' });
+                    window.scrollBy({ top: 1000, behavior: 'auto' });
+                    await delay(300);
                     if (items.length === lastLen && items.length > 0) break;
                     lastLen = items.length;
                 }
 
                 let inputs = document.querySelectorAll('input[type="text"][placeholder*="Định Lượng"], input[type="text"][placeholder*="gõ đủ 4 chữ số"], .w3-table-all input[type="text"], .list-item input[type="text"]');
                 let countDeleted = 0;
+
                 for (let input of inputs) {
                     if (input.value !== "") {
-                        input.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                        await delay(50);
+                        // Không dùng cuộn smooth nữa để tăng tốc tối đa
                         input.value = "";
+                        
+                        // Bắn sự kiện thay đổi dữ liệu
                         input.dispatchEvent(new Event('input', { bubbles: true }));
                         input.dispatchEvent(new Event('change', { bubbles: true }));
+                        
+                        // Mô phỏng ấn phím Enter và Delete siêu tốc
+                        input.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, key: 'Delete', code: 'Delete', keyCode: 46 }));
+                        input.dispatchEvent(new KeyboardEvent('keyup', { bubbles: true, key: 'Delete', code: 'Delete', keyCode: 46 }));
+                        input.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, key: 'Enter', code: 'Enter', keyCode: 13 }));
+                        input.dispatchEvent(new KeyboardEvent('keyup', { bubbles: true, key: 'Enter', code: 'Enter', keyCode: 13 }));
+                        
                         input.dispatchEvent(new Event('blur', { bubbles: true }));
+                        
                         countDeleted++;
-                        await delay(300); 
-                        if(typeof checkAndCloseErrorGrading === 'function') await checkAndCloseErrorGrading();
+                        
+                        // Nghỉ đúng 10ms giữa mỗi thẻ để tránh trình duyệt bị đơ (Freeze thread)
+                        await delay(10); 
                     }
                 }
-                log(`✔️ Đã xoá thành công ${countDeleted} ô điểm.`);
+                
+                if (countDeleted > 0) {
+                    log(`✔️ Đã xoá siêu tốc ${countDeleted} ô điểm. Đang chờ server đồng bộ...`);
+                    // Chờ 3 giây ở cuối cùng để server có thời gian lưu hết đống dữ liệu vừa xoá
+                    await delay(3000); 
+                    if(typeof checkAndCloseErrorGrading === 'function') await checkAndCloseErrorGrading();
+                } else {
+                    log(`✔️ Bảng này đã trống sẵn.`);
+                }
+                
                 return true;
             }
             return false;
