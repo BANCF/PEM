@@ -688,13 +688,13 @@
         // MODULE: ĐỌC EXCEL (AUTO 1 LỚP - BẢN GỐC ĐÃ CHẠY ỔN)
         // ==========================================
         // ==========================================
-        // MODULE: ĐỌC EXCEL (AUTO 1 LỚP + THUẬT TOÁN XUYÊN GIÁP BẤT TỬ)
+        // MODULE 2: ĐỌC EXCEL CHI TIẾT (ÉP ĐỌC LẠI KHI ĐẾN LƯỢT)
         // ==========================================
         const extractAllExcelData = async () => {
             let fileInput = document.getElementById('excel-file');
             let targetFile = null;
 
-            // BATCH OVERRIDE: Lấy file của lớp đang được chọn
+            // BATCH OVERRIDE: Lấy đúng file của lớp đang chạy để ép đọc lại
             if (window.isBatchMode && window.currentBatchFile) {
                 targetFile = window.currentBatchFile;
             } else if (fileInput.files.length > 0) {
@@ -705,68 +705,65 @@
 
             return new Promise((resolve) => {
                 const reader = new FileReader();
+                
+                // MỞ FILE VÀ ĐỌC LẠI TỪ ĐẦU
                 reader.onload = (e) => {
                     try {
                         const data = new Uint8Array(e.target.result);
                         const workbook = XLSX.read(data, { type: 'array' });
                         
-                        // 1. Tự động bỏ qua sheet "Hướng dẫn" (Chống lỗi 0 điểm)
-                        let targetSheet = workbook.SheetNames.find(n => !n.toLowerCase().includes('hướng dẫn') && !n.toLowerCase().includes('huong dan'));
-                        if (!targetSheet) targetSheet = workbook.SheetNames[0];
+                        // Áp dụng bộ lọc Sheet siêu mạnh
+                        let validSheets = workbook.SheetNames.filter(n => {
+                            let txt = n.toLowerCase();
+                            return !txt.includes('hướng') && !txt.includes('huong');
+                        });
+                        let targetSheet = validSheets.length > 0 ? validSheets[0] : workbook.SheetNames[0];
                         
                         const jsonArray = XLSX.utils.sheet_to_json(workbook.Sheets[targetSheet], { header: 1 });
 
-                        // 2. Tìm hàng tiêu đề chính thức
                         let headerRowIdx = jsonArray.findIndex(r => r.some(c => String(c).toLowerCase().includes('họ và tên')));
-                        if (headerRowIdx === -1) { 
-                            log(`⚠️ Lỗi: Không tìm thấy cột 'Họ và Tên' trong file!`);
-                            resolve(null); return; 
-                        }
+                        if (headerRowIdx === -1) { resolve(null); return; }
 
                         let rowH = jsonArray[headerRowIdx];
                         let nameCol = rowH.findIndex(c => String(c).toLowerCase().includes('họ và tên'));
                         let gkCol = -1, ckCol = -1;
                         let txCols = {};
 
-                        // 3. Quét 3 dòng header liên tiếp để săn tìm cột GK và CK
+                        // Ép xóa dấu xuống dòng trong tiêu đề ĐĐG\ngk
                         for (let r = headerRowIdx; r <= Math.min(headerRowIdx + 2, jsonArray.length - 1); r++) {
                             let rData = jsonArray[r] || [];
                             for (let c = 0; c < rData.length; c++) {
-                                let cell = String(rData[c] || '').trim().toLowerCase();
+                                let cell = String(rData[c] || '').toLowerCase().replace(/[\n\r]/g, '').trim();
                                 if (cell.includes('giữa k') || cell.includes('đđggk')) gkCol = c;
                                 if (cell.includes('cuối k') || cell.includes('đđgck')) ckCol = c;
                             }
                         }
 
-                        // 4. Tìm dải cột TX (Mọi cột nằm giữa ĐĐGtx và ĐĐGgk)
-                        let sTx = rowH.findIndex(c => String(c).toLowerCase().includes('đđgtx'));
+                        let sTx = -1;
+                        for (let r = headerRowIdx; r <= Math.min(headerRowIdx + 2, jsonArray.length - 1); r++) {
+                            let rData = jsonArray[r] || [];
+                            let found = rData.findIndex(c => String(c).toLowerCase().replace(/[\n\r]/g, '').includes('đđgtx'));
+                            if(found !== -1) { sTx = found; break; }
+                        }
+
                         if (sTx !== -1 && gkCol !== -1 && gkCol > sTx) {
                             let count = 1;
                             for (let c = sTx; c < gkCol; c++) {
-                                txCols['TX' + count] = c; count++;
-                            }
-                        } else {
-                            // Dự phòng nếu không tìm thấy chữ ĐĐGgk
-                            let r2 = jsonArray[headerRowIdx + 1] || [];
-                            let curMain = '';
-                            for (let c = 0; c < Math.max(rowH.length, r2.length); c++) {
-                                let h1 = String(rowH[c] || '').trim().toLowerCase(); let h2 = String(r2[c] || '').trim().toLowerCase();
-                                if (h1) curMain = h1;
-                                if (curMain.includes('đđgtx') || curMain.includes('thường xuyên')) {
-                                    if (h2 === '1') txCols['TX1'] = c; else if (h2 === '2') txCols['TX2'] = c; else if (h2 === '3') txCols['TX3'] = c;
-                                    else if (h2 === '4') txCols['TX4'] = c; else if (h2 === '5') txCols['TX5'] = c;
+                                let hText = String(rowH[c] || '').toLowerCase().replace(/[\n\r]/g, '');
+                                if(!hText.includes('họ và tên') && !hText.includes('ngày sinh')) {
+                                    txCols['TX' + count] = c; count++;
                                 }
                             }
+                        } else if (sTx !== -1) {
+                            let count = 1;
+                            for(let c = sTx; c < sTx + 5; c++) { txCols['TX' + count] = c; count++; }
                         }
 
-                        // 5. Tìm dòng Sinh viên đầu tiên (Bỏ qua dòng trống rác)
                         let dStart = headerRowIdx + 1;
                         while (dStart < jsonArray.length) {
                             let rowD = jsonArray[dStart] || [];
                             let nameVal = String(rowD[nameCol] || '').trim();
-                            if (nameVal !== '' && isNaN(nameVal) && !nameVal.toLowerCase().includes('họ và tên')) {
-                                break; // Chạm tới tên sinh viên thật
-                            }
+                            if (nameVal !== '' && isNaN(nameVal) && !nameVal.toLowerCase().includes('họ và tên')) { break; }
                             dStart++;
                         }
 
@@ -774,8 +771,6 @@
                         for (let i = 1; i <= 10; i++) fullData['TX' + i] = {};
                         
                         let countDiem = 0;
-
-                        // 6. Trích xuất điểm vào Thùng hàng
                         for (let i = dStart; i < jsonArray.length; i++) {
                             let rowD = jsonArray[i] || [];
                             let name = String(rowD[nameCol] || '').trim();
@@ -794,12 +789,12 @@
                         
                     } catch (e) { log(`❌ Lỗi đọc file! ${e.message}`); resolve(null); }
                 };
-                reader.readAsArrayBuffer(targetFile);
+                reader.readAsArrayBuffer(targetFile); // TIẾN HÀNH ĐỌC LẠI FILE
             });
         };
 
         // ==========================================
-        // MODULE: QUÉT NHÃN MÁC TẠO HÀNG ĐỢI (PRE-SCAN)
+        // MODULE 1: QUÉT NHÃN MÁC TẠO HÀNG ĐỢI (PRE-SCAN)
         // ==========================================
         const buildBatchQueue = async () => {
             const fileInput = document.getElementById('excel-file');
@@ -816,7 +811,14 @@
                         try {
                             const data = new Uint8Array(e.target.result);
                             const workbook = XLSX.read(data, { type: 'array' });
-                            let targetSheet = workbook.SheetNames.find(n => !n.toLowerCase().includes('hướng dẫn') && !n.toLowerCase().includes('huong dan')) || workbook.SheetNames[0];
+                            
+                            // LỌC SHEET SIÊU MẠNH: Bắt cả "HuongDan" viết liền
+                            let validSheets = workbook.SheetNames.filter(n => {
+                                let txt = n.toLowerCase();
+                                return !txt.includes('hướng') && !txt.includes('huong');
+                            });
+                            let targetSheet = validSheets.length > 0 ? validSheets[0] : workbook.SheetNames[0];
+
                             const jsonArray = XLSX.utils.sheet_to_json(workbook.Sheets[targetSheet], { header: 1 });
 
                             let className = "UNKNOWN", subjectName = "UNKNOWN";
@@ -824,7 +826,7 @@
                                 let rowStr = jsonArray[i].map(c => String(c || '')).join(" "); 
                                 let cMatch = rowStr.match(/lớp:\s*([a-zA-Z0-9]+)/i);
                                 if (cMatch && className === "UNKNOWN") className = cMatch[1].trim().toUpperCase();
-                                let sMatch = rowStr.match(/môn học:\s*(.*?)(?:\s*-|\s*gv:|$)/i);
+                                let sMatch = rowStr.match(/môn(?:\s*học)?:\s*(.*?)(?:\s*-|\s*gv:|,|$)/i);
                                 if (sMatch && subjectName === "UNKNOWN") subjectName = sMatch[1].trim();
                             }
                             resolve({ className, subjectName, fileObj: file });
@@ -832,7 +834,7 @@
                     };
                     reader.readAsArrayBuffer(file);
                 });
-                if (info) queue.push(info);
+                if (info && info.className !== "UNKNOWN") queue.push(info);
             }
             return queue;
         };
