@@ -835,11 +835,11 @@
                         let successInput = false;
                         for (let attempt = 1; attempt <= 3; attempt++) {
                             
-                            // CÔNG THỨC TỐC ĐỘ: 3 bạn đầu tiên chờ 400ms. Từ bạn thứ 4 trở đi chạy tốc độ 50ms.
-                            // Riêng nếu đang là lần thử lại (attempt > 1) do lỗi, ép về tốc độ chậm 400ms cho an toàn.
-                            let speedDelay = (countFill < 3 || attempt > 1) ? 400 : 50;
+                            // CÔNG THỨC TỐC ĐỘ (Cập nhật an toàn): 
+                            // - 3 bạn đầu tiên hoặc đang phải thử lại do lỗi: Chờ 400ms để ổn định.
+                            // - Từ bạn thứ 4 trở đi: Chạy đều ở tốc độ 200ms.
+                            let speedDelay = (countFill < 3 || attempt > 1) ? 400 : 200;
                             
-                            // Gọi hàm applyValue with tốc độ tương ứng
                             await applyValue(input, targetScore, false, speedDelay);
 
                             let hasErrorPopup = typeof checkAndCloseErrorGrading === "function" ? await checkAndCloseErrorGrading() : false;
