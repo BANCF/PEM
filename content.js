@@ -430,23 +430,21 @@
 
         const clickTabGrading = async (text) => {
             log(`Mở tab con [${text}]...`);
-            for (let i = 0; i < 10; i++) {
-                // Tối ưu selector: Chỉ tìm trong các nút tab chuẩn của hệ thống
+            for (let i = 0; i < 15; i++) { // Tăng số vòng lặp lên một chút để bù cho delay ngắn lại
                 let els = Array.from(document.querySelectorAll('.ohke-tab-btn, .tab-btn-, .select-holder div'))
                     .filter(el => el.offsetWidth > 0 && el.textContent.toLowerCase().includes(text.toLowerCase()));
                 
                 if (els.length > 0) {
-                    // Ưu tiên click nút có chứa mã số (ví dụ [961] Nhập Nhanh, [1414] Sổ Điểm)
                     let priorityEls = els.filter(el => /\[\d+\]/.test(el.textContent));
                     let target = priorityEls.length > 0 ? priorityEls[0] : els[0];
                     
                     if (target) { 
                         forceClick(target); 
-                        await delay(1000); 
+                        await delay(300); // GIẢM MẠNH: Từ 1000ms xuống chỉ còn 300ms
                         return true; 
                     }
                 }
-                await delay(400);
+                await delay(200); // GIẢM TỐC ĐỘ QUÉT: Từ 400ms xuống 200ms
             }
             log(`⚠️ Không tìm thấy tab [${text}]`);
             return false;
