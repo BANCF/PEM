@@ -127,6 +127,24 @@
                     </div>
                 </div>
 
+                <div style="margin-top: 10px; border: 1px solid #ccc; border-radius: 4px; padding: 8px; background: #f9f9f9;">
+                    <div style="font-size: 12px; font-weight: bold; margin-bottom: 5px; color:#d81b60;">📔 TỪ ĐIỂN MÔN HỌC (Tự động lưu)</div>
+                    <table style="width: 100%; font-size: 11px; text-align: left;">
+                        <thead><tr style="border-bottom: 1px solid #ddd;"><th>Tên Excel</th><th>Từ khóa Web (Cắt bởi dấu phẩy)</th><th></th></tr></thead>
+                        <tbody id="dict-body"></tbody>
+                    </table>
+                    <button id="btn-add-dict" style="width: 100%; font-size: 10px; margin-top: 5px; padding: 4px; cursor:pointer;">+ Thêm từ khóa mới</button>
+                </div>
+
+                <div style="margin-top: 10px; border: 1px solid #007bff; border-radius: 4px; padding: 8px;">
+                    <div style="font-size: 12px; font-weight: bold; margin-bottom: 5px; color:#007bff;">📋 TIẾN ĐỘ CHẠY (QUEUE)</div>
+                    <div id="queue-list" style="max-height: 120px; overflow-y: auto; font-size: 11px; background: #fff; border: 1px solid #eee; padding: 4px;">
+                        <i>Chưa có dữ liệu...</i>
+                    </div>
+                </div>
+                
+                <button id="btn-auto-batch" style="background: #e91e63; color: white; padding: 10px; margin-top: 15px; margin-bottom: 10px; border: none; border-radius: 4px; font-weight: bold; width: 100%; cursor: pointer;">🚀 AUTO CHẠY TẤT CẢ FILE ĐÃ CHỌN</button>
+
                 <!-- KHU VỰC ĐIỂM DANH -->
                 <div id="section-attendance" style="display: flex; flex-direction: column; gap: 10px;">
                     <div style="background: #e9ecef; padding: 10px; border-radius: 5px; font-size: 12px; margin-bottom: 5px;">
@@ -151,6 +169,77 @@
             if (!logEl) return;
             logEl.innerHTML += `<div>👉 ${msg}</div>`;
             logEl.scrollTop = logEl.scrollHeight;
+        };
+
+        // ==========================================
+        // MODULE: TỪ ĐIỂN TỰ ĐỘNG LƯU (DICTIONARY)
+        // ==========================================
+        const renderDict = (dictObj) => {
+            const tbody = document.getElementById('dict-body');
+            if(!tbody) return;
+            tbody.innerHTML = '';
+            for (let exName in dictObj) {
+                let tr = document.createElement('tr');
+                tr.className = 'dict-row';
+                tr.innerHTML = `
+                    <td><input type="text" class="ex-name" value="${exName}" style="width:90%; padding:2px; font-size:10px;"></td>
+                    <td><input type="text" class="web-names" value="${dictObj[exName]}" style="width:90%; padding:2px; font-size:10px;"></td>
+                    <td><button class="del-row" style="color:red; background:none; border:none; cursor:pointer;">x</button></td>
+                `;
+                tbody.appendChild(tr);
+            }
+            bindDictEvents();
+        };
+
+        const saveDict = () => {
+            let newDict = {};
+            document.querySelectorAll('.dict-row').forEach(row => {
+                let ex = row.querySelector('.ex-name').value.trim();
+                let web = row.querySelector('.web-names').value.trim();
+                if (ex) newDict[ex] = web;
+            });
+            chrome.storage.local.set({ 'ohke_subject_dict': newDict });
+        };
+
+        const bindDictEvents = () => {
+            document.querySelectorAll('.dict-row input').forEach(inp => {
+                inp.onchange = saveDict; inp.onkeyup = saveDict;
+            });
+            document.querySelectorAll('.del-row').forEach(btn => {
+                btn.onclick = (e) => { e.target.closest('tr').remove(); saveDict(); };
+            });
+        };
+
+        let btnAddDict = document.getElementById('btn-add-dict');
+        if(btnAddDict) {
+            btnAddDict.onclick = () => {
+                let tr = document.createElement('tr');
+                tr.className = 'dict-row';
+                tr.innerHTML = `
+                    <td><input type="text" class="ex-name" placeholder="Ví dụ: Khoa học Tự nhiên" style="width:90%; padding:2px; font-size:10px;"></td>
+                    <td><input type="text" class="web-names" placeholder="KHTN, Lý 8, Hóa 8..." style="width:90%; padding:2px; font-size:10px;"></td>
+                    <td><button class="del-row" style="color:red; background:none; border:none; cursor:pointer;">x</button></td>
+                `;
+                document.getElementById('dict-body').appendChild(tr);
+                bindDictEvents();
+            };
+        }
+
+        // Tự động Load từ khóa đã lưu trên trình duyệt
+        chrome.storage.local.get(['ohke_subject_dict'], (res) => {
+            let dict = res.ohke_subject_dict || { "Khoa học Tự nhiên": "KHTN, KHTN Lý", "Công nghệ": "Công nghệ" };
+            renderDict(dict);
+        });
+
+        // Hàm tra cứu từ khóa cho vòng lặp
+        const getSubjectMapping = () => {
+            let mapping = {};
+            document.querySelectorAll('.dict-row').forEach(row => {
+                let ex = row.querySelector('.ex-name').value.trim();
+                let webs = row.querySelector('.web-names').value.split(',').map(s => s.trim().toLowerCase());
+                if (ex) mapping[ex] = webs;
+            });
+            return mapping;
         };
 
         document.getElementById('btn-close-tool').onclick = () => panel.remove();
@@ -980,19 +1069,15 @@
             return true;
         };
 
-        // ==========================================
-        // AUTO TOÀN TẬP (MASTER LOOP)
-        // ==========================================
-        document.getElementById('btn-auto-full').onclick = async () => {
-            let fullData = await extractAllExcelData();
-            if (!fullData) return;
+        const runAutoGradingForCurrentClass = async (fullData) => {
+            if (!fullData) return false;
 
             // 1. Mở Cánh Cửa [959]
             let isReady = await switchToVerticalAssessment();
-            if (!isReady) return; 
+            if (!isReady) return false; 
             
             let evalRows = Array.from(document.querySelectorAll('.list-item[data-entity]')).filter(r => r.innerText.includes('Tiến Trình Đánh Giá'));
-            if (evalRows.length === 0) { alert("⚠️ Lớp này chưa có đầu điểm nào."); return; }
+            if (evalRows.length === 0) { log("⚠️ Lớp này chưa có đầu điểm nào."); return false; }
 
             // =====================================
             // PHASE 1: CHỈ TẠO BẢNG (TỐI ƯU SMART SKIP)
@@ -1113,18 +1198,37 @@
                     await delay(2000); 
 
                     let success = await processSingleColumn(fullData[key], 'fill', key); 
-                    if (!success) { log("🛑 Dừng AUTO do có lỗi."); return; }
+                    if (!success) { log("🛑 Dừng AUTO do có lỗi."); return false; }
                 }
             }
-            alert("🎉 ĐÃ HOÀN TẤT TOÀN BỘ!\nCác cột điểm đã được Khởi tạo, Nhập liệu, Sửa lỗi và Phê duyệt thành công.");
+            return true;
+        };
+
+        // ==========================================
+        // AUTO TOÀN TẬP (MASTER LOOP)
+        // ==========================================
+        document.getElementById('btn-auto-full').onclick = async () => {
+            let allFiles = await processMultipleExcelFiles(); 
+            if (!allFiles || allFiles.length === 0) return;
+            
+            // Lấy file đầu tiên để chạy cho lớp hiện tại (giữ logic cũ cho nút cũ)
+            let firstFileData = allFiles[0];
+            let success = await runAutoGradingForCurrentClass(firstFileData.scores);
+            if (success) {
+                alert("🎉 ĐÃ HOÀN TẤT TOÀN BỘ!\nCác cột điểm đã được Khởi tạo, Nhập liệu, Sửa lỗi và Phê duyệt thành công.");
+            }
         };
 
         // ==========================================
         // CÁC NÚT TIỆN ÍCH BỔ SUNG
         // ==========================================
         document.getElementById('btn-auto-input').onclick = async () => {
-            let fullData = await extractAllExcelData();
-            if (!fullData) return;
+            let allFiles = await processMultipleExcelFiles(); 
+            if (!allFiles || allFiles.length === 0) return;
+            
+            let firstFileData = allFiles[0];
+            let fullData = firstFileData.scores;
+            
             let key = document.getElementById('score-col').value;
             let colData = fullData[key];
             if (!colData || Object.keys(colData).length === 0) { alert("⚠️ Cột điểm này trong file Excel trống!"); return; }
@@ -1254,6 +1358,89 @@
 
             alert("🎉 HOÀN TẤT: Đã xóa sạch sẽ toàn bộ các cột điểm của lớp này!");
         };
+
+        // ==========================================
+        // THE ULTIMATE MASTER LOOP (CHẠY BATCH)
+        // ==========================================
+        const updateQueueUI = (id, statusHtml) => {
+            let row = document.getElementById(id);
+            if (row) row.querySelector('.q-status').innerHTML = statusHtml;
+        };
+
+        let btnAutoBatch = document.getElementById('btn-auto-batch');
+        if(btnAutoBatch) {
+            btnAutoBatch.onclick = async () => {
+                // Đọc toàn bộ File vào rổ dữ liệu
+                let allFiles = await processMultipleExcelFiles(); 
+                if (!allFiles || allFiles.length === 0) return;
+
+                // Tạo Datasheet hàng đợi trên Giao diện
+                let queueList = document.getElementById('queue-list');
+                queueList.innerHTML = '';
+                allFiles.forEach((f, idx) => {
+                    queueList.innerHTML += `<div id="q-${idx}" style="padding:3px; border-bottom:1px dashed #ccc;">
+                        <span class="q-status">⏳</span> <b>${f.className}</b> - ${f.subjectName}
+                    </div>`;
+                });
+
+                log(`🚀 BẮT ĐẦU CHẾ ĐỘ BATCH: Tiến hành xử lý ${allFiles.length} file...`);
+
+                // Vòng lặp tịnh tiến quét từng File
+                for (let i = 0; i < allFiles.length; i++) {
+                    let fileData = allFiles[i];
+                    log(`\n======================================`);
+                    log(`🎯 MỤC TIÊU: Lớp [${fileData.className}] - Môn [${fileData.subjectName}]`);
+                    updateQueueUI(`q-${i}`, `🏃`);
+
+                    let subjectMap = getSubjectMapping();
+                    let keywords = subjectMap[fileData.subjectName] || [fileData.subjectName.toLowerCase()];
+                    
+                    let classBtn = null;
+                    // Lấy tất cả các lớp ở Sidebar
+                    let sidebarItems = Array.from(document.querySelectorAll('.ohke-row, .list-item, .sidebar-item, a')).filter(el => el.offsetWidth > 0 && el.innerText.includes(fileData.className));
+                    
+                    for (let item of sidebarItems) {
+                        let txt = item.innerText.toLowerCase();
+                        // Trúng đích nếu thỏa mãn cả Lớp và Môn
+                        if (txt.includes(fileData.className.toLowerCase()) && keywords.some(k => txt.includes(k))) { 
+                            classBtn = item; 
+                            break; 
+                        }
+                    }
+
+                    if (classBtn) {
+                        classBtn.scrollIntoView({ behavior: 'auto', block: 'center' });
+                        forceClick(classBtn);
+                        log("⏳ Đang đợi trang web load dữ liệu lớp mới...");
+                        await delay(3500); 
+
+                        try {
+                            // Thực thi Nhập điểm
+                            let success = await runAutoGradingForCurrentClass(fileData.scores);
+                            
+                            if(success) {
+                                log(`✅ HOÀN TẤT LỚP: [${fileData.className}]`);
+                                updateQueueUI(`q-${i}`, `✅`);
+                                
+                                // BÔI XÁM & ĐÁNH DẤU TICK (Tránh chọn lại)
+                                classBtn.style.background = '#e9ecef'; 
+                                classBtn.style.opacity = '0.6';
+                                if(!classBtn.innerHTML.includes('✅')) classBtn.innerHTML = `✅ ` + classBtn.innerHTML;
+                            } else {
+                                updateQueueUI(`q-${i}`, `⚠️ Lỗi Nhập`);
+                            }
+                        } catch (err) {
+                            log(`❌ LỖI tại ${fileData.className}: ${err.message}`);
+                            updateQueueUI(`q-${i}`, `❌`);
+                        }
+                    } else {
+                        log(`⚠️ KHÔNG TÌM THẤY [${fileData.className}] trên Sidebar. Tự động bỏ qua!`);
+                        updateQueueUI(`q-${i}`, `❌ Không tìm thấy`);
+                    }
+                }
+                alert("🎉 QUY TRÌNH BATCH HOÀN TẤT!\nĐã xử lý xong tất cả các file Excel trong hàng đợi.");
+            };
+        }
 
         // Mặc định khởi chạy thì kích hoạt Tab Điểm danh (Free)
         document.getElementById('tab-attendance').click();
