@@ -898,39 +898,54 @@
                                 if (countStudents > 0) {
                                     log(`📦 Đã nạp THÙNG [${className}]: ${countStudents} Học sinh | Chuẩn ${countDiem} điểm.`);
                                     
-                                    // BỘ ĐỐI SOÁT TỪ ĐIỂN & SIDEBAR (V6)
+                                    // BỘ ĐỐI SOÁT TỪ ĐIỂN & SIDEBAR (V7 - CHỐNG TRÙNG LẶP)
                                     let mapping = getSubjectMapping();
                                     let sidebarItems = Array.from(document.querySelectorAll('.ohke-row, .list-item, .sidebar-item, a')).filter(el => el.offsetWidth > 0);
                                     let classRegex = new RegExp(`\\b${className}\\b`, 'i');
 
-                                    // Tìm xem môn trong Excel có trong từ điển không
+                                    // Tìm entry trong từ điển
                                     let excelEntryKey = Object.keys(mapping).find(k => 
                                         k.toLowerCase() === subjectName.toLowerCase() || subjectName.toLowerCase().includes(k.toLowerCase())
                                     );
 
                                     if (excelEntryKey) {
                                         let webKeywords = mapping[excelEntryKey];
-                                        log(`🔱 Thấy từ điển [${subjectName}]: Đang đối soát ${webKeywords.length} từ khóa trên Sidebar...`);
+                                        // Tìm tất cả các mục trên Sidebar của lớp này
+                                        let myClassItems = sidebarItems.filter(el => classRegex.test(el.innerText));
                                         
-                                        webKeywords.forEach(kw => {
-                                            let existsOnWeb = sidebarItems.some(el => {
-                                                let txt = el.innerText.toLowerCase();
-                                                return classRegex.test(txt) && txt.includes(kw.toLowerCase());
-                                            });
-
-                                            if (existsOnWeb) {
-                                                log(`✅ Thấy [${className} - ${kw}]. Thêm vào hàng đợi.`);
-                                                extracted.push({ className, subjectName: kw, fileObj: file, scores: fullData, countDiem, isSplit: true });
+                                        // Với mỗi mục trên Web, xem nó có khớp với bất kỳ từ khóa nào không
+                                        myClassItems.forEach(el => {
+                                            let txt = el.innerText.toLowerCase();
+                                            let matchedKw = webKeywords.find(kw => txt.includes(kw.toLowerCase()));
+                                            
+                                            if (matchedKw) {
+                                                log(`✅ Khớp mục [${el.innerText}] trên Web. Thêm vào hàng đợi.`);
+                                                extracted.push({ 
+                                                    className, 
+                                                    subjectName: el.innerText, // Dùng luôn tên hiển thị trên web
+                                                    fileObj: file, 
+                                                    scores: fullData, 
+                                                    countDiem, 
+                                                    isSplit: true,
+                                                    exactWebName: el.innerText 
+                                                });
                                             }
                                         });
                                     } else {
-                                        // Nếu không có trong từ điển, kiểm tra trực tiếp tên môn gốc
-                                        let existsOriginal = sidebarItems.some(el => {
+                                        // Fallback nếu không có trong từ điển
+                                        let originalItem = sidebarItems.find(el => {
                                             let txt = el.innerText.toLowerCase();
                                             return classRegex.test(txt) && txt.includes(subjectName.toLowerCase());
                                         });
-                                        if (existsOriginal) {
-                                            extracted.push({ className, subjectName, fileObj: file, scores: fullData, countDiem });
+                                        if (originalItem) {
+                                            extracted.push({ 
+                                                className, 
+                                                subjectName: originalItem.innerText, 
+                                                fileObj: file, 
+                                                scores: fullData, 
+                                                countDiem,
+                                                exactWebName: originalItem.innerText
+                                            });
                                         } else {
                                             log(`⏭️ Bỏ qua [${className} - ${subjectName}]: Không thấy trên Sidebar.`);
                                         }
@@ -1574,23 +1589,26 @@
                     log(`🎯 TÌM LỚP: [${task.className}] - Môn [${task.subjectName}]`);
                     updateQueueUI(`q-${i}`, `🏃`);
 
-                    let subjectMap = getSubjectMapping();
-                    let keywords = subjectMap[task.subjectName] || [task.subjectName.toLowerCase()];
-                    
                     let classBtn = null;
-                    // BỘ LỌC STRICT MATCHING: Dùng Regex để tìm chính xác cụm Lớp (Tránh 9A nhầm với 9A1)
-                    let classRegex = new RegExp(`\\b${task.className}\\b`, 'i');
-                    
-                    let sidebarItems = Array.from(document.querySelectorAll('.ohke-row, .list-item, .sidebar-item, a')).filter(el => {
-                        return el.offsetWidth > 0 && classRegex.test(el.innerText);
-                    });
+                    let sidebarItems = Array.from(document.querySelectorAll('.ohke-row, .list-item, .sidebar-item, a')).filter(el => el.offsetWidth > 0);
 
-                    for (let item of sidebarItems) {
-                        let txt = item.innerText.toLowerCase();
-                        // Kiểm tra: Phải có tên lớp VÀ ít nhất một từ khóa của môn học
-                        if (classRegex.test(txt) && keywords.some(k => txt.includes(k.toLowerCase()))) { 
-                            classBtn = item; 
-                            break; 
+                    if (task.exactWebName) {
+                        // CHIẾN THUẬT 1: Tìm đích danh theo tên đã đối soát
+                        classBtn = sidebarItems.find(el => el.innerText === task.exactWebName);
+                    }
+
+                    if (!classBtn) {
+                        // CHIẾN THUẬT 2: Fallback tìm theo Class + Keywords
+                        let subjectMap = getSubjectMapping();
+                        let keywords = subjectMap[task.subjectName] || [task.subjectName.toLowerCase()];
+                        let classRegex = new RegExp(`\\b${task.className}\\b`, 'i');
+
+                        for (let item of sidebarItems) {
+                            let txt = item.innerText.toLowerCase();
+                            if (classRegex.test(txt) && keywords.some(k => txt.includes(k.toLowerCase()))) { 
+                                classBtn = item; 
+                                break; 
+                            }
                         }
                     }
 
