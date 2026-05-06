@@ -780,18 +780,18 @@
             // =======================================
             // GIAI ĐOẠN 2: NHẬP ĐIỂM
             // =======================================
-            log("⬆️ Đang cuộn lên đầu danh sách để chuẩn bị nhập...");
+            log("⬆️ Đang ép trình duyệt nhảy lên đầu bảng điểm...");
             
-            // 1. Dùng 'auto' thay vì 'smooth' để nhảy CẮT CẢNH ngay lập tức lên đầu
+            // Cú trick: Tìm thẳng tiêu đề bảng hoặc học sinh đầu tiên và ép nó lộ diện
+            let topElement = document.querySelector('.tab-content th, thead tr, .w3-table-all tr, .list-item');
+            if (topElement) {
+                // Ép nhảy lên mép trên cùng của phần tử đầu tiên
+                topElement.scrollIntoView({ behavior: 'auto', block: 'start' });
+            }
             window.scrollTo({ top: 0, behavior: 'auto' });
             
-            let scrollContainer = document.querySelector('.dynamic-content, .agent-list, .tab-content .active');
-            if (scrollContainer) {
-                scrollContainer.scrollTo({ top: 0, behavior: 'auto' });
-            }
-            
-            // 2. Giảm delay từ 1500ms xuống chỉ còn 300ms (vừa đủ để DOM ảo vẽ lại thẻ HTML)
-            await delay(300); 
+            // Chờ 500ms để hệ thống (Virtual DOM) kịp vẽ lại các thẻ input của các bạn đầu tiên
+            await delay(500); 
 
             let countFill = 0;
             let inputs = document.querySelectorAll('input[type="text"][name="quantitative_result"], input[type="text"][placeholder*="Định Lượng"]');
