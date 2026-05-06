@@ -118,7 +118,11 @@
                         <div style="display: flex; flex-direction: column; gap: 8px;">
                             <button id="btn-auto-full" style="background: #28a745; color: white; padding: 8px; border: none; border-radius: 4px; font-weight: bold; cursor: pointer;">🚀 AUTO LỚP HIỆN TẠI (Tạo Bảng -> Chốt Sổ)</button>
                             <button id="btn-auto-input" style="background: #007bff; color: white; padding: 8px; border: none; border-radius: 4px; font-weight: bold; cursor: pointer;">⚡ CHỈ NHẬP ĐIỂM CỘT ĐANG CHỌN</button>
-                            <button id="btn-reset" style="background: #ffc107; color: black; padding: 8px; border: none; border-radius: 4px; font-weight: bold; cursor: pointer;">🔄 RESET ĐIỂM (Kéo về & Xóa sạch)</button>
+                            
+                            <div style="border-top: 1px dashed #ccc; margin: 5px 0;"></div> <!-- Đường kẻ phân cách -->
+                            
+                            <button id="btn-reset" style="background: #ffc107; color: black; padding: 8px; border: none; border-radius: 4px; font-weight: bold; cursor: pointer;">🔄 RESET ĐIỂM (Cột Đang Chọn)</button>
+                            <button id="btn-reset-all" style="background: #dc3545; color: white; padding: 8px; border: none; border-radius: 4px; font-weight: bold; cursor: pointer;">💣 RESET TOÀN BỘ (Tất Cả Các Cột)</button>
                         </div>
                     </div>
                 </div>
@@ -1060,15 +1064,21 @@
             if (success) { alert(`🎉 Hoàn tất quá trình nhập cho cột này!`); }
         };
 
-        document.getElementById('btn-reset').onclick = async () => {
+        // ==========================================
+        // MODULE: LOGIC RESET ĐIỂM
+        // ==========================================
+        // Hàm dùng chung: Thực hiện Reset 1 bảng đang được chọn
+        const resetCurrentTable = async () => {
             let openedSoDiem = await clickTabGrading('Sổ Điểm');
-            if (!openedSoDiem) return;
+            if (!openedSoDiem) return false;
 
+            log("🔄 Đang kéo trạng thái điểm về Đang Soạn...");
             await handleBatchTransition('kéo về'); await delay(2000);
             await handleBatchTransition('kéo về'); await delay(2000);
 
             let openedTabNhanh = await clickTabGrading('Nhập Nhanh');
             if (openedTabNhanh) {
+                log("🧹 Đang xoá trắng điểm số...");
                 let lastLen = 0;
                 for (let k = 0; k < 15; k++) {
                     let items = document.querySelectorAll('tr, .list-item');
@@ -1079,6 +1089,7 @@
                 }
 
                 let inputs = document.querySelectorAll('input[type="text"][placeholder*="Định Lượng"], input[type="text"][placeholder*="gõ đủ 4 chữ số"], .w3-table-all input[type="text"], .list-item input[type="text"]');
+                let countDeleted = 0;
                 for (let input of inputs) {
                     if (input.value !== "") {
                         input.scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -1087,11 +1098,68 @@
                         input.dispatchEvent(new Event('input', { bubbles: true }));
                         input.dispatchEvent(new Event('change', { bubbles: true }));
                         input.dispatchEvent(new Event('blur', { bubbles: true }));
-                        await delay(400); await checkAndCloseErrorGrading();
+                        countDeleted++;
+                        await delay(300); 
+                        if(typeof checkAndCloseErrorGrading === 'function') await checkAndCloseErrorGrading();
                     }
                 }
+                log(`✔️ Đã xoá thành công ${countDeleted} ô điểm.`);
+                return true;
             }
-            alert("🔄 Đã Reset sạch sẽ trạng thái và điểm!");
+            return false;
+        };
+
+        // Nút 1: RESET Cột Hiện Tại (Giữ nguyên logic cũ)
+        document.getElementById('btn-reset').onclick = async () => {
+            log("🔄 Bắt đầu Reset cột điểm hiện tại...");
+            await resetCurrentTable();
+            alert("🔄 Đã Reset sạch sẽ trạng thái và điểm của cột này!");
+        };
+
+        // Nút 2: RESET TOÀN BỘ CÁC CỘT TRONG LỚP
+        document.getElementById('btn-reset-all').onclick = async () => {
+            let confirmAction = confirm("⚠️ CẢNH BÁO: Hành động này sẽ xoá SẠCH SẼ toàn bộ điểm của TẤT CẢ các cột trong lớp hiện tại (Kéo về Draft -> Xoá sạch). \n\nBạn có chắc chắn muốn thực hiện?");
+            if (!confirmAction) return;
+
+            log("💣 Kích hoạt quy trình XÓA SẠCH TOÀN BỘ BẢNG ĐIỂM...");
+            
+            // 1. Chuyển vào view Đánh giá Chiều dọc [959] để thấy tất cả các cột
+            let isReady = await switchToVerticalAssessment();
+            if (!isReady) return; 
+
+            // 2. Tìm tất cả các hàng đầu điểm
+            let evalRows = Array.from(document.querySelectorAll('.list-item[data-entity]')).filter(r => r.innerText.includes('Tiến Trình Đánh Giá'));
+            if (evalRows.length === 0) { alert("⚠️ Lớp này chưa có đầu điểm nào."); return; }
+
+            // 3. Vòng lặp duyệt qua từng đầu điểm để xoá
+            for (let i = 0; i < evalRows.length; i++) {
+                let row = evalRows[i];
+                let nameCol = row.innerText.split('\n')[0].trim() || `Cột số ${i+1}`;
+                
+                log(`\n-------------------------------------------`);
+                log(`🗑️ ĐANG XÓA CỘT: [${nameCol}] (${i+1}/${evalRows.length})`);
+
+                // Kiểm tra lại xem có đang ở view 959 không (tránh bị nhảy tab)
+                let isVertical = document.body.innerText.includes('Bộ Chọn Điểm Đánh Giá');
+                if (!isVertical) {
+                    let tabVertical = Array.from(document.querySelectorAll('.ohke-tab-btn')).find(el => el.innerText.includes('[959]'));
+                    if (tabVertical) { forceClick(tabVertical); await delay(2000); }
+                }
+
+                // Cuộn đến bảng điểm và click để mở nó ra
+                let scrollContainer = row.closest('.dynamic-content, .agent-list, div[style*="overflow"]');
+                if (scrollContainer) scrollContainer.scrollTo({ top: row.offsetTop - 50, behavior: 'smooth' });
+                await delay(300);
+                
+                let radioBtn = row.querySelector('.switch-check, .check, input[type="checkbox"], input[type="radio"]') || row;
+                forceClick(radioBtn);
+                await delay(2000); 
+
+                // 4. Gọi hàm Xoá (Dùng chung)
+                await resetCurrentTable();
+            }
+
+            alert("🎉 HOÀN TẤT: Đã xóa sạch sẽ toàn bộ các cột điểm của lớp này!");
         };
 
         // Mặc định khởi chạy thì kích hoạt Tab Điểm danh (Free)
