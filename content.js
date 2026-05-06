@@ -650,7 +650,7 @@
         const processSingleColumn = async (scoreDict, mode, colKey = '') => {
             const autoCreate = (mode === 'create');
 
-            // HÀM NHẬP ĐIỂM
+            // HÀM NHẬP ĐIỂM CƠ BẢN
             const applyValue = async (targetInput, val) => {
                 let formattedVal = val.toString().replace(',', '.');
                 targetInput.scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -678,7 +678,7 @@
             if (Object.keys(scoreDict).length === 0) return true;
 
             // =======================================
-            // GIAI ĐOẠN 1: CHỈ TẠO BẢNG
+            // GIAI ĐOẠN 1: CHỈ TẠO BẢNG & LAZY LOAD NHANH
             // =======================================
             if (autoCreate) {
                 window.scrollBy({ top: 400, behavior: 'smooth' });
@@ -697,16 +697,15 @@
                         if (dongBtn) { forceClick(dongBtn); await delay(800); } 
                     }
 
-                    // TỐI ƯU GIAI ĐOẠN 1: Nhảy qua Nhập Nhanh kéo xuống tận cùng để Load DOM
-                    log(`⬇️ Chuyển sang [Nhập Nhanh] để nạp trước danh sách học sinh...`);
+                    // TỐI ƯU GIAI ĐOẠN 1: Nháy qua Nhập Nhanh & cuộn siêu tốc (Outer Scroll) để DOM load hết danh sách
+                    log(`⬇️ Nháy sang [Nhập Nhanh] để nạp trước danh sách học sinh...`);
                     let openedNhanh = await clickTabGrading('Nhập Nhanh');
                     if (openedNhanh) {
-                        await delay(1500); // Đợi tab Nhập Nhanh mở ra
+                        await delay(800);
+                        // Cuộn siêu tốc bên ngoài (Giảm delay, tăng khoảng cách cuộn)
                         for (let k = 0; k < 8; k++) {
-                            window.scrollBy({ top: 800, behavior: 'smooth' });
-                            let inputsToScroll = document.querySelectorAll('.tab-content input[type="text"]');
-                            if (inputsToScroll.length > 0) inputsToScroll[inputsToScroll.length - 1].scrollIntoView({ behavior: 'smooth', block: 'end' });
-                            await delay(400);
+                            window.scrollBy({ top: 1200, behavior: 'auto' });
+                            await delay(150); 
                         }
                     }
                 } 
@@ -719,34 +718,27 @@
             let openedTabNhanh = await clickTabGrading('Nhập Nhanh');
             if (!openedTabNhanh) return false;
             
-            log("Cuộn màn hình để tải danh sách học sinh...");
             window.scrollTo({ top: 0, behavior: 'smooth' });
             await delay(400);
 
+            // Lazy Load trước khi nhập (Kết hợp trong & ngoài)
             let tabContent = document.querySelector('.tab-content .active .dynamic-content, .tab-content .active .agent-list') || document.querySelector('.tab-content');
             let lastLen = 0;
             for (let k = 0; k < 12; k++) {
-                let inputsToScroll = document.querySelectorAll('.tab-content input[type="text"][placeholder*="Định Lượng"], .tab-content input[type="text"][name="quantitative_result"]');
+                let inputsToScroll = document.querySelectorAll('.tab-content input[type="text"][name="quantitative_result"]');
                 if (inputsToScroll.length > 0) inputsToScroll[inputsToScroll.length - 1].scrollIntoView({ behavior: 'smooth', block: 'center' });
-                
                 if (tabContent) tabContent.scrollBy({ top: 800, behavior: 'smooth' });
-                window.scrollBy({ top: 300, behavior: 'smooth' }); 
-                
-                await delay(400);
+                window.scrollBy({ top: 400, behavior: 'smooth' }); 
+                await delay(300);
                 if (inputsToScroll.length === lastLen && inputsToScroll.length > 0) break;
                 lastLen = inputsToScroll.length;
             }
             
-            log("⏳ Đang chờ hệ thống ổn định kết nối...");
-            await delay(1500);
-
             window.scrollTo({ top: 0, behavior: 'smooth' });
-            let firstInput = document.querySelector('.tab-content input[type="text"][placeholder*="Định Lượng"], .tab-content input[type="text"][name="quantitative_result"]');
-            if(firstInput) firstInput.scrollIntoView({behavior: 'smooth', block: 'center'});
             await delay(500);
 
             let countFill = 0;
-            let inputs = document.querySelectorAll('input[type="text"][placeholder*="Định Lượng"], input[type="text"][placeholder*="gõ đủ 4 chữ số"], .w3-table-all input[type="text"], .list-item input[type="text"]');
+            let inputs = document.querySelectorAll('input[type="text"][name="quantitative_result"], input[type="text"][placeholder*="Định Lượng"]');
 
             for (let input of inputs) {
                 let rowText = input.closest('tr, .list-item, .w3-row').innerText;
@@ -763,26 +755,18 @@
                             await applyValue(input, targetScore);
                             await delay(200);
 
-                            if (hasErrorBorder(input)) {
-                                log(`⚠️ Lỗi định dạng điểm của ${name}. Đang sửa...`);
-                                let fixedVal1 = targetScore.startsWith('.') ? '0' + targetScore : targetScore;
-                                await applyValue(input, fixedVal1);
-                                
-                                if (hasErrorBorder(input)) {
-                                    let fixedVal2 = targetScore.replace('.', '');
-                                    await applyValue(input, fixedVal2);
-                                    
-                                    if (hasErrorBorder(input)) {
-                                        let fixedVal3 = parseFloat(targetScore).toFixed(2);
-                                        await applyValue(input, fixedVal3);
-                                        
-                                        if (hasErrorBorder(input)){
-                                             log(`❌ Lỗi mạng từ máy chủ, bỏ qua ${name}.`);
-                                             input.value = ''; input.dispatchEvent(new Event('input', { bubbles: true })); input.dispatchEvent(new Event('change', { bubbles: true }));
-                                        } else { countFill++; }
-                                    } else { countFill++; }
-                                } else { countFill++; }
-                            } else { countFill++; }
+                            // BẮT BỆNH MẤT DẤU NGAY LÚC NHẬP
+                            let checkVal = parseFloat(String(input.value).replace(/,/g, '.'));
+                            if (!isNaN(checkVal) && checkVal > 10) {
+                                log(`⚠️ Bị mất dấu (thành ${checkVal}). Ép sửa lại...`);
+                                let fixedDot = (checkVal / 10).toFixed(2);
+                                input.style.border = '2px solid orange';
+                                await applyValue(input, fixedDot); 
+                                input.style.border = '';
+                                await delay(200);
+                            }
+
+                            countFill++;
                         }
                         break;
                     }
@@ -791,7 +775,7 @@
 
             if (countFill === 0) return true;
 
-            log(`✔️ Đã ghi đè ${countFill} điểm. Đang chờ server lưu...`);
+            log(`✔️ Đã nhập ${countFill} điểm. Đang chờ server lưu...`);
             const startTime = Date.now();
             let isSaved = false;
             while (Date.now() - startTime < 8000) { 
@@ -806,11 +790,11 @@
             }
 
             // =======================================
-            // GIAI ĐOẠN 3: KIỂM TRA LỖI > 10 SỔ ĐIỂM
+            // GIAI ĐOẠN 3: KIỂM TRA LỖI > 10 Ở SỔ ĐIỂM
             // =======================================
             let openedSoDiem = await clickTabGrading('Sổ Điểm');
             if (!openedSoDiem) return false;
-            await delay(2000); // Chờ Sổ Điểm Load HTML
+            await delay(2000); 
 
             let studentsToFix = [];
             let scoreDivs = document.querySelectorAll('.control-number .content, .list-item [class*="evaluation_result"]'); 
@@ -831,14 +815,13 @@
                 }
             }
 
-            // TỐI ƯU GIAI ĐOẠN 3: Lùi về Nhập Nhanh -> Sửa -> Quay lại Sổ điểm
+            // CHUYỂN VỀ NHẬP NHANH ĐỂ SỬA TRƯỚC KHI GỬI DUYỆT
             if (studentsToFix.length > 0) {
-                log(`🛠️ Có ${studentsToFix.length} bạn bị lỗi >10. Lùi về [Nhập Nhanh] để sửa...`);
+                log(`🛠️ Lùi về [Nhập Nhanh] để sửa lỗi > 10...`);
                 let openedTabNhanhAgain = await clickTabGrading('Nhập Nhanh');
                 if (openedTabNhanhAgain) {
                     await delay(1500); 
                     
-                    // Cuộn load danh sách trong Nhập Nhanh
                     let lastLenFix = 0;
                     for (let k = 0; k < 15; k++) {
                         let inputsToScroll = document.querySelectorAll('.tab-content input[type="text"][name="quantitative_result"]');
@@ -848,8 +831,9 @@
                         if (inputsToScroll.length === lastLenFix && inputsToScroll.length > 0) break;
                         lastLenFix = inputsToScroll.length;
                     }
+                    window.scrollTo({ top: 0, behavior: 'smooth' });
+                    await delay(500);
                     
-                    // Thực hiện tìm và sửa điểm
                     for (let student of studentsToFix) {
                         let targetInputs = document.querySelectorAll('input[type="text"][name="quantitative_result"]');
                         for (let input of targetInputs) {
@@ -866,17 +850,37 @@
                     log("⏳ Đang chờ lưu các sửa đổi..."); 
                     await delay(2000);
                     
-                    log("⏩ Trở lại tab [Sổ Điểm] để kiểm tra...");
+                    log("⏩ Trở lại [Sổ Điểm] để kiểm tra & chốt...");
                     await clickTabGrading('Sổ Điểm');
-                    await delay(1500);
+                    await delay(2000);
                 }
             }
 
             // =======================================
-            // GIAI ĐOẠN 4: AUTO PHÊ DUYỆT
+            // GIAI ĐOẠN 4: AUTO PHÊ DUYỆT BỊ SÓT
             // =======================================
-            await handleBatchTransition('gửi người phê duyệt'); 
-            await handleBatchTransition('chấp nhận');
+            // QUÉT TÌNH TRẠNG KẾT QUẢ ĐỂ XEM CÓ CẦN DUYỆT KHÔNG
+            let needApproval = true;
+            let listItems = document.querySelectorAll('.list-item, .w3-row, td, div');
+            
+            for (let item of listItems) {
+                let text = item.innerText || "";
+                // Tìm kiếm vùng chứa thông tin tình trạng
+                if (text.includes('Tình Trạng Kết Quả')) {
+                    if (text.includes('Đã Được Chấp Nhận')) {
+                        needApproval = false; // Đã được chấp nhận thì không cần chạy lệnh phê duyệt nữa
+                    }
+                    break; 
+                }
+            }
+
+            if (needApproval) {
+                log("🚀 Phát hiện bảng chưa được duyệt. Tiến hành Gửi & Phê duyệt...");
+                await handleBatchTransition('gửi người phê duyệt'); 
+                await handleBatchTransition('chấp nhận');
+            } else {
+                log("✔️ Bảng này đã 'Đã Được Chấp Nhận'. Bỏ qua lệnh phê duyệt.");
+            }
 
             return true;
         };
