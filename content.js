@@ -725,40 +725,7 @@
 
             if (Object.keys(scoreDict).length === 0) return true;
 
-            // =======================================
-            // GIAI ĐOẠN 1: CHỈ TẠO BẢNG & LAZY LOAD NHANH
-            // =======================================
-            if (autoCreate) {
-                window.scrollBy({ top: 400, behavior: 'smooth' });
-                await delay(400);
-                let taoBangBtn = Array.from(document.querySelectorAll('a, button, .ohke-btn')).find(el => el.offsetWidth > 0 && el.textContent.toLowerCase().includes('tạo bảng tiêu chí'));
-                
-                if (taoBangBtn) {
-                    log(`🔨 Đang tạo bảng [${colKey}]...`);
-                    forceClick(taoBangBtn); await delay(800);
-                    let tiepTucBtn = document.querySelector('.ohke-popup .btn-continue, .w3-modal .btn-continue');
-                    if (!tiepTucBtn) tiepTucBtn = Array.from(document.querySelectorAll('.ohke-popup a, .w3-modal a, button')).find(el => el.offsetWidth > 0 && el.textContent.trim() === 'Tiếp Tục');
-                    
-                    if (tiepTucBtn) {
-                        forceClick(tiepTucBtn); await delay(1500); 
-                        let dongBtn = Array.from(document.querySelectorAll('.w3-modal.w3-show a, .w3-modal.w3-show button')).find(el => el.offsetWidth > 0 && (el.textContent.includes('Đóng') || el.textContent.includes('Đồng ý') || el.textContent.includes('OK')));
-                        if (dongBtn) { forceClick(dongBtn); await delay(800); } 
-                    }
 
-                    // TỐI ƯU GIAI ĐOẠN 1: Nháy qua Nhập Nhanh & cuộn siêu tốc (Outer Scroll) để DOM load hết danh sách
-                    log(`⬇️ Nháy sang [Nhập Nhanh] để nạp trước danh sách học sinh...`);
-                    let openedNhanh = await clickTabGrading('Nhập Nhanh');
-                    if (openedNhanh) {
-                        await delay(800);
-                        // Cuộn siêu tốc bên ngoài (Giảm delay, tăng khoảng cách cuộn)
-                        for (let k = 0; k < 8; k++) {
-                            window.scrollBy({ top: 1200, behavior: 'auto' });
-                            await delay(150); 
-                        }
-                    }
-                } 
-                return true; 
-            }
 
             // =======================================
             // GIAI ĐOẠN 2: NHẬP ĐIỂM
@@ -988,9 +955,9 @@
             if (evalRows.length === 0) { alert("⚠️ Lớp này chưa có đầu điểm nào."); return; }
 
             // =====================================
-            // PHASE 1: CHỈ TẠO BẢNG
+            // PHASE 1: CHỈ TẠO BẢNG (TỐI ƯU SMART SKIP)
             // =====================================
-            log("🚀 [GIAI ĐOẠN 1]: Khởi tạo các bảng điểm...");
+            log("🚀 [GIAI ĐOẠN 1]: Quét & Khởi tạo các bảng điểm...");
             let firstValidRow = null;
 
             for (let row of evalRows) {
@@ -1003,23 +970,78 @@
                     if (!firstValidRow) firstValidRow = row; 
 
                     let scrollContainer = row.closest('.dynamic-content, .agent-list, div[style*="overflow"]');
-                    if (scrollContainer) scrollContainer.scrollTo({ top: row.offsetTop - 50, behavior: 'smooth' });
-                    await delay(300);
+                    if (scrollContainer) scrollContainer.scrollTo({ top: row.offsetTop - 50, behavior: 'auto' });
+                    await delay(100);
 
                     let radioBtn = row.querySelector('.switch-check, .check, input[type="checkbox"], input[type="radio"]') || row;
                     forceClick(radioBtn);
-                    await delay(2500); 
                     
-                    await processSingleColumn(fullData[key], 'create', key); 
+                    // Nghỉ 1 chút để UI xóa dữ liệu của cột cũ và gọi API load cột mới
+                    await delay(800); 
+                    
+                    log(`🔍 Đang kiểm tra trạng thái bảng [${key}]...`);
+
+                    // SMART POLLING: Bộ nhận diện trạng thái bảng
+                    let taoBangBtn = null;
+                    let isAlreadyCreated = false;
+
+                    for (let w = 0; w < 8; w++) { // Chờ tối đa 1.6 giây
+                        await delay(200);
+                        
+                        taoBangBtn = Array.from(document.querySelectorAll('a, button, .ohke-btn'))
+                            .find(el => el.offsetWidth > 0 && el.textContent.toLowerCase().includes('tạo bảng tiêu chí'));
+                        
+                        // Nếu thấy các tab con xuất hiện => Bảng đã được tạo từ trước
+                        let existTabs = Array.from(document.querySelectorAll('.ohke-tab-btn, .tab-btn-'))
+                            .find(el => el.offsetWidth > 0 && /\[\d+\]/.test(el.textContent) && (el.textContent.toLowerCase().includes('nhập nhanh') || el.textContent.toLowerCase().includes('sổ điểm')));
+
+                        if (taoBangBtn) break; // Chưa tạo -> Thoát vòng lặp chờ để tạo
+                        if (existTabs) {
+                            isAlreadyCreated = true;
+                            break; // Đã tạo -> Ghi nhận và thoát
+                        }
+                    }
+
+                    if (isAlreadyCreated) {
+                        log(`⏭️ Bảng [${key}] ĐÃ TỒN TẠI. Bỏ qua bước tạo!`);
+                        continue; // Bỏ qua luôn, sang cột tiếp theo ngay lập tức
+                    }
+
+                    if (taoBangBtn) {
+                        log(`🔨 Bảng [${key}] chưa có. Tiến hành Tạo mới...`);
+                        forceClick(taoBangBtn); 
+                        await delay(500); 
+                        
+                        let tiepTucBtn = document.querySelector('.ohke-popup .btn-continue, .w3-modal .btn-continue');
+                        if (!tiepTucBtn) tiepTucBtn = Array.from(document.querySelectorAll('.ohke-popup a, .w3-modal a, button')).find(el => el.offsetWidth > 0 && el.textContent.trim() === 'Tiếp Tục');
+                        
+                        if (tiepTucBtn) {
+                            forceClick(tiepTucBtn); 
+                            await delay(1000); 
+                            let dongBtn = Array.from(document.querySelectorAll('.w3-modal.w3-show a, .w3-modal.w3-show button')).find(el => el.offsetWidth > 0 && (el.textContent.includes('Đóng') || el.textContent.includes('Đồng ý') || el.textContent.includes('OK')));
+                            if (dongBtn) { forceClick(dongBtn); await delay(400); } 
+                        }
+
+                        // Nháy qua Nhập Nhanh & cuộn mồi để DOM load trước danh sách
+                        log(`⬇️ Load trước danh sách cho [${key}]...`);
+                        let openedNhanh = await clickTabGrading('Nhập Nhanh');
+                        if (openedNhanh) {
+                            await delay(300);
+                            for (let k = 0; k < 6; k++) {
+                                window.scrollBy({ top: 1200, behavior: 'auto' });
+                                await delay(100); 
+                            }
+                        }
+                    }
                 }
             }
 
             if(firstValidRow) {
                 let scrollContainer = firstValidRow.closest('.dynamic-content, .agent-list, div[style*="overflow"]');
-                if (scrollContainer) scrollContainer.scrollTo({ top: 0, behavior: 'smooth' });
+                if (scrollContainer) scrollContainer.scrollTo({ top: 0, behavior: 'auto' });
                 let radioBtn = firstValidRow.querySelector('.switch-check, .check, input[type="checkbox"], input[type="radio"]') || firstValidRow;
                 forceClick(radioBtn);
-                await delay(2000);
+                await delay(1500);
             }
 
             // =====================================
