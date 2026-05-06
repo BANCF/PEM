@@ -823,12 +823,28 @@
                                 const jsonArray = XLSX.utils.sheet_to_json(workbook.Sheets[targetSheet], { header: 1 });
 
                                 let className = "UNKNOWN", subjectName = "UNKNOWN";
-                                for (let i = 0; i < Math.min(15, jsonArray.length); i++) {
-                                    let rowStr = jsonArray[i].map(c => String(c || '')).join(" ");
-                                    let cMatch = rowStr.match(/lớp:\s*([a-zA-Z0-9]+)/i);
-                                    if (cMatch && className === "UNKNOWN") className = cMatch[1].trim().toUpperCase();
-                                    let sMatch = rowStr.match(/môn(?:\s*học)?:\s*(.*?)(?:\s*-|\s*gv:|,|$)/i);
-                                    if (sMatch && subjectName === "UNKNOWN") subjectName = sMatch[1].trim();
+                                // QUÉT THÔNG TIN LỚP & MÔN (V9 - SEMANTIC SCANNER)
+                                for (let i = 0; i < Math.min(20, jsonArray.length); i++) {
+                                    let row = jsonArray[i] || [];
+                                    let rowStr = row.map(c => String(c || '')).join(" ");
+
+                                    // Radar Lớp: Chấp nhận Lớp, Lớp học, Lớp/Nhóm
+                                    if (className === "UNKNOWN") {
+                                        let cMatch = rowStr.match(/lớp(?:\s*học|\/\s*nhóm)?:\s*([a-zA-Z0-9\-\/]+)/i);
+                                        if (cMatch) className = cMatch[1].trim().toUpperCase();
+                                    }
+
+                                    // Radar Môn: Chấp nhận Môn, Môn học, Học phần
+                                    if (subjectName === "UNKNOWN") {
+                                        // Tìm từ khóa dài trước (Môn học) rồi mới đến Môn
+                                        let sMatch = rowStr.match(/(?:môn\s*học|học\s*phần|môn):\s*([^-\n\r,]+)/i);
+                                        if (sMatch) {
+                                            let val = sMatch[1].trim();
+                                            // Loại bỏ các từ khóa rác thường gặp ở cuối chuỗi
+                                            val = val.split(/gv:|giáo\s*viên|học\s*kỳ|năm\s*học/i)[0].trim();
+                                            if (val.length > 1 && val.length < 40) subjectName = val;
+                                        }
+                                    }
                                 }
 
                                 let headerRowIdx = jsonArray.findIndex(r => r.some(c => cleanStr(c).includes('họvàtên') || cleanStr(c).includes('họtên')));
