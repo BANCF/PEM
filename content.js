@@ -432,9 +432,13 @@
                 if (els.length > 0) {
                     let priorityEls = els.filter(el => /\[\d+\]/.test(el.textContent));
                     let target = priorityEls.length > 0 ? priorityEls.sort((a, b) => a.textContent.length - b.textContent.length)[0] : els.sort((a, b) => a.textContent.length - b.textContent.length)[0];
-                    if (target) { forceClick(target); await delay(1500); return true; }
+                    if (target) { 
+                        forceClick(target); 
+                        await delay(800); // GIẢM DELAY: Từ 1500ms xuống 800ms
+                        return true; 
+                    }
                 }
-                await delay(500);
+                await delay(300);
             }
             return false;
         };
@@ -641,13 +645,11 @@
         const processSingleColumn = async (scoreDict, mode, colKey = '') => {
             const autoCreate = (mode === 'create');
 
-            // HÀM NHẬP ĐIỂM (Tối ưu giả lập người thật)
+            // HÀM NHẬP ĐIỂM
             const applyValue = async (targetInput, val) => {
                 let formattedVal = val.toString().replace(',', '.');
-                
                 targetInput.scrollIntoView({ behavior: 'smooth', block: 'center' });
                 await delay(50);
-                
                 targetInput.dispatchEvent(new Event('focus', { bubbles: true }));
                 targetInput.dispatchEvent(new Event('click', { bubbles: true }));
                 await delay(50); 
@@ -662,7 +664,6 @@
                 if (typeof checkAndCloseErrorGrading === "function") return await checkAndCloseErrorGrading();
             };
 
-            // HÀM QUÉT LỖI VIỀN ĐỎ (Chính xác hơn)
             const hasErrorBorder = (inputElement) => {
                 const style = window.getComputedStyle(inputElement);
                 const parentStyle = window.getComputedStyle(inputElement.parentElement);
@@ -676,20 +677,17 @@
             // =======================================
             if (autoCreate) {
                 window.scrollBy({ top: 400, behavior: 'smooth' });
-                await delay(500);
-                
+                await delay(400);
                 let taoBangBtn = Array.from(document.querySelectorAll('a, button, .ohke-btn')).find(el => el.offsetWidth > 0 && el.textContent.toLowerCase().includes('tạo bảng tiêu chí'));
                 if (taoBangBtn) {
                     log(`🔨 Đang tạo bảng [${colKey}]...`);
-                    forceClick(taoBangBtn); await delay(1000);
+                    forceClick(taoBangBtn); await delay(800);
                     let tiepTucBtn = document.querySelector('.ohke-popup .btn-continue, .w3-modal .btn-continue');
-                    if (!tiepTucBtn) {
-                        tiepTucBtn = Array.from(document.querySelectorAll('.ohke-popup a, .w3-modal a, button')).find(el => el.offsetWidth > 0 && el.textContent.trim() === 'Tiếp Tục');
-                    }
+                    if (!tiepTucBtn) tiepTucBtn = Array.from(document.querySelectorAll('.ohke-popup a, .w3-modal a, button')).find(el => el.offsetWidth > 0 && el.textContent.trim() === 'Tiếp Tục');
                     if (tiepTucBtn) {
-                        forceClick(tiepTucBtn); await delay(1500); // GIẢM DELAY CHỜ TẠO
+                        forceClick(tiepTucBtn); await delay(1500); 
                         let dongBtn = Array.from(document.querySelectorAll('.w3-modal.w3-show a, .w3-modal.w3-show button')).find(el => el.offsetWidth > 0 && (el.textContent.includes('Đóng') || el.textContent.includes('Đồng ý') || el.textContent.includes('OK')));
-                        if (dongBtn) { forceClick(dongBtn); await delay(1000); } // GIẢM DELAY ĐÓNG
+                        if (dongBtn) { forceClick(dongBtn); await delay(800); } 
                     }
                 } 
                 return true; 
@@ -701,24 +699,33 @@
             let openedTabNhanh = await clickTabGrading('Nhập Nhanh');
             if (!openedTabNhanh) return false;
             
-            await delay(1500); // TĂNG DELAY CHỜ LOAD TAB NHẬP NHANH
             log("Cuộn màn hình để tải danh sách học sinh...");
-
-            // SỬA LỖI GIẬT MÀN HÌNH: Cuộn mượt mà bằng scrollBy thay vì scrollIntoView liên tục
             window.scrollTo({ top: 0, behavior: 'smooth' });
-            await delay(500);
-            
+            await delay(400);
+
+            // FIX LỖI CUỘN THIẾU DANH SÁCH: Kết hợp cuộn cả trong lẫn ngoài
+            let tabContent = document.querySelector('.tab-content .active .dynamic-content, .tab-content .active .agent-list') || document.querySelector('.tab-content');
             let lastLen = 0;
-            for (let k = 0; k < 8; k++) {
-                window.scrollBy({ top: 800, behavior: 'smooth' }); // Lăn chuột xuống dần
-                await delay(600);
+            for (let k = 0; k < 12; k++) {
                 let inputsToScroll = document.querySelectorAll('.tab-content input[type="text"][placeholder*="Định Lượng"], .tab-content input[type="text"][name="quantitative_result"]');
+                if (inputsToScroll.length > 0) inputsToScroll[inputsToScroll.length - 1].scrollIntoView({ behavior: 'smooth', block: 'center' });
+                
+                if (tabContent) tabContent.scrollBy({ top: 800, behavior: 'smooth' });
+                window.scrollBy({ top: 300, behavior: 'smooth' }); 
+                
+                await delay(400);
                 if (inputsToScroll.length === lastLen && inputsToScroll.length > 0) break;
                 lastLen = inputsToScroll.length;
             }
             
-            // Kéo về đầu bảng
+            // FIX LỖI NETWORK: Thêm độ trễ để các truy vấn ngầm (AJAX) chạy xong, chống đứng màn hình
+            log("⏳ Đang chờ hệ thống ổn định kết nối...");
+            await delay(1500);
+
+            // Kéo về đầu bảng để nhập điểm
             window.scrollTo({ top: 0, behavior: 'smooth' });
+            let firstInput = document.querySelector('.tab-content input[type="text"][placeholder*="Định Lượng"], .tab-content input[type="text"][name="quantitative_result"]');
+            if(firstInput) firstInput.scrollIntoView({behavior: 'smooth', block: 'center'});
             await delay(500);
 
             let countFill = 0;
@@ -736,32 +743,24 @@
                         const isDifferent = isNaN(numCurrent) || isNaN(numTarget) ? currentValue !== targetScore : numCurrent !== numTarget;
 
                         if (isDifferent) {
-                            // SỬA LỖI BỎ QUA ĐIỂM LỖI: Cấu trúc lại logic retry và fix lỗi format
                             await applyValue(input, targetScore);
-                            await delay(300);
+                            await delay(200);
 
                             if (hasErrorBorder(input)) {
-                                log(`⚠️ Phát hiện lỗi định dạng điểm của ${name}. Kích hoạt cơ chế Sửa Lỗi...`);
-                                
-                                // Cách sửa 1: Thêm số 0 vào trước dấu chấm nếu cần (ví dụ: .5 -> 0.5)
+                                log(`⚠️ Lỗi định dạng điểm của ${name}. Đang sửa...`);
                                 let fixedVal1 = targetScore.startsWith('.') ? '0' + targetScore : targetScore;
                                 await applyValue(input, fixedVal1);
-                                await delay(300);
-
+                                
                                 if (hasErrorBorder(input)) {
-                                    // Cách sửa 2: Loại bỏ dấu chấm, coi như hệ thống nhân 10 (ví dụ 8.5 -> 85)
                                     let fixedVal2 = targetScore.replace('.', '');
                                     await applyValue(input, fixedVal2);
-                                    await delay(300);
                                     
                                     if (hasErrorBorder(input)) {
-                                        // Cách sửa 3: Thử định dạng chuẩn X.XX (ví dụ 8 -> 8.00)
                                         let fixedVal3 = parseFloat(targetScore).toFixed(2);
                                         await applyValue(input, fixedVal3);
-                                        await delay(300);
                                         
                                         if (hasErrorBorder(input)){
-                                             log(`❌ Bó tay với lỗi của ${name}. Sẽ bỏ qua để chạy tiếp.`);
+                                             log(`❌ Lỗi mạng từ máy chủ, bỏ qua ${name}.`);
                                              input.value = ''; input.dispatchEvent(new Event('input', { bubbles: true })); input.dispatchEvent(new Event('change', { bubbles: true }));
                                         } else { countFill++; }
                                     } else { countFill++; }
@@ -778,32 +777,28 @@
             log(`✔️ Đã ghi đè ${countFill} điểm. Đang chờ server lưu...`);
             const startTime = Date.now();
             let isSaved = false;
-            while (Date.now() - startTime < 10000) { 
+            while (Date.now() - startTime < 8000) { 
                 const bars = document.querySelectorAll('.inno-percent-bar');
                 let isAnyRunning = false;
                 for (let bar of bars) {
                     const doneBar = bar.querySelector('.bar-done');
-                    if (doneBar && parseFloat(doneBar.style.width || "0") > 0 && parseFloat(doneBar.style.width || "0") < 100) {
-                        isAnyRunning = true; break; 
-                    }
+                    if (doneBar && parseFloat(doneBar.style.width || "0") > 0 && parseFloat(doneBar.style.width || "0") < 100) { isAnyRunning = true; break; }
                 }
                 if (!isAnyRunning && Date.now() - startTime > 1500) { isSaved = true; break; }
-                await delay(500);
+                await delay(400);
             }
 
             // =======================================
-            // GIAI ĐOẠN 3: SỬA LỖI ĐIỂM > 10
+            // GIAI ĐOẠN 3: KIỂM TRA LỖI > 10 SỔ ĐIỂM
             // =======================================
             let openedSoDiem = await clickTabGrading('Sổ Điểm');
             if (!openedSoDiem) return false;
-            await delay(2500); // Chờ Sổ Điểm Load HTML
+            await delay(1200); 
 
             let studentsToFix = [];
-            // Quét các ô chứa điểm trong Sổ Điểm
             let scoreDivs = document.querySelectorAll('.control-number .content, .list-item [class*="evaluation_result"]'); 
             for (let div of scoreDivs) {
                 let textContent = div.innerText.trim();
-                // Bỏ qua nếu là chuỗi không chứa số
                 if(textContent === '' || isNaN(parseFloat(textContent.replace(/,/g, '.')))) continue;
                 
                 let val = parseFloat(textContent.replace(/,/g, '.'));
@@ -819,42 +814,54 @@
                 }
             }
 
-            // SỬA LỖI LOGIC: Chuyển lại Nhập Nhanh để sửa, rồi mới qua lại Sổ Điểm
+            // FIX LỖI NHẦM TAB: Chuyển lại Nhập Nhanh để sửa
             if (studentsToFix.length > 0) {
                 log(`🛠️ Có ${studentsToFix.length} bạn bị lỗi >10. Lùi về [Nhập Nhanh] để sửa...`);
                 let openedTabNhanhAgain = await clickTabGrading('Nhập Nhanh');
                 if (openedTabNhanhAgain) {
-                    await delay(2000); // Chờ tab load
+                    await delay(1500); 
+                    
+                    // Bắt buộc phải cuộn để tải lại danh sách học sinh
+                    let lastLenFix = 0;
+                    for (let k = 0; k < 10; k++) {
+                        let inputsToScroll = document.querySelectorAll('.tab-content input[type="text"][placeholder*="Định Lượng"], .tab-content input[type="text"][name="quantitative_result"]');
+                        if (inputsToScroll.length > 0) inputsToScroll[inputsToScroll.length - 1].scrollIntoView({ behavior: 'smooth', block: 'center' });
+                        window.scrollBy({ top: 400, behavior: 'smooth' });
+                        await delay(300);
+                        if (inputsToScroll.length === lastLenFix && inputsToScroll.length > 0) break;
+                        lastLenFix = inputsToScroll.length;
+                    }
+                    window.scrollTo({ top: 0, behavior: 'smooth' });
+                    await delay(500);
                     
                     for (let student of studentsToFix) {
                         let targetInputs = document.querySelectorAll('input[type="text"][placeholder*="Định Lượng"], input[type="text"][name="quantitative_result"]');
                         for (let input of targetInputs) {
                             let rowText = input.closest('tr, .list-item, .w3-row').innerText;
                             if (rowText.includes(student.name)) {
-                                log(`🔨 Fix điểm cho ${student.name} -> ${student.targetScore}`);
+                                log(`🔨 Sửa điểm cho ${student.name} -> ${student.targetScore}`);
                                 
-                                // Nếu điểm yêu cầu là 8, nhưng web đang hiểu là 80 (hoặc 0.8), ta ép nó hiểu chuẩn 8.00
+                                // Ép định dạng 2 chữ số thập phân (Vd: 8.5 -> 8.50)
                                 let fixedTarget = parseFloat(student.targetScore).toFixed(2);
                                 await applyValue(input, fixedTarget);
-                                await delay(500);
+                                await delay(300);
                                 break;
                             }
                         }
                     }
                     log("⏳ Đang chờ lưu các sửa đổi..."); 
-                    await delay(2500);
+                    await delay(2000);
                     
-                    // Xong xuôi, quay lại Sổ Điểm
                     log("⏩ Trở lại [Sổ Điểm]...");
                     await clickTabGrading('Sổ Điểm');
-                    await delay(2000);
+                    await delay(1500);
                 }
             }
 
             // =======================================
             // GIAI ĐOẠN 4: AUTO PHÊ DUYỆT
             // =======================================
-            await handleBatchTransition('gửi người phê duyệt'); await delay(2000);
+            await handleBatchTransition('gửi người phê duyệt'); 
             await handleBatchTransition('chấp nhận');
 
             return true;
