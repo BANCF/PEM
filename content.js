@@ -636,123 +636,91 @@
 
         const processMultipleExcelFiles = async () => {
             const fileInput = document.getElementById('excel-file');
-            if (!fileInput.files.length) { alert("Vui lòng chọn file Excel trước!"); return null; }
+            if (!fileInput.files.length) { alert("Vui lòng tải lên file Excel!"); return null; }
 
             let allFilesData = [];
-            log(`📂 Bắt đầu đọc ${fileInput.files.length} file Excel...`);
+            log(`📂 Đang đọc ${fileInput.files.length} file...`);
 
             for (let f = 0; f < fileInput.files.length; f++) {
                 const file = fileInput.files[f];
-                
                 let fileData = await new Promise((resolve) => {
                     const reader = new FileReader();
                     reader.onload = (e) => {
-                        const data = new Uint8Array(e.target.result);
-                        const workbook = XLSX.read(data, { type: 'array' });
-                        const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
-                        const jsonArray = XLSX.utils.sheet_to_json(firstSheet, { header: 1 });
+                        try {
+                            const data = new Uint8Array(e.target.result);
+                            const workbook = XLSX.read(data, { type: 'array' });
+                            const jsonArray = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]], { header: 1 });
 
-                        // =====================================
-                        // 1. QUÉT TÌM LỚP VÀ MÔN TRONG HEADER
-                        // =====================================
-                        let className = "UNKNOWN";
-                        let subjectName = "UNKNOWN";
+                            let className = "UNKNOWN"; 
+                            let subjectName = "UNKNOWN";
 
-                        // Quét 10 dòng đầu tiên
-                        for (let i = 0; i < Math.min(10, jsonArray.length); i++) {
-                            // Gom tất cả các cột trong dòng thành 1 chuỗi để không sợ bị tách ô
-                            let rowStr = jsonArray[i].map(cell => String(cell || '')).join(" "); 
+                            // SỬA LỖI TREO Ở ĐÂY: Đã đồng nhất biến classMatch và subjMatch
+                            for (let i = 0; i < Math.min(10, jsonArray.length); i++) {
+                                let rowStr = jsonArray[i].map(c => String(c || '')).join(" "); 
+                                
+                                let classMatch = rowStr.match(/lớp:\s*([a-zA-Z0-9]+)/i);
+                                if (classMatch && className === "UNKNOWN") className = classMatch[1].trim().toUpperCase();
+                                
+                                let subjMatch = rowStr.match(/môn học:\s*(.*?)(?:\s*-|\s*gv:|$)/i);
+                                if (subjMatch && subjectName === "UNKNOWN") subjectName = subjMatch[1].trim();
+                            }
+
+                            let headerRowIdx = jsonArray.findIndex(r => r.some(c => String(c).toLowerCase().includes('họ và tên')));
+                            if (headerRowIdx === -1) { 
+                                log(`⚠️ File [${file.name}] lỗi: Không có cột Họ và Tên!`);
+                                resolve(null); return; 
+                            }
+
+                            let nameCol = 2; let gkCol = -1; let ckCol = -1; let txCols = {};
+                            let r1 = jsonArray[headerRowIdx] || []; let r2 = jsonArray[headerRowIdx + 1] || [];
+                            let curMain = '';
+
+                            for (let c = 0; c < Math.max(r1.length, r2.length); c++) {
+                                let h1 = String(r1[c] || '').trim().toLowerCase(); let h2 = String(r2[c] || '').trim().toLowerCase();
+                                if (h1) curMain = h1;
+                                if (curMain.includes('họ và tên') || h1.includes('họ và tên')) nameCol = c;
+                                else if (curMain.includes('đđggk') || h1.includes('giữa k')) gkCol = c;
+                                else if (curMain.includes('đđgck') || h1.includes('cuối k')) ckCol = c;
+                                else if (curMain.includes('đđgtx') || curMain.includes('thường xuyên')) {
+                                    if (h2 === '1') txCols['TX1'] = c; else if (h2 === '2') txCols['TX2'] = c; else if (h2 === '3') txCols['TX3'] = c;
+                                    else if (h2 === '4') txCols['TX4'] = c; else if (h2 === '5') txCols['TX5'] = c;
+                                }
+                            }
+                            if (Object.keys(txCols).length === 0) {
+                                let sTx = r1.findIndex(x => String(x).toLowerCase().includes('đđgtx'));
+                                let eTx = r1.findIndex(x => String(x).toLowerCase().includes('đđggk'));
+                                if (sTx !== -1 && eTx !== -1) { let count = 1; for (let c = sTx; c < eTx; c++) { txCols['TX' + count] = c; count++; } }
+                            }
+
+                            let dStart = headerRowIdx + 1;
+                            if (!isNaN(String(jsonArray[dStart]?.[nameCol] || '').trim())) dStart++;
+
+                            let fullData = { 'GK': {}, 'CK': {} };
+                            for (let i = 1; i <= 10; i++) fullData['TX' + i] = {};
+
+                            for (let i = dStart; i < jsonArray.length; i++) {
+                                let name = String(jsonArray[i][nameCol] || '').trim();
+                                if (!name) continue;
+                                for (let key in txCols) {
+                                    let score = String(jsonArray[i][txCols[key]] || '').trim().replace(/,/g, '.');
+                                    if (score && score.toLowerCase() !== 'nan') fullData[key][name] = score;
+                                }
+                                if (gkCol !== -1) { let sc = String(jsonArray[i][gkCol] || '').trim().replace(/,/g, '.'); if (sc && sc !== 'nan') fullData['GK'][name] = sc; }
+                                if (ckCol !== -1) { let sc = String(jsonArray[i][ckCol] || '').trim().replace(/,/g, '.'); if (sc && sc !== 'nan') fullData['CK'][name] = sc; }
+                            }
                             
-                            // Bắt regex "Lớp: 8M"
-                            let classMatch = rowStr.match(/lớp:\s*([a-zA-Z0-9]+)/i);
-                            if (classMatch && className === "UNKNOWN") className = classMatch[1].trim().toUpperCase();
+                            log(`✔️ Đã nạp: [${className}] - [${subjectName}]`);
+                            resolve({ fileName: file.name, className: className, subjectName: subjectName, scores: fullData });
                             
-                            // Bắt regex "Môn học: Khoa học Tự nhiên - GV..." (Chỉ lấy phần chữ trước dấu - hoặc GV)
-                            let subjMatch = rowStr.match(/môn học:\s*(.*?)(?:\s*-|\s*gv:|$)/i);
-                            if (subjMatch && subjectName === "UNKNOWN") subjectName = subjMatch[1].trim();
+                        } catch (error) {
+                            log(`❌ Bỏ qua file [${file.name}] do lỗi định dạng!`);
+                            resolve(null); // Giải phóng lệnh chờ nếu có lỗi
                         }
-
-                        // =====================================
-                        // 2. TRÍCH XUẤT ĐIỂM (Giữ nguyên logic cũ)
-                        // =====================================
-                        let headerRowIdx = jsonArray.findIndex(row => row.some(cell => String(cell).toLowerCase().includes('họ và tên')));
-                        if (headerRowIdx === -1) { 
-                            log(`⚠️ File [${file.name}]: Không tìm thấy cột Họ và tên!`); 
-                            resolve(null); return; 
-                        }
-
-                        let nameCol = 2; let gkCol = -1; let ckCol = -1;
-                        let txCols = {};
-                        let r1 = jsonArray[headerRowIdx] || [];
-                        let r2 = jsonArray[headerRowIdx + 1] || [];
-                        let currentMainHeader = '';
-
-                        for (let c = 0; c < Math.max(r1.length, r2.length); c++) {
-                            let h1 = String(r1[c] || '').trim().toLowerCase();
-                            let h2 = String(r2[c] || '').trim().toLowerCase();
-                            if (h1) currentMainHeader = h1;
-
-                            if (currentMainHeader.includes('họ và tên') || h1.includes('họ và tên')) nameCol = c;
-                            else if (currentMainHeader.includes('đđggk') || h1.includes('giữa k')) gkCol = c;
-                            else if (currentMainHeader.includes('đđgck') || h1.includes('cuối k')) ckCol = c;
-                            else if (currentMainHeader.includes('đđgtx') || currentMainHeader.includes('thường xuyên')) {
-                                if (h2 === '1') txCols['TX1'] = c; else if (h2 === '2') txCols['TX2'] = c; else if (h2 === '3') txCols['TX3'] = c;
-                                else if (h2 === '4') txCols['TX4'] = c; else if (h2 === '5') txCols['TX5'] = c; else if (h2 === '6') txCols['TX6'] = c;
-                            }
-                        }
-
-                        if (Object.keys(txCols).length === 0) {
-                            let startTx = r1.findIndex(x => String(x).toLowerCase().includes('đđgtx'));
-                            let endTx = r1.findIndex(x => String(x).toLowerCase().includes('đđggk'));
-                            if (startTx !== -1 && endTx !== -1) {
-                                let txCount = 1;
-                                for (let c = startTx; c < endTx; c++) { txCols['TX' + txCount] = c; txCount++; }
-                            }
-                        }
-
-                        let dataStartRow = headerRowIdx + 1;
-                        let row1Name = String(jsonArray[dataStartRow]?.[nameCol] || '').trim();
-                        if (row1Name === '' || !isNaN(row1Name)) { dataStartRow++; }
-
-                        let fullData = { 'GK': {}, 'CK': {} };
-                        for (let i = 1; i <= 10; i++) { fullData['TX' + i] = {}; }
-
-                        for (let i = dataStartRow; i < jsonArray.length; i++) {
-                            let row = jsonArray[i];
-                            let name = row[nameCol];
-                            if (!name) continue;
-                            let strName = String(name).trim();
-
-                            for (let txKey in txCols) {
-                                let score = String(row[txCols[txKey]] || '').trim().replace(/,/g, '.');
-                                if (score !== '' && score.toLowerCase() !== 'nan' && !score.startsWith('#')) fullData[txKey][strName] = score;
-                            }
-
-                            if (gkCol !== -1) {
-                                let score = String(row[gkCol] || '').trim().replace(/,/g, '.');
-                                if (score !== '' && score.toLowerCase() !== 'nan' && !score.startsWith('#')) fullData['GK'][strName] = score;
-                            }
-                            if (ckCol !== -1) {
-                                let score = String(row[ckCol] || '').trim().replace(/,/g, '.');
-                                if (score !== '' && score.toLowerCase() !== 'nan' && !score.startsWith('#')) fullData['CK'][strName] = score;
-                            }
-                        }
-                        
-                        log(`✔️ Đã nạp: Lớp [${className}] - Môn [${subjectName}]`);
-                        
-                        resolve({
-                            fileName: file.name,
-                            className: className,
-                            subjectName: subjectName,
-                            scores: fullData
-                        });
                     };
                     reader.readAsArrayBuffer(file);
                 });
-                
                 if (fileData) allFilesData.push(fileData);
             }
-            
             return allFilesData;
         };
 
