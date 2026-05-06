@@ -88,7 +88,6 @@
             </div>
 
             <div style="padding: 15px;">
-                <!-- KHU VỰC NHẬP ĐIỂM -->
                 <div id="section-grader" style="display: none;">
                     <div id="grader-auth" style="display: ${displayAuth}; text-align: center; padding: 10px 0;">
                         <p style="font-size: 12px; margin-bottom: 10px; color: #dc3545; font-weight: bold;">Tính năng này yêu cầu mã Token bản quyền.</p>
@@ -105,7 +104,7 @@
                         <input type="file" id="excel-file" accept=".xlsx, .xls" multiple style="width: 100%; margin: 8px 0 10px 0; font-size: 12px;">
                         
                         <label style="font-size: 12px; font-weight: bold;">2. Cột điểm hiện tại</label>
-                        <select id="score-col" style="width: 100%; margin: 8px 0 15px 0; padding: 6px; border-radius: 4px; border: 1px solid #aaa;">
+                        <select id="score-col" style="width: 100%; margin: 8px 0 5px 0; padding: 6px; border-radius: 4px; border: 1px solid #aaa;">
                             <option value="TX1" ${defaultKey === 'TX1' ? 'selected' : ''}>ĐĐG Thường xuyên 1 (HS1-1)</option>
                             <option value="TX2" ${defaultKey === 'TX2' ? 'selected' : ''}>ĐĐG Thường xuyên 2 (HS1-2)</option>
                             <option value="TX3" ${defaultKey === 'TX3' ? 'selected' : ''}>ĐĐG Thường xuyên 3 (HS1-3)</option>
@@ -115,37 +114,33 @@
                             <option value="CK"  ${defaultKey === 'CK' ? 'selected' : ''}>Điểm Cuối Kì (HS3)</option>
                         </select>
                         
-                        <div style="display: flex; flex-direction: column; gap: 8px;">
-                            <button id="btn-auto-full" style="background: #28a745; color: white; padding: 8px; border: none; border-radius: 4px; font-weight: bold; cursor: pointer;">🚀 AUTO LỚP HIỆN TẠI (Tạo Bảng -> Chốt Sổ)</button>
+                        <div style="margin-top: 10px; border: 1px solid #ccc; border-radius: 4px; padding: 8px; background: #f9f9f9;">
+                            <div style="font-size: 12px; font-weight: bold; margin-bottom: 5px; color:#d81b60;">📔 TỪ ĐIỂN MÔN HỌC (Tự động lưu)</div>
+                            <table style="width: 100%; font-size: 11px; text-align: left;">
+                                <thead><tr style="border-bottom: 1px solid #ddd;"><th>Tên Excel</th><th>Từ khóa Web (Cắt bởi dấu phẩy)</th><th></th></tr></thead>
+                                <tbody id="dict-body"></tbody>
+                            </table>
+                            <button id="btn-add-dict" style="width: 100%; font-size: 10px; margin-top: 5px; padding: 4px; cursor:pointer;">+ Thêm từ khóa mới</button>
+                        </div>
+
+                        <div style="margin-top: 10px; border: 1px solid #007bff; border-radius: 4px; padding: 8px;">
+                            <div style="font-size: 12px; font-weight: bold; margin-bottom: 5px; color:#007bff;">📋 TIẾN ĐỘ CHẠY (QUEUE)</div>
+                            <div id="queue-list" style="max-height: 120px; overflow-y: auto; font-size: 11px; background: #fff; border: 1px solid #eee; padding: 4px;">
+                                <i>Chưa có dữ liệu...</i>
+                            </div>
+                        </div>
+                        
+                        <div style="display: flex; flex-direction: column; gap: 8px; margin-top: 15px;">
+                            <button id="btn-auto-batch" style="background: #e91e63; color: white; padding: 10px; border: none; border-radius: 4px; font-weight: bold; cursor: pointer; font-size: 12px;">🚀 AUTO CHẠY TẤT CẢ FILE ĐÃ CHỌN</button>
+                            <button id="btn-auto-full" style="background: #28a745; color: white; padding: 8px; border: none; border-radius: 4px; font-weight: bold; cursor: pointer;">🚀 AUTO LỚP HIỆN TẠI</button>
                             <button id="btn-auto-input" style="background: #007bff; color: white; padding: 8px; border: none; border-radius: 4px; font-weight: bold; cursor: pointer;">⚡ CHỈ NHẬP ĐIỂM CỘT ĐANG CHỌN</button>
                             
-                            <div style="border-top: 1px dashed #ccc; margin: 5px 0;"></div> <!-- Đường kẻ phân cách -->
-                            
-                            <button id="btn-reset" style="background: #ffc107; color: black; padding: 8px; border: none; border-radius: 4px; font-weight: bold; cursor: pointer;">🔄 RESET ĐIỂM (Cột Đang Chọn)</button>
+                            <div style="border-top: 1px dashed #ccc; margin: 5px 0;"></div> <button id="btn-reset" style="background: #ffc107; color: black; padding: 8px; border: none; border-radius: 4px; font-weight: bold; cursor: pointer;">🔄 RESET ĐIỂM (Cột Đang Chọn)</button>
                             <button id="btn-reset-all" style="background: #dc3545; color: white; padding: 8px; border: none; border-radius: 4px; font-weight: bold; cursor: pointer;">💣 RESET TOÀN BỘ (Tất Cả Các Cột)</button>
                         </div>
                     </div>
                 </div>
 
-                <div style="margin-top: 10px; border: 1px solid #ccc; border-radius: 4px; padding: 8px; background: #f9f9f9;">
-                    <div style="font-size: 12px; font-weight: bold; margin-bottom: 5px; color:#d81b60;">📔 TỪ ĐIỂN MÔN HỌC (Tự động lưu)</div>
-                    <table style="width: 100%; font-size: 11px; text-align: left;">
-                        <thead><tr style="border-bottom: 1px solid #ddd;"><th>Tên Excel</th><th>Từ khóa Web (Cắt bởi dấu phẩy)</th><th></th></tr></thead>
-                        <tbody id="dict-body"></tbody>
-                    </table>
-                    <button id="btn-add-dict" style="width: 100%; font-size: 10px; margin-top: 5px; padding: 4px; cursor:pointer;">+ Thêm từ khóa mới</button>
-                </div>
-
-                <div style="margin-top: 10px; border: 1px solid #007bff; border-radius: 4px; padding: 8px;">
-                    <div style="font-size: 12px; font-weight: bold; margin-bottom: 5px; color:#007bff;">📋 TIẾN ĐỘ CHẠY (QUEUE)</div>
-                    <div id="queue-list" style="max-height: 120px; overflow-y: auto; font-size: 11px; background: #fff; border: 1px solid #eee; padding: 4px;">
-                        <i>Chưa có dữ liệu...</i>
-                    </div>
-                </div>
-                
-                <button id="btn-auto-batch" style="background: #e91e63; color: white; padding: 10px; margin-top: 15px; margin-bottom: 10px; border: none; border-radius: 4px; font-weight: bold; width: 100%; cursor: pointer;">🚀 AUTO CHẠY TẤT CẢ FILE ĐÃ CHỌN</button>
-
-                <!-- KHU VỰC ĐIỂM DANH -->
                 <div id="section-attendance" style="display: flex; flex-direction: column; gap: 10px;">
                     <div style="background: #e9ecef; padding: 10px; border-radius: 5px; font-size: 12px; margin-bottom: 5px;">
                         <b>Miễn phí:</b> Mở cửa sổ điểm danh trên web, sau đó bấm nút tự động dưới đây.
