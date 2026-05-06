@@ -1442,6 +1442,15 @@
             alert("🎉 HOÀN TẤT: Đã xóa sạch sẽ toàn bộ các cột điểm của lớp này!");
         };
 
+        // Hàm cập nhật trạng thái hàng đợi (Queue)
+        const updateQueueUI = (id, statusHtml) => {
+            let row = document.getElementById(id);
+            if (row) {
+                let statusEl = row.querySelector('.q-status');
+                if (statusEl) statusEl.innerHTML = statusHtml;
+            }
+        };
+
         // ==========================================
         // MASTER LOOP: RỬA KEY & TRA TỪ ĐIỂN CHUẨN XÁC
         // ==========================================
@@ -1474,11 +1483,16 @@
                 let keywords = subjectMap[task.subjectRaw] || subjectMap[cleanedSubj] || [cleanedSubj.toLowerCase()];
 
                 // 3. TÌM SIDEBAR (Kết hợp Lớp + Keywords)
-                let classBtn = Array.from(document.querySelectorAll('.sidebar-item, a, .ohke-row'))
+                let classBtn = Array.from(document.querySelectorAll('.sidebar-item, a, .ohke-row, .list-item'))
                     .find(el => {
-                        let txt = el.innerText.toLowerCase();
-                        return txt.includes(task.className.toLowerCase()) && 
-                               keywords.some(k => txt.includes(k.toLowerCase()));
+                        if (el.offsetWidth === 0) return false; // Bỏ qua phần tử ẩn
+                        let txt = el.textContent.toLowerCase().replace(/\s+/g, ' '); // Chuẩn hóa khoảng trắng
+                        
+                        // Kiểm tra xem có chứa Tên Lớp VÀ một trong các từ khóa môn học không
+                        let matchClass = txt.includes(task.className.toLowerCase());
+                        let matchSubj = keywords.some(k => txt.includes(k.toLowerCase().trim()));
+                        
+                        return matchClass && matchSubj;
                     });
 
                 if (classBtn) {
