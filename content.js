@@ -688,10 +688,10 @@
         const processSingleColumn = async (scoreDict, mode, colKey = '') => {
             const autoCreate = (mode === 'create');
 
-            // HÀM NHẬP ĐIỂM CƠ BẢN
-            const applyValue = async (targetInput, val) => {
+            // HÀM NHẬP ĐIỂM CƠ BẢN (Đã thêm tham số skipEnter)
+            const applyValue = async (targetInput, val, skipEnter = false) => {
                 let formattedVal = val.toString().replace(',', '.');
-                targetInput.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                targetInput.scrollIntoView({ behavior: 'auto', block: 'center' });
                 await delay(50);
                 targetInput.dispatchEvent(new Event('focus', { bubbles: true }));
                 targetInput.dispatchEvent(new Event('click', { bubbles: true }));
@@ -699,11 +699,16 @@
                 targetInput.value = formattedVal;
                 targetInput.dispatchEvent(new Event('input', { bubbles: true }));
                 targetInput.dispatchEvent(new KeyboardEvent('keyup', { bubbles: true }));
-                targetInput.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, key: 'Enter', code: 'Enter', keyCode: 13, which: 13 }));
-                targetInput.dispatchEvent(new KeyboardEvent('keyup', { bubbles: true, key: 'Enter', code: 'Enter', keyCode: 13, which: 13 }));
+                
+                // NẾU LÀ CHẾ ĐỘ SỬA ĐIỂM (skipEnter = true), BỎ QUA PHÍM ENTER NÀY
+                if (!skipEnter) {
+                    targetInput.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, key: 'Enter', code: 'Enter', keyCode: 13, which: 13 }));
+                    targetInput.dispatchEvent(new KeyboardEvent('keyup', { bubbles: true, key: 'Enter', code: 'Enter', keyCode: 13, which: 13 }));
+                }
+                
                 targetInput.dispatchEvent(new Event('change', { bubbles: true }));
                 targetInput.dispatchEvent(new Event('blur', { bubbles: true }));
-                await delay(300);
+                await delay(200);
                 if (typeof checkAndCloseErrorGrading === "function") return await checkAndCloseErrorGrading();
             };
 
@@ -889,7 +894,10 @@
                             if (rowText.includes(student.name)) {
                                 log(`🔨 Sửa điểm cho ${student.name} -> ${student.targetScore}`);
                                 let fixedTarget = parseFloat(student.targetScore).toFixed(2);
-                                await applyValue(input, fixedTarget);
+                                
+                                // GỌI HÀM VỚI THAM SỐ skipEnter = true ĐỂ KHÔNG BẤM ENTER
+                                await applyValue(input, fixedTarget, true);
+                                
                                 await delay(400);
                                 break;
                             }
