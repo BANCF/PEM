@@ -687,18 +687,22 @@
             const autoCreate = (mode === 'create');
 
             // HÀM NHẬP ĐIỂM CƠ BẢN (Đã thêm tham số skipEnter)
-            const applyValue = async (targetInput, val, skipEnter = false) => {
+            // HÀM NHẬP ĐIỂM CƠ BẢN (Tối ưu tốc độ động)
+            const applyValue = async (targetInput, val, skipEnter = false, postDelay = 200) => {
                 let formattedVal = val.toString().replace(',', '.');
                 targetInput.scrollIntoView({ behavior: 'auto', block: 'center' });
-                await delay(50);
+                
+                // Nghỉ 1 nhịp siêu ngắn để DOM kịp cuộn
+                await delay(20);
+                
                 targetInput.dispatchEvent(new Event('focus', { bubbles: true }));
-                targetInput.dispatchEvent(new Event('click', { bubbles: true }));
-                await delay(50); 
+                targetInput.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
+                targetInput.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+                
                 targetInput.value = formattedVal;
                 targetInput.dispatchEvent(new Event('input', { bubbles: true }));
                 targetInput.dispatchEvent(new KeyboardEvent('keyup', { bubbles: true }));
                 
-                // NẾU LÀ CHẾ ĐỘ SỬA ĐIỂM (skipEnter = true), BỎ QUA PHÍM ENTER NÀY
                 if (!skipEnter) {
                     targetInput.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, key: 'Enter', code: 'Enter', keyCode: 13, which: 13 }));
                     targetInput.dispatchEvent(new KeyboardEvent('keyup', { bubbles: true, key: 'Enter', code: 'Enter', keyCode: 13, which: 13 }));
@@ -706,7 +710,10 @@
                 
                 targetInput.dispatchEvent(new Event('change', { bubbles: true }));
                 targetInput.dispatchEvent(new Event('blur', { bubbles: true }));
-                await delay(200);
+                
+                // THỜI GIAN CHỜ LINH HOẠT THEO CHỈ ĐỊNH
+                await delay(postDelay);
+                
                 if (typeof checkAndCloseErrorGrading === "function") return await checkAndCloseErrorGrading();
             };
 
@@ -827,8 +834,13 @@
 
                         let successInput = false;
                         for (let attempt = 1; attempt <= 3; attempt++) {
-                            await applyValue(input, targetScore);
-                            await delay(200); 
+                            
+                            // CÔNG THỨC TỐC ĐỘ: 3 bạn đầu tiên chờ 400ms. Từ bạn thứ 4 trở đi chạy tốc độ 50ms.
+                            // Riêng nếu đang là lần thử lại (attempt > 1) do lỗi, ép về tốc độ chậm 400ms cho an toàn.
+                            let speedDelay = (countFill < 3 || attempt > 1) ? 400 : 50;
+                            
+                            // Gọi hàm applyValue with tốc độ tương ứng
+                            await applyValue(input, targetScore, false, speedDelay);
 
                             let hasErrorPopup = typeof checkAndCloseErrorGrading === "function" ? await checkAndCloseErrorGrading() : false;
                             let checkVal = parseFloat(String(input.value).replace(/,/g, '.'));
@@ -840,7 +852,7 @@
                             } else {
                                 log(`⚠️ Lỗi nhập liệu cho [${name}] (Thử lại lần ${attempt}/3)...`);
                                 input.style.border = '2px solid red';
-                                await delay(400);
+                                await delay(400); // Lỗi thì dừng lại 1 chút để DOM thở
                                 input.value = ""; 
                             }
                         }
