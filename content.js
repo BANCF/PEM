@@ -790,7 +790,7 @@
         // MODULE 1: QUÉT NHÃN MÁC TẠO HÀNG ĐỢI (PRE-SCAN)
         // ==========================================
         // ==========================================
-        // MODULE 1: ĐÓNG GÓI DỮ LIỆU TỪ ĐẦU (TỰ ĐỘNG DÒ SHEET CHUẨN)
+        // MODULE 1: ĐÓNG GÓI DỮ LIỆU TỪ ĐẦU (V5 - RADAR & DIỆT KÝ TỰ ẨN)
         // ==========================================
         const parseAllFilesUpfront = async () => {
             const fileInput = document.getElementById('excel-file');
@@ -801,109 +801,111 @@
 
             for (let f = 0; f < fileInput.files.length; f++) {
                 const file = fileInput.files[f];
-                let info = await new Promise((resolve) => {
+                let fileTasks = await new Promise((resolve) => {
                     const reader = new FileReader();
                     reader.onload = (e) => {
+                        let extracted = [];
                         try {
                             const data = new Uint8Array(e.target.result);
                             const workbook = XLSX.read(data, { type: 'array' });
+                            
+                            // Lọc bỏ sheet rác
+                            let validSheets = workbook.SheetNames.filter(n => {
+                                let txt = n.toLowerCase();
+                                return !txt.includes('hướng') && !txt.includes('huong') && !txt.includes('bìa') && !txt.includes('bia');
+                            });
+                            if (validSheets.length === 0) validSheets = [workbook.SheetNames[0]];
+                            
                             const cleanStr = str => String(str || '').toLowerCase().replace(/[\n\r\s\-]/g, '');
 
-                            // BỘ ĐỊNH VỊ SHEET: Bắt buộc phải có cột Tên VÀ cột Điểm mới là Sheet chuẩn
-                            let targetSheet = null;
-                            for (let sheetName of workbook.SheetNames) {
-                                let tempArr = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName], { header: 1 });
-                                let hasName = false, hasScoreCol = false;
-                                for (let r = 0; r < Math.min(tempArr.length, 20); r++) {
-                                    let rowStr = (tempArr[r] || []).map(cleanStr).join("");
-                                    if (rowStr.includes('họvàtên') || rowStr.includes('họtên')) hasName = true;
-                                    if (rowStr.includes('đđgtx') || rowStr.includes('đđggk') || rowStr.includes('giữak')) hasScoreCol = true;
-                                }
-                                if (hasName && hasScoreCol) { targetSheet = sheetName; break; }
-                            }
-                            // Nếu tìm đỏ mắt không thấy, fallback về sheet đầu tiên
-                            if (!targetSheet) targetSheet = workbook.SheetNames[0];
-
-                            const jsonArray = XLSX.utils.sheet_to_json(workbook.Sheets[targetSheet], { header: 1 });
-
-                            // 1. Nhận diện Lớp, Môn
-                            let className = "UNKNOWN", subjectName = "UNKNOWN";
-                            for (let i = 0; i < Math.min(10, jsonArray.length); i++) {
-                                let rowStr = jsonArray[i].map(c => String(c || '')).join(" "); 
-                                let cMatch = rowStr.match(/lớp:\s*([a-zA-Z0-9]+)/i);
-                                if (cMatch && className === "UNKNOWN") className = cMatch[1].trim().toUpperCase();
-                                let sMatch = rowStr.match(/môn(?:\s*học)?:\s*(.*?)(?:\s*-|\s*gv:|,|$)/i);
-                                if (sMatch && subjectName === "UNKNOWN") subjectName = sMatch[1].trim();
-                            }
-
-                            // 2. Tìm Header
-                            let headerRowIdx = jsonArray.findIndex(r => r.some(c => cleanStr(c).includes('họvàtên') || cleanStr(c).includes('họtên')));
-                            if (headerRowIdx === -1) { resolve(null); return; }
-
-                            let nameCol = -1, gkCol = -1, ckCol = -1, sTx = -1;
-                            for (let r = Math.max(0, headerRowIdx - 1); r <= Math.min(jsonArray.length - 1, headerRowIdx + 2); r++) {
-                                let row = jsonArray[r] || [];
-                                for (let c = 0; c < row.length; c++) {
-                                    let cell = cleanStr(row[c]);
-                                    if (nameCol === -1 && (cell.includes('họvàtên') || cell.includes('họtên'))) nameCol = c;
-                                    if (gkCol === -1 && (cell.includes('giữak') || cell.includes('đđggk'))) gkCol = c;
-                                    if (ckCol === -1 && (cell.includes('cuốik') || cell.includes('đđgck'))) ckCol = c;
-                                    if (sTx === -1 && (cell.includes('thườngxuyên') || cell.includes('đđgtx'))) sTx = c;
-                                }
-                            }
-
-                            let txCols = {};
-                            if (sTx !== -1 && gkCol !== -1 && gkCol > sTx) {
-                                let count = 1;
-                                for (let c = sTx; c < gkCol; c++) { if (c !== nameCol) { txCols['TX' + count] = c; count++; } }
-                            } else if (sTx !== -1) {
-                                let count = 1;
-                                for(let c = sTx; c < sTx + 5; c++) { if (c !== nameCol) { txCols['TX' + count] = c; count++; } }
-                            } else {
-                                let count = 1;
-                                for(let c = nameCol + 2; c <= nameCol + 6; c++) { txCols['TX' + count] = c; count++; }
-                            }
-
-                            let fullData = { 'GK': {}, 'CK': {} };
-                            for (let i = 1; i <= 15; i++) fullData['TX' + i] = {};
-                            
-                            let countDiem = 0;
-
-                            // 3. QUÉT ĐIỂM (BỌC GIÁP STT)
-                            for (let i = headerRowIdx + 1; i < jsonArray.length; i++) {
-                                let rowD = jsonArray[i] || [];
+                            // Vòng lặp quét tất cả các sheet (hỗ trợ cả file Sổ Điểm Tổng Hợp)
+                            for (let targetSheet of validSheets) {
+                                const jsonArray = XLSX.utils.sheet_to_json(workbook.Sheets[targetSheet], { header: 1 });
                                 
-                                // Ép cột 0 thành số: Xóa mọi dấu cách, ký tự tàng hình. Chỉ giữ số.
-                                let rawStt = String(rowD[0] || '').trim();
-                                let stt = rawStt.replace(/[^\d]/g, ''); 
-                                let name = String(rowD[nameCol] || '').trim();
-                                
-                                // Nếu không có số STT, hoặc không có tên -> Bỏ qua dòng này (Chống dòng rác 100%)
-                                if (stt === '' || !name) continue;
-                                if (cleanStr(name).includes('họvàtên')) continue; // Bỏ qua nếu là dòng tiêu đề lặp
+                                let className = "UNKNOWN", subjectName = "UNKNOWN";
+                                for (let i = 0; i < Math.min(15, jsonArray.length); i++) {
+                                    let rowStr = jsonArray[i].map(c => String(c || '')).join(" "); 
+                                    let cMatch = rowStr.match(/lớp:\s*([a-zA-Z0-9]+)/i);
+                                    if (cMatch && className === "UNKNOWN") className = cMatch[1].trim().toUpperCase();
+                                    let sMatch = rowStr.match(/môn(?:\s*học)?:\s*(.*?)(?:\s*-|\s*gv:|,|$)/i);
+                                    if (sMatch && subjectName === "UNKNOWN") subjectName = sMatch[1].trim();
+                                }
 
-                                for (let key in txCols) {
-                                    let score = String(rowD[txCols[key]] || '').replace(/,/g, '.').replace(/[^\d.]/g, '');
-                                    if (score !== '') { fullData[key][name] = score; countDiem++; }
+                                let headerRowIdx = jsonArray.findIndex(r => r.some(c => cleanStr(c).includes('họvàtên') || cleanStr(c).includes('họtên')));
+                                if (headerRowIdx === -1) continue; 
+
+                                // RADAR DÒ CỘT TỰ ĐỘNG
+                                let sttCol = -1, nameCol = -1, gkCol = -1, ckCol = -1, sTx = -1;
+                                for (let r = Math.max(0, headerRowIdx - 1); r <= Math.min(jsonArray.length - 1, headerRowIdx + 2); r++) {
+                                    let row = jsonArray[r] || [];
+                                    for (let c = 0; c < row.length; c++) {
+                                        let cell = cleanStr(row[c]);
+                                        if (sttCol === -1 && (cell === 'stt' || cell === 'sốtt')) sttCol = c;
+                                        if (nameCol === -1 && (cell.includes('họvàtên') || cell.includes('họtên'))) nameCol = c;
+                                        if (gkCol === -1 && (cell.includes('giữak') || cell.includes('đđggk'))) gkCol = c;
+                                        if (ckCol === -1 && (cell.includes('cuốik') || cell.includes('đđgck'))) ckCol = c;
+                                        if (sTx === -1 && (cell.includes('thườngxuyên') || cell.includes('đđgtx'))) sTx = c;
+                                    }
                                 }
-                                if (gkCol !== -1) { 
-                                    let sc = String(rowD[gkCol] || '').replace(/,/g, '.').replace(/[^\d.]/g, ''); 
-                                    if (sc !== '') { fullData['GK'][name] = sc; countDiem++; } 
+                                if (sttCol === -1) sttCol = 0;
+
+                                let txCols = {};
+                                if (sTx !== -1 && gkCol !== -1 && gkCol > sTx) {
+                                    let count = 1;
+                                    for (let c = sTx; c < gkCol; c++) { if (c !== nameCol && c !== sttCol) { txCols['TX' + count] = c; count++; } }
+                                } else if (sTx !== -1) {
+                                    let count = 1;
+                                    for(let c = sTx; c < sTx + 5; c++) { if (c !== nameCol && c !== sttCol) { txCols['TX' + count] = c; count++; } }
+                                } else {
+                                    let count = 1;
+                                    for(let c = nameCol + 2; c <= nameCol + 6; c++) { txCols['TX' + count] = c; count++; }
                                 }
-                                if (ckCol !== -1) { 
-                                    let sc = String(rowD[ckCol] || '').replace(/,/g, '.').replace(/[^\d.]/g, ''); 
-                                    if (sc !== '') { fullData['CK'][name] = sc; countDiem++; } 
+
+                                let fullData = { 'GK': {}, 'CK': {} };
+                                for (let i = 1; i <= 15; i++) fullData['TX' + i] = {};
+                                
+                                let countDiem = 0, countStudents = 0;
+
+                                // QUÉT ĐIỂM
+                                for (let i = headerRowIdx + 1; i < jsonArray.length; i++) {
+                                    let rowD = jsonArray[i] || [];
+                                    
+                                    // BÓP NÁT MỌI KÝ TỰ ẨN TRONG CỘT STT
+                                    let rawStt = String(rowD[sttCol] || '').trim();
+                                    let stt = rawStt.replace(/[^\d]/g, ''); 
+                                    let name = String(rowD[nameCol] || '').trim();
+                                    
+                                    // Chốt chặn an toàn: Phải có STT dạng số và phải có Tên
+                                    if (stt === '' || !name) continue;
+                                    if (cleanStr(name).includes('họvàtên') || cleanStr(name).includes('sốhọcsinh')) continue;
+
+                                    countStudents++;
+
+                                    for (let key in txCols) {
+                                        let score = String(rowD[txCols[key]] || '').replace(/,/g, '.').replace(/[^\d.]/g, '');
+                                        if (score !== '') { fullData[key][name] = score; countDiem++; }
+                                    }
+                                    if (gkCol !== -1) { 
+                                        let sc = String(rowD[gkCol] || '').replace(/,/g, '.').replace(/[^\d.]/g, ''); 
+                                        if (sc !== '') { fullData['GK'][name] = sc; countDiem++; } 
+                                    }
+                                    if (ckCol !== -1) { 
+                                        let sc = String(rowD[ckCol] || '').replace(/,/g, '.').replace(/[^\d.]/g, ''); 
+                                        if (sc !== '') { fullData['CK'][name] = sc; countDiem++; } 
+                                    }
+                                }
+                                
+                                if (countStudents > 0) {
+                                    log(`📦 Đã nạp THÙNG [${className}]: ${countStudents} Học sinh | Chuẩn ${countDiem} điểm.`);
+                                    extracted.push({ className, subjectName, fileObj: file, scores: fullData, countDiem });
                                 }
                             }
-                            
-                            log(`📦 Đã nạp THÙNG [${className}]: chuẩn ${countDiem} điểm.`);
-                            resolve({ className, subjectName, fileObj: file, scores: fullData, countDiem });
-                            
-                        } catch (e) { resolve(null); }
+                            resolve(extracted);
+                        } catch (e) { resolve([]); }
                     };
                     reader.readAsArrayBuffer(file);
                 });
-                if (info && info.className !== "UNKNOWN") queue.push(info);
+                queue = queue.concat(fileTasks);
             }
             return queue;
         };
