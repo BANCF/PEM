@@ -427,19 +427,24 @@
         const clickTabGrading = async (text) => {
             log(`Mở tab con [${text}]...`);
             for (let i = 0; i < 10; i++) {
-                let els = Array.from(document.querySelectorAll('div[class*="tab"], li, a, button, span, div.ohke-control'))
+                // Tối ưu selector: Chỉ tìm trong các nút tab chuẩn của hệ thống
+                let els = Array.from(document.querySelectorAll('.ohke-tab-btn, .tab-btn-, .select-holder div'))
                     .filter(el => el.offsetWidth > 0 && el.textContent.toLowerCase().includes(text.toLowerCase()));
+                
                 if (els.length > 0) {
+                    // Ưu tiên click nút có chứa mã số (ví dụ [961] Nhập Nhanh, [1414] Sổ Điểm)
                     let priorityEls = els.filter(el => /\[\d+\]/.test(el.textContent));
-                    let target = priorityEls.length > 0 ? priorityEls.sort((a, b) => a.textContent.length - b.textContent.length)[0] : els.sort((a, b) => a.textContent.length - b.textContent.length)[0];
+                    let target = priorityEls.length > 0 ? priorityEls[0] : els[0];
+                    
                     if (target) { 
                         forceClick(target); 
-                        await delay(800); // GIẢM DELAY: Từ 1500ms xuống 800ms
+                        await delay(1000); 
                         return true; 
                     }
                 }
-                await delay(300);
+                await delay(400);
             }
+            log(`⚠️ Không tìm thấy tab [${text}]`);
             return false;
         };
 
@@ -679,15 +684,30 @@
                 window.scrollBy({ top: 400, behavior: 'smooth' });
                 await delay(400);
                 let taoBangBtn = Array.from(document.querySelectorAll('a, button, .ohke-btn')).find(el => el.offsetWidth > 0 && el.textContent.toLowerCase().includes('tạo bảng tiêu chí'));
+                
                 if (taoBangBtn) {
                     log(`🔨 Đang tạo bảng [${colKey}]...`);
                     forceClick(taoBangBtn); await delay(800);
                     let tiepTucBtn = document.querySelector('.ohke-popup .btn-continue, .w3-modal .btn-continue');
                     if (!tiepTucBtn) tiepTucBtn = Array.from(document.querySelectorAll('.ohke-popup a, .w3-modal a, button')).find(el => el.offsetWidth > 0 && el.textContent.trim() === 'Tiếp Tục');
+                    
                     if (tiepTucBtn) {
                         forceClick(tiepTucBtn); await delay(1500); 
                         let dongBtn = Array.from(document.querySelectorAll('.w3-modal.w3-show a, .w3-modal.w3-show button')).find(el => el.offsetWidth > 0 && (el.textContent.includes('Đóng') || el.textContent.includes('Đồng ý') || el.textContent.includes('OK')));
                         if (dongBtn) { forceClick(dongBtn); await delay(800); } 
+                    }
+
+                    // TỐI ƯU GIAI ĐOẠN 1: Nhảy qua Nhập Nhanh kéo xuống tận cùng để Load DOM
+                    log(`⬇️ Chuyển sang [Nhập Nhanh] để nạp trước danh sách học sinh...`);
+                    let openedNhanh = await clickTabGrading('Nhập Nhanh');
+                    if (openedNhanh) {
+                        await delay(1500); // Đợi tab Nhập Nhanh mở ra
+                        for (let k = 0; k < 8; k++) {
+                            window.scrollBy({ top: 800, behavior: 'smooth' });
+                            let inputsToScroll = document.querySelectorAll('.tab-content input[type="text"]');
+                            if (inputsToScroll.length > 0) inputsToScroll[inputsToScroll.length - 1].scrollIntoView({ behavior: 'smooth', block: 'end' });
+                            await delay(400);
+                        }
                     }
                 } 
                 return true; 
@@ -703,7 +723,6 @@
             window.scrollTo({ top: 0, behavior: 'smooth' });
             await delay(400);
 
-            // FIX LỖI CUỘN THIẾU DANH SÁCH: Kết hợp cuộn cả trong lẫn ngoài
             let tabContent = document.querySelector('.tab-content .active .dynamic-content, .tab-content .active .agent-list') || document.querySelector('.tab-content');
             let lastLen = 0;
             for (let k = 0; k < 12; k++) {
@@ -718,11 +737,9 @@
                 lastLen = inputsToScroll.length;
             }
             
-            // FIX LỖI NETWORK: Thêm độ trễ để các truy vấn ngầm (AJAX) chạy xong, chống đứng màn hình
             log("⏳ Đang chờ hệ thống ổn định kết nối...");
             await delay(1500);
 
-            // Kéo về đầu bảng để nhập điểm
             window.scrollTo({ top: 0, behavior: 'smooth' });
             let firstInput = document.querySelector('.tab-content input[type="text"][placeholder*="Định Lượng"], .tab-content input[type="text"][name="quantitative_result"]');
             if(firstInput) firstInput.scrollIntoView({behavior: 'smooth', block: 'center'});
@@ -793,7 +810,7 @@
             // =======================================
             let openedSoDiem = await clickTabGrading('Sổ Điểm');
             if (!openedSoDiem) return false;
-            await delay(1200); 
+            await delay(2000); // Chờ Sổ Điểm Load HTML
 
             let studentsToFix = [];
             let scoreDivs = document.querySelectorAll('.control-number .content, .list-item [class*="evaluation_result"]'); 
@@ -814,37 +831,34 @@
                 }
             }
 
-            // FIX LỖI NHẦM TAB: Chuyển lại Nhập Nhanh để sửa
+            // TỐI ƯU GIAI ĐOẠN 3: Lùi về Nhập Nhanh -> Sửa -> Quay lại Sổ điểm
             if (studentsToFix.length > 0) {
                 log(`🛠️ Có ${studentsToFix.length} bạn bị lỗi >10. Lùi về [Nhập Nhanh] để sửa...`);
                 let openedTabNhanhAgain = await clickTabGrading('Nhập Nhanh');
                 if (openedTabNhanhAgain) {
                     await delay(1500); 
                     
-                    // Bắt buộc phải cuộn để tải lại danh sách học sinh
+                    // Cuộn load danh sách trong Nhập Nhanh
                     let lastLenFix = 0;
-                    for (let k = 0; k < 10; k++) {
-                        let inputsToScroll = document.querySelectorAll('.tab-content input[type="text"][placeholder*="Định Lượng"], .tab-content input[type="text"][name="quantitative_result"]');
+                    for (let k = 0; k < 15; k++) {
+                        let inputsToScroll = document.querySelectorAll('.tab-content input[type="text"][name="quantitative_result"]');
                         if (inputsToScroll.length > 0) inputsToScroll[inputsToScroll.length - 1].scrollIntoView({ behavior: 'smooth', block: 'center' });
-                        window.scrollBy({ top: 400, behavior: 'smooth' });
+                        window.scrollBy({ top: 500, behavior: 'smooth' });
                         await delay(300);
                         if (inputsToScroll.length === lastLenFix && inputsToScroll.length > 0) break;
                         lastLenFix = inputsToScroll.length;
                     }
-                    window.scrollTo({ top: 0, behavior: 'smooth' });
-                    await delay(500);
                     
+                    // Thực hiện tìm và sửa điểm
                     for (let student of studentsToFix) {
-                        let targetInputs = document.querySelectorAll('input[type="text"][placeholder*="Định Lượng"], input[type="text"][name="quantitative_result"]');
+                        let targetInputs = document.querySelectorAll('input[type="text"][name="quantitative_result"]');
                         for (let input of targetInputs) {
                             let rowText = input.closest('tr, .list-item, .w3-row').innerText;
                             if (rowText.includes(student.name)) {
                                 log(`🔨 Sửa điểm cho ${student.name} -> ${student.targetScore}`);
-                                
-                                // Ép định dạng 2 chữ số thập phân (Vd: 8.5 -> 8.50)
                                 let fixedTarget = parseFloat(student.targetScore).toFixed(2);
                                 await applyValue(input, fixedTarget);
-                                await delay(300);
+                                await delay(400);
                                 break;
                             }
                         }
@@ -852,7 +866,7 @@
                     log("⏳ Đang chờ lưu các sửa đổi..."); 
                     await delay(2000);
                     
-                    log("⏩ Trở lại [Sổ Điểm]...");
+                    log("⏩ Trở lại tab [Sổ Điểm] để kiểm tra...");
                     await clickTabGrading('Sổ Điểm');
                     await delay(1500);
                 }
