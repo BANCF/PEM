@@ -898,31 +898,42 @@
                                 if (countStudents > 0) {
                                     log(`📦 Đã nạp THÙNG [${className}]: ${countStudents} Học sinh | Chuẩn ${countDiem} điểm.`);
                                     
-                                    // BỘ CHIA NHÁNH MÔN HỌC (SUBJECT SPLITTER)
-                                    // Nếu môn học trong Excel là KHTN hoặc Sử-Địa, ta tự nhân bản task cho các phân môn trên web
-                                    const SPLIT_MAP = {
-                                        "khoahọctựnhiên": ["Lý", "Hóa", "Sinh"],
-                                        "khtn": ["Lý", "Hóa", "Sinh"],
-                                        "lịchsửvàđịalý": ["Sử", "Địa"],
-                                        "lịchsửđịalý": ["Sử", "Địa"],
-                                        "lsđl": ["Sử", "Địa"]
-                                    };
+                                    // BỘ ĐỐI SOÁT TỪ ĐIỂN & SIDEBAR (V6)
+                                    let mapping = getSubjectMapping();
+                                    let sidebarItems = Array.from(document.querySelectorAll('.ohke-row, .list-item, .sidebar-item, a')).filter(el => el.offsetWidth > 0);
+                                    let classRegex = new RegExp(`\\b${className}\\b`, 'i');
 
-                                    let normSub = cleanStr(subjectName);
-                                    if (SPLIT_MAP[normSub]) {
-                                        log(`🔱 Phát hiện môn tích hợp [${subjectName}]. Đang tách thành ${SPLIT_MAP[normSub].length} nhiệm vụ...`);
-                                        SPLIT_MAP[normSub].forEach(subKey => {
-                                            extracted.push({ 
-                                                className, 
-                                                subjectName: subKey, // Ghi đè tên môn để Master Loop dễ tìm
-                                                fileObj: file, 
-                                                scores: fullData, 
-                                                countDiem,
-                                                isSplit: true 
+                                    // Tìm xem môn trong Excel có trong từ điển không
+                                    let excelEntryKey = Object.keys(mapping).find(k => 
+                                        k.toLowerCase() === subjectName.toLowerCase() || subjectName.toLowerCase().includes(k.toLowerCase())
+                                    );
+
+                                    if (excelEntryKey) {
+                                        let webKeywords = mapping[excelEntryKey];
+                                        log(`🔱 Thấy từ điển [${subjectName}]: Đang đối soát ${webKeywords.length} từ khóa trên Sidebar...`);
+                                        
+                                        webKeywords.forEach(kw => {
+                                            let existsOnWeb = sidebarItems.some(el => {
+                                                let txt = el.innerText.toLowerCase();
+                                                return classRegex.test(txt) && txt.includes(kw.toLowerCase());
                                             });
+
+                                            if (existsOnWeb) {
+                                                log(`✅ Thấy [${className} - ${kw}]. Thêm vào hàng đợi.`);
+                                                extracted.push({ className, subjectName: kw, fileObj: file, scores: fullData, countDiem, isSplit: true });
+                                            }
                                         });
                                     } else {
-                                        extracted.push({ className, subjectName, fileObj: file, scores: fullData, countDiem });
+                                        // Nếu không có trong từ điển, kiểm tra trực tiếp tên môn gốc
+                                        let existsOriginal = sidebarItems.some(el => {
+                                            let txt = el.innerText.toLowerCase();
+                                            return classRegex.test(txt) && txt.includes(subjectName.toLowerCase());
+                                        });
+                                        if (existsOriginal) {
+                                            extracted.push({ className, subjectName, fileObj: file, scores: fullData, countDiem });
+                                        } else {
+                                            log(`⏭️ Bỏ qua [${className} - ${subjectName}]: Không thấy trên Sidebar.`);
+                                        }
                                     }
                                 }
                             }
