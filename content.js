@@ -635,118 +635,124 @@
         };
 
         // ==========================================
-        // MODULE: ĐỌC EXCEL (THUẬT TOÁN XUYÊN GIÁP CHỐNG LỖI FORMAT)
+        // MODULE: ĐỌC EXCEL (AUTO 1 LỚP - BẢN GỐC ĐÃ CHẠY ỔN)
         // ==========================================
-        const processMultipleExcelFiles = async () => {
+        const extractAllExcelData = async () => {
+            let fileInput = document.getElementById('excel-file');
+            let targetFile = null;
+
+            // BATCH OVERRIDE: Nếu đang chạy Batch, "cướp" quyền và lấy file của lớp đang được chọn
+            if (window.isBatchMode && window.currentBatchFile) {
+                targetFile = window.currentBatchFile;
+            } else if (fileInput.files.length > 0) {
+                targetFile = fileInput.files[0];
+            }
+
+            if (!targetFile) { alert("Vui lòng tải lên file Excel!"); return null; }
+
+            return new Promise((resolve) => {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    try {
+                        const data = new Uint8Array(e.target.result);
+                        const workbook = XLSX.read(data, { type: 'array' });
+                        // Ưu tiên bỏ qua sheet Hướng dẫn nếu có
+                        let targetSheet = workbook.SheetNames.find(n => !n.toLowerCase().includes('hướng dẫn') && !n.toLowerCase().includes('huong dan')) || workbook.SheetNames[0];
+                        
+                        const jsonArray = XLSX.utils.sheet_to_json(workbook.Sheets[targetSheet], { header: 1 });
+
+                        // --- THUẬT TOÁN ĐỌC FILE BẢN GỐC CỦA BẠN ---
+                        let headerRowIdx = jsonArray.findIndex(r => r.some(c => String(c).toLowerCase().includes('họ và tên')));
+                        if (headerRowIdx === -1) { resolve(null); return; }
+
+                        let nameCol = 2; let gkCol = -1; let ckCol = -1; let txCols = {};
+                        let r1 = jsonArray[headerRowIdx] || []; let r2 = jsonArray[headerRowIdx + 1] || [];
+                        let curMain = '';
+
+                        for (let c = 0; c < Math.max(r1.length, r2.length); c++) {
+                            let h1 = String(r1[c] || '').trim().toLowerCase(); let h2 = String(r2[c] || '').trim().toLowerCase();
+                            if (h1) curMain = h1;
+                            if (curMain.includes('họ và tên') || h1.includes('họ và tên')) nameCol = c;
+                            else if (curMain.includes('đđggk') || h1.includes('giữa k')) gkCol = c;
+                            else if (curMain.includes('đđgck') || h1.includes('cuối k')) ckCol = c;
+                            else if (curMain.includes('đđgtx') || curMain.includes('thường xuyên')) {
+                                if (h2 === '1') txCols['TX1'] = c; else if (h2 === '2') txCols['TX2'] = c; else if (h2 === '3') txCols['TX3'] = c;
+                                else if (h2 === '4') txCols['TX4'] = c; else if (h2 === '5') txCols['TX5'] = c; else if (h2 === '6') txCols['TX6'] = c;
+                            }
+                        }
+
+                        if (Object.keys(txCols).length === 0) {
+                            let sTx = r1.findIndex(x => String(x).toLowerCase().includes('đđgtx'));
+                            let eTx = r1.findIndex(x => String(x).toLowerCase().includes('đđggk'));
+                            if (sTx !== -1 && eTx !== -1) { let count = 1; for (let c = sTx; c < eTx; c++) { txCols['TX' + count] = c; count++; } }
+                        }
+
+                        let dataStartRow = headerRowIdx + 1;
+                        let row1Name = String(jsonArray[dataStartRow]?.[nameCol] || '').trim();
+                        if (row1Name === '' || !isNaN(row1Name)) { dataStartRow++; }
+
+                        let fullData = { 'GK': {}, 'CK': {} };
+                        for (let i = 1; i <= 10; i++) fullData['TX' + i] = {};
+
+                        let countDiem = 0;
+                        for (let i = dataStartRow; i < jsonArray.length; i++) {
+                            let row = jsonArray[i] || [];
+                            let name = String(row[nameCol] || '').trim();
+                            if (!name) continue;
+
+                            for (let key in txCols) {
+                                let score = String(row[txCols[key]] || '').trim().replace(/,/g, '.');
+                                if (score && score.toLowerCase() !== 'nan') { fullData[key][name] = score; countDiem++; }
+                            }
+                            if (gkCol !== -1) { let sc = String(row[gkCol] || '').trim().replace(/,/g, '.'); if (sc && sc !== 'nan') { fullData['GK'][name] = sc; countDiem++; } }
+                            if (ckCol !== -1) { let sc = String(row[ckCol] || '').trim().replace(/,/g, '.'); if (sc && sc !== 'nan') { fullData['CK'][name] = sc; countDiem++; } }
+                        }
+                        
+                        log(`✔️ Đã mở thùng hàng [${targetFile.name}] -> Rút ra ${countDiem} đầu điểm.`);
+                        resolve(fullData);
+                    } catch (e) { log(`❌ Lỗi đọc file!`); resolve(null); }
+                };
+                reader.readAsArrayBuffer(targetFile);
+            });
+        };
+
+        // ==========================================
+        // MODULE: QUÉT NHÃN MÁC TẠO HÀNG ĐỢI (PRE-SCAN)
+        // ==========================================
+        const buildBatchQueue = async () => {
             const fileInput = document.getElementById('excel-file');
             if (!fileInput.files.length) { alert("Vui lòng tải lên file Excel!"); return null; }
 
-            let allFilesData = [];
-            log(`📂 Đang đọc ${fileInput.files.length} file...`);
+            let queue = [];
+            log(`📂 Đang lướt qua ${fileInput.files.length} file để lấy nhãn mác...`);
 
             for (let f = 0; f < fileInput.files.length; f++) {
                 const file = fileInput.files[f];
-                let fileData = await new Promise((resolve) => {
+                let info = await new Promise((resolve) => {
                     const reader = new FileReader();
                     reader.onload = (e) => {
                         try {
                             const data = new Uint8Array(e.target.result);
                             const workbook = XLSX.read(data, { type: 'array' });
-                            
-                            // 1. Tự động bỏ qua sheet "Hướng dẫn", chỉ đọc sheet Dữ liệu
-                            let targetSheet = workbook.SheetNames.find(n => !n.toLowerCase().includes('hướng dẫn') && !n.toLowerCase().includes('huong dan'));
-                            if(!targetSheet) targetSheet = workbook.SheetNames[0];
-                            
+                            let targetSheet = workbook.SheetNames.find(n => !n.toLowerCase().includes('hướng dẫn') && !n.toLowerCase().includes('huong dan')) || workbook.SheetNames[0];
                             const jsonArray = XLSX.utils.sheet_to_json(workbook.Sheets[targetSheet], { header: 1 });
 
-                            let className = "UNKNOWN"; 
-                            let subjectName = "UNKNOWN";
-
+                            let className = "UNKNOWN", subjectName = "UNKNOWN";
                             for (let i = 0; i < Math.min(10, jsonArray.length); i++) {
                                 let rowStr = jsonArray[i].map(c => String(c || '')).join(" "); 
-                                let classMatch = rowStr.match(/lớp:\s*([a-zA-Z0-9]+)/i);
-                                if (classMatch && className === "UNKNOWN") className = classMatch[1].trim().toUpperCase();
-                                let subjMatch = rowStr.match(/môn học:\s*(.*?)(?:\s*-|\s*gv:|$)/i);
-                                if (subjMatch && subjectName === "UNKNOWN") subjectName = subjMatch[1].trim();
+                                let cMatch = rowStr.match(/lớp:\s*([a-zA-Z0-9]+)/i);
+                                if (cMatch && className === "UNKNOWN") className = cMatch[1].trim().toUpperCase();
+                                let sMatch = rowStr.match(/môn học:\s*(.*?)(?:\s*-|\s*gv:|$)/i);
+                                if (sMatch && subjectName === "UNKNOWN") subjectName = sMatch[1].trim();
                             }
-
-                            // 2. Tìm hàng tiêu đề chính thức
-                            let headerRowIdx = jsonArray.findIndex(r => r.some(c => String(c).toLowerCase().includes('họ và tên')));
-                            if (headerRowIdx === -1) { 
-                                log(`⚠️ File [${file.name}]: Không tìm thấy cột 'Họ và Tên'!`);
-                                resolve(null); return; 
-                            }
-
-                            let rowH = jsonArray[headerRowIdx];
-                            let nameCol = rowH.findIndex(c => String(c).toLowerCase().includes('họ và tên'));
-                            let gkCol = -1, ckCol = -1;
-                            let txCols = {};
-
-                            // 3. Quét linh hoạt 3 dòng header liên tiếp để săn tìm cột GK và CK
-                            for (let r = headerRowIdx; r <= Math.min(headerRowIdx + 2, jsonArray.length - 1); r++) {
-                                let rData = jsonArray[r] || [];
-                                for (let c = 0; c < rData.length; c++) {
-                                    let cell = String(rData[c] || '').trim().toLowerCase();
-                                    if (cell.includes('giữa k') || cell.includes('đđggk')) gkCol = c;
-                                    if (cell.includes('cuối k') || cell.includes('đđgck')) ckCol = c;
-                                }
-                            }
-
-                            // 4. Tìm dải cột TX: Mọi cột nằm giữa "ĐĐGtx" và "ĐĐGgk" đều được tính là điểm TX
-                            let sTx = rowH.findIndex(c => String(c).toLowerCase().includes('đđgtx'));
-                            if (sTx !== -1 && gkCol !== -1 && gkCol > sTx) {
-                                let count = 1;
-                                for (let c = sTx; c < gkCol; c++) {
-                                    txCols['TX' + count] = c; count++;
-                                }
-                            }
-
-                            // 5. Quét tìm dòng bắt đầu của Sinh viên (Bỏ qua dòng trống, dòng phụ)
-                            let dStart = headerRowIdx + 1;
-                            while (dStart < jsonArray.length) {
-                                let rowD = jsonArray[dStart] || [];
-                                let nameVal = String(rowD[nameCol] || '').trim();
-                                if (nameVal !== '' && isNaN(nameVal) && !nameVal.toLowerCase().includes('họ và tên')) {
-                                    break; // Đã chạm tới sinh viên đầu tiên
-                                }
-                                dStart++;
-                            }
-
-                            let fullData = { 'GK': {}, 'CK': {} };
-                            for (let i = 1; i <= 10; i++) fullData['TX' + i] = {};
-                            
-                            let countStudents = 0;
-                            let countScores = 0;
-
-                            // 6. Trích xuất điểm
-                            for (let i = dStart; i < jsonArray.length; i++) {
-                                let rowD = jsonArray[i] || [];
-                                let name = String(rowD[nameCol] || '').trim();
-                                if (!name) continue;
-                                countStudents++;
-                                
-                                for (let key in txCols) {
-                                    let score = String(rowD[txCols[key]] || '').trim().replace(/,/g, '.');
-                                    if (score && score.toLowerCase() !== 'nan') { fullData[key][name] = score; countScores++; }
-                                }
-                                if (gkCol !== -1) { let sc = String(rowD[gkCol] || '').trim().replace(/,/g, '.'); if (sc && sc !== 'nan') { fullData['GK'][name] = sc; countScores++; } }
-                                if (ckCol !== -1) { let sc = String(rowD[ckCol] || '').trim().replace(/,/g, '.'); if (sc && sc !== 'nan') { fullData['CK'][name] = sc; countScores++; } }
-                            }
-                            
-                            // Ghi log chi tiết để dễ bắt bệnh
-                            log(`✔️ Nạp [${className}]: ${countStudents} HS | Tìm thấy ${Object.keys(txCols).length} cột TX | ${countScores} đầu điểm.`);
-                            resolve({ fileName: file.name, className: className, subjectName: subjectName, scores: fullData });
-                            
-                        } catch (error) {
-                            log(`❌ Bỏ qua file [${file.name}] do lỗi định dạng!`);
-                            resolve(null);
-                        }
+                            resolve({ className, subjectName, fileObj: file });
+                        } catch (err) { resolve(null); }
                     };
                     reader.readAsArrayBuffer(file);
                 });
-                if (fileData) allFilesData.push(fileData);
+                if (info) queue.push(info);
             }
-            return allFilesData;
+            return queue;
         };
 
         // ==========================================
@@ -1196,12 +1202,10 @@
         // AUTO TOÀN TẬP (MASTER LOOP)
         // ==========================================
         document.getElementById('btn-auto-full').onclick = async () => {
-            let allFiles = await processMultipleExcelFiles(); 
-            if (!allFiles || allFiles.length === 0) return;
+            let fullData = await extractAllExcelData(); 
+            if (!fullData) return;
             
-            // Lấy file đầu tiên để chạy cho lớp hiện tại (giữ logic cũ cho nút cũ)
-            let firstFileData = allFiles[0];
-            let success = await runAutoGradingForCurrentClass(firstFileData.scores);
+            let success = await runAutoGradingForCurrentClass(fullData);
             if (success) {
                 alert("🎉 ĐÃ HOÀN TẤT TOÀN BỘ!\nCác cột điểm đã được Khởi tạo, Nhập liệu, Sửa lỗi và Phê duyệt thành công.");
             }
@@ -1211,11 +1215,8 @@
         // CÁC NÚT TIỆN ÍCH BỔ SUNG
         // ==========================================
         document.getElementById('btn-auto-input').onclick = async () => {
-            let allFiles = await processMultipleExcelFiles(); 
-            if (!allFiles || allFiles.length === 0) return;
-            
-            let firstFileData = allFiles[0];
-            let fullData = firstFileData.scores;
+            let fullData = await extractAllExcelData(); 
+            if (!fullData) return;
             
             let key = document.getElementById('score-col').value;
             let colData = fullData[key];
@@ -1348,7 +1349,7 @@
         };
 
         // ==========================================
-        // THE ULTIMATE MASTER LOOP (CHẠY BATCH)
+        // THE ULTIMATE MASTER LOOP (DELEGATION MODE)
         // ==========================================
         const updateQueueUI = (id, statusHtml) => {
             let row = document.getElementById(id);
@@ -1358,75 +1359,74 @@
         let btnAutoBatch = document.getElementById('btn-auto-batch');
         if(btnAutoBatch) {
             btnAutoBatch.onclick = async () => {
-                // Đọc toàn bộ File vào rổ dữ liệu
-                let allFiles = await processMultipleExcelFiles(); 
-                if (!allFiles || allFiles.length === 0) return;
+                let queue = await buildBatchQueue(); 
+                if (!queue || queue.length === 0) return;
 
-                // Tạo Datasheet hàng đợi trên Giao diện
                 let queueList = document.getElementById('queue-list');
                 queueList.innerHTML = '';
-                allFiles.forEach((f, idx) => {
+                queue.forEach((q, idx) => {
                     queueList.innerHTML += `<div id="q-${idx}" style="padding:3px; border-bottom:1px dashed #ccc;">
-                        <span class="q-status">⏳</span> <b>${f.className}</b> - ${f.subjectName}
+                        <span class="q-status">⏳</span> <b>${q.className}</b> - ${q.subjectName}
                     </div>`;
                 });
 
-                log(`🚀 BẮT ĐẦU CHẾ ĐỘ BATCH: Tiến hành xử lý ${allFiles.length} file...`);
+                log(`🚀 BẮT ĐẦU CHẾ ĐỘ BATCH: Lên lịch xử lý ${queue.length} lớp...`);
+                
+                window.isBatchMode = true; // Bật cờ hiệu cho toàn hệ thống
 
-                // Vòng lặp tịnh tiến quét từng File
-                for (let i = 0; i < allFiles.length; i++) {
-                    let fileData = allFiles[i];
+                for (let i = 0; i < queue.length; i++) {
+                    let task = queue[i];
                     log(`\n======================================`);
-                    log(`🎯 MỤC TIÊU: Lớp [${fileData.className}] - Môn [${fileData.subjectName}]`);
+                    log(`🎯 TÌM LỚP: [${task.className}] - Môn [${task.subjectName}]`);
                     updateQueueUI(`q-${i}`, `🏃`);
 
                     let subjectMap = getSubjectMapping();
-                    let keywords = subjectMap[fileData.subjectName] || [fileData.subjectName.toLowerCase()];
+                    let keywords = subjectMap[task.subjectName] || [task.subjectName.toLowerCase()];
                     
                     let classBtn = null;
-                    // Lấy tất cả các lớp ở Sidebar
-                    let sidebarItems = Array.from(document.querySelectorAll('.ohke-row, .list-item, .sidebar-item, a')).filter(el => el.offsetWidth > 0 && el.innerText.includes(fileData.className));
+                    let sidebarItems = Array.from(document.querySelectorAll('.ohke-row, .list-item, .sidebar-item, a')).filter(el => el.offsetWidth > 0 && el.innerText.includes(task.className));
                     
                     for (let item of sidebarItems) {
                         let txt = item.innerText.toLowerCase();
-                        // Trúng đích nếu thỏa mãn cả Lớp và Môn
-                        if (txt.includes(fileData.className.toLowerCase()) && keywords.some(k => txt.includes(k))) { 
-                            classBtn = item; 
-                            break; 
-                        }
+                        if (txt.includes(task.className.toLowerCase()) && keywords.some(k => txt.includes(k))) { classBtn = item; break; }
                     }
 
                     if (classBtn) {
                         classBtn.scrollIntoView({ behavior: 'auto', block: 'center' });
                         forceClick(classBtn);
-                        log("⏳ Đang đợi trang web load dữ liệu lớp mới...");
+                        log("⏳ Đang đợi load giao diện lớp...");
                         await delay(3500); 
 
                         try {
-                            // Thực thi Nhập điểm
-                            let success = await runAutoGradingForCurrentClass(fileData.scores);
+                            // 1. Chỉ định rõ "Thùng hàng" cho Auto 1 Lớp
+                            window.currentBatchFile = task.fileObj;
                             
-                            if(success) {
-                                log(`✅ HOÀN TẤT LỚP: [${fileData.className}]`);
-                                updateQueueUI(`q-${i}`, `✅`);
-                                
-                                // BÔI XÁM & ĐÁNH DẤU TICK (Tránh chọn lại)
-                                classBtn.style.background = '#e9ecef'; 
-                                classBtn.style.opacity = '0.6';
-                                if(!classBtn.innerHTML.includes('✅')) classBtn.innerHTML = `✅ ` + classBtn.innerHTML;
-                            } else {
-                                updateQueueUI(`q-${i}`, `⚠️ Lỗi Nhập`);
-                            }
+                            log(`🤖 Đã vào Lớp ${task.className}. Ủy quyền cho Bot Auto 1 Lớp xử lý...`);
+                            
+                            // 2. KÍCH HOẠT NÚT AUTO LỚP HIỆN TẠI (Tái sử dụng 100% logic cũ)
+                            await document.getElementById('btn-auto-full').onclick();
+                            
+                            log(`✅ HOÀN TẤT LỚP: [${task.className}]`);
+                            updateQueueUI(`q-${i}`, `✅`);
+                            
+                            // Bôi xám để biết đã xong
+                            classBtn.style.background = '#e9ecef'; classBtn.style.opacity = '0.6';
+                            if(!classBtn.innerHTML.includes('✅')) classBtn.innerHTML = `✅ ` + classBtn.innerHTML;
+
                         } catch (err) {
-                            log(`❌ LỖI tại ${fileData.className}: ${err.message}`);
+                            log(`❌ LỖI tại ${task.className}: ${err.message}`);
                             updateQueueUI(`q-${i}`, `❌`);
                         }
                     } else {
-                        log(`⚠️ KHÔNG TÌM THẤY [${fileData.className}] trên Sidebar. Tự động bỏ qua!`);
+                        log(`⚠️ KHÔNG TÌM THẤY [${task.className}] trên Sidebar. Bỏ qua!`);
                         updateQueueUI(`q-${i}`, `❌ Không tìm thấy`);
                     }
                 }
-                alert("🎉 QUY TRÌNH BATCH HOÀN TẤT!\nĐã xử lý xong tất cả các file Excel trong hàng đợi.");
+                
+                // Trả lại trạng thái bình thường
+                window.isBatchMode = false; 
+                window.currentBatchFile = null;
+                alert("🎉 QUY TRÌNH BATCH HOÀN TẤT! Đã cày xong toàn bộ danh sách.");
             };
         }
 
