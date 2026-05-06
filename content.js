@@ -688,16 +688,14 @@
         // MODULE: ĐỌC EXCEL (AUTO 1 LỚP - BẢN GỐC ĐÃ CHẠY ỔN)
         // ==========================================
         // ==========================================
-        // MODULE 2: RÚT DỮ LIỆU CẤP TỐC (HOẶC ĐỌC FILE LẺ)
+        // MODULE 2: RÚT DỮ LIỆU CẤP TỐC (DÙNG CHO BATCH HOẶC 1 LỚP)
         // ==========================================
         const extractAllExcelData = async () => {
-            // 1. NẾU ĐANG CHẠY BATCH -> TRẢ VỀ LUÔN THÙNG DỮ LIỆU ĐÃ ĐÓNG GÓI TỪ ĐẦU!
             if (window.isBatchMode && window.currentBatchScores) {
                 log(`✔️ Xác nhận: Rút từ thùng [${window.currentBatchClassName}] -> Chuẩn ${window.currentBatchCount} điểm.`);
                 return window.currentBatchScores;
             }
 
-            // 2. NẾU CHẠY AUTO 1 LỚP TỰ DO -> ĐỌC FILE TẠI CHỖ (VẪN BẰNG LUẬT STT)
             let fileInput = document.getElementById('excel-file');
             if (!fileInput.files.length) { alert("Vui lòng tải lên file Excel!"); return null; }
             let targetFile = fileInput.files[0];
@@ -708,11 +706,22 @@
                     try {
                         const data = new Uint8Array(e.target.result);
                         const workbook = XLSX.read(data, { type: 'array' });
-                        let validSheets = workbook.SheetNames.filter(n => !n.toLowerCase().includes('hướng') && !n.toLowerCase().includes('huong'));
-                        let targetSheet = validSheets.length > 0 ? validSheets[0] : workbook.SheetNames[0];
-                        
+                        const cleanStr = str => String(str || '').toLowerCase().replace(/[\n\r\s\-]/g, '');
+
+                        let targetSheet = null;
+                        for (let sheetName of workbook.SheetNames) {
+                            let tempArr = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName], { header: 1 });
+                            let hasName = false, hasScoreCol = false;
+                            for (let r = 0; r < Math.min(tempArr.length, 20); r++) {
+                                let rowStr = (tempArr[r] || []).map(cleanStr).join("");
+                                if (rowStr.includes('họvàtên') || rowStr.includes('họtên')) hasName = true;
+                                if (rowStr.includes('đđgtx') || rowStr.includes('đđggk') || rowStr.includes('giữak')) hasScoreCol = true;
+                            }
+                            if (hasName && hasScoreCol) { targetSheet = sheetName; break; }
+                        }
+                        if (!targetSheet) targetSheet = workbook.SheetNames[0];
+
                         const jsonArray = XLSX.utils.sheet_to_json(workbook.Sheets[targetSheet], { header: 1 });
-                        const cleanStr = str => String(str || '').toLowerCase().replace(/[\n\r\s]/g, '');
 
                         let headerRowIdx = jsonArray.findIndex(r => r.some(c => cleanStr(c).includes('họvàtên') || cleanStr(c).includes('họtên')));
                         if (headerRowIdx === -1) { resolve(null); return; }
@@ -747,11 +756,12 @@
                         let countDiem = 0;
                         for (let i = headerRowIdx + 1; i < jsonArray.length; i++) {
                             let rowD = jsonArray[i] || [];
-                            let stt = String(rowD[0] || '').trim();
+                            let rawStt = String(rowD[0] || '').trim();
+                            let stt = rawStt.replace(/[^\d]/g, ''); 
                             let name = String(rowD[nameCol] || '').trim();
                             
-                            // CHỐT CHẶN STT CHO CHẠY 1 LỚP
-                            if (stt === '' || isNaN(stt) || !name) continue;
+                            if (stt === '' || !name) continue;
+                            if (cleanStr(name).includes('họvàtên')) continue;
 
                             for (let key in txCols) {
                                 let score = String(rowD[txCols[key]] || '').replace(/,/g, '.').replace(/[^\d.]/g, '');
@@ -780,7 +790,7 @@
         // MODULE 1: QUÉT NHÃN MÁC TẠO HÀNG ĐỢI (PRE-SCAN)
         // ==========================================
         // ==========================================
-        // MODULE 1: ĐÔNG GÓI DỮ LIỆU TỪ ĐẦU (ĐỌC THEO STT CHUẨN)
+        // MODULE 1: ĐÓNG GÓI DỮ LIỆU TỪ ĐẦU (TỰ ĐỘNG DÒ SHEET CHUẨN)
         // ==========================================
         const parseAllFilesUpfront = async () => {
             const fileInput = document.getElementById('excel-file');
@@ -797,12 +807,24 @@
                         try {
                             const data = new Uint8Array(e.target.result);
                             const workbook = XLSX.read(data, { type: 'array' });
-                            
-                            let validSheets = workbook.SheetNames.filter(n => !n.toLowerCase().includes('hướng') && !n.toLowerCase().includes('huong'));
-                            let targetSheet = validSheets.length > 0 ? validSheets[0] : workbook.SheetNames[0];
-                            
+                            const cleanStr = str => String(str || '').toLowerCase().replace(/[\n\r\s\-]/g, '');
+
+                            // BỘ ĐỊNH VỊ SHEET: Bắt buộc phải có cột Tên VÀ cột Điểm mới là Sheet chuẩn
+                            let targetSheet = null;
+                            for (let sheetName of workbook.SheetNames) {
+                                let tempArr = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName], { header: 1 });
+                                let hasName = false, hasScoreCol = false;
+                                for (let r = 0; r < Math.min(tempArr.length, 20); r++) {
+                                    let rowStr = (tempArr[r] || []).map(cleanStr).join("");
+                                    if (rowStr.includes('họvàtên') || rowStr.includes('họtên')) hasName = true;
+                                    if (rowStr.includes('đđgtx') || rowStr.includes('đđggk') || rowStr.includes('giữak')) hasScoreCol = true;
+                                }
+                                if (hasName && hasScoreCol) { targetSheet = sheetName; break; }
+                            }
+                            // Nếu tìm đỏ mắt không thấy, fallback về sheet đầu tiên
+                            if (!targetSheet) targetSheet = workbook.SheetNames[0];
+
                             const jsonArray = XLSX.utils.sheet_to_json(workbook.Sheets[targetSheet], { header: 1 });
-                            const cleanStr = str => String(str || '').toLowerCase().replace(/[\n\r\s]/g, '');
 
                             // 1. Nhận diện Lớp, Môn
                             let className = "UNKNOWN", subjectName = "UNKNOWN";
@@ -847,14 +869,18 @@
                             
                             let countDiem = 0;
 
-                            // 3. QUÉT ĐIỂM BẰNG CHỐT CHẶN STT (SIÊU AN TOÀN)
+                            // 3. QUÉT ĐIỂM (BỌC GIÁP STT)
                             for (let i = headerRowIdx + 1; i < jsonArray.length; i++) {
                                 let rowD = jsonArray[i] || [];
-                                let stt = String(rowD[0] || '').trim(); // Cột STT luôn ở index 0
+                                
+                                // Ép cột 0 thành số: Xóa mọi dấu cách, ký tự tàng hình. Chỉ giữ số.
+                                let rawStt = String(rowD[0] || '').trim();
+                                let stt = rawStt.replace(/[^\d]/g, ''); 
                                 let name = String(rowD[nameCol] || '').trim();
                                 
-                                // NẾU STT KHÔNG PHẢI LÀ SỐ, HOẶC TÊN RỖNG -> BỎ QUA NGAY
-                                if (stt === '' || isNaN(stt) || !name) continue;
+                                // Nếu không có số STT, hoặc không có tên -> Bỏ qua dòng này (Chống dòng rác 100%)
+                                if (stt === '' || !name) continue;
+                                if (cleanStr(name).includes('họvàtên')) continue; // Bỏ qua nếu là dòng tiêu đề lặp
 
                                 for (let key in txCols) {
                                     let score = String(rowD[txCols[key]] || '').replace(/,/g, '.').replace(/[^\d.]/g, '');
@@ -870,7 +896,6 @@
                                 }
                             }
                             
-                            // BÁO LOG TỔNG NGAY TỪ ĐẦU
                             log(`📦 Đã nạp THÙNG [${className}]: chuẩn ${countDiem} điểm.`);
                             resolve({ className, subjectName, fileObj: file, scores: fullData, countDiem });
                             
