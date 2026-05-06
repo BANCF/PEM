@@ -158,7 +158,7 @@
             </div>
         `;
         document.body.appendChild(panel);
-        
+
         // ==========================================
         // MODULE: KÉO THẢ GIAO DIỆN (DRAG & DROP)
         // ==========================================
@@ -169,29 +169,29 @@
 
         dragHandle.addEventListener('mousedown', (e) => {
             isDragging = true;
-            
+
             // Tính toán khoảng cách từ chuột đến viền của Panel
             const rect = panel.getBoundingClientRect();
             dragOffsetX = e.clientX - rect.left;
             dragOffsetY = e.clientY - rect.top;
-            
+
             // Chuyển đổi định vị từ right/bottom sang left/top để di chuyển mượt mà
             panel.style.right = 'auto';
             panel.style.bottom = 'auto';
             panel.style.left = rect.left + 'px';
             panel.style.top = rect.top + 'px';
-            
+
             dragHandle.style.cursor = 'grabbing';
         });
 
         document.addEventListener('mousemove', (e) => {
             if (!isDragging) return;
             e.preventDefault(); // Ngăn chặn bôi đen văn bản khi đang kéo
-            
+
             // Tính toán tọa độ mới
             let newX = e.clientX - dragOffsetX;
             let newY = e.clientY - dragOffsetY;
-            
+
             // Giới hạn không cho kéo văng ra khỏi màn hình
             let maxX = window.innerWidth - panel.offsetWidth;
             let maxY = window.innerHeight - panel.offsetHeight;
@@ -221,7 +221,7 @@
         // ==========================================
         const renderDict = (dictObj) => {
             const tbody = document.getElementById('dict-body');
-            if(!tbody) return;
+            if (!tbody) return;
             tbody.innerHTML = '';
             for (let exName in dictObj) {
                 let tr = document.createElement('tr');
@@ -256,7 +256,7 @@
         };
 
         let btnAddDict = document.getElementById('btn-add-dict');
-        if(btnAddDict) {
+        if (btnAddDict) {
             btnAddDict.onclick = () => {
                 let tr = document.createElement('tr');
                 tr.className = 'dict-row';
@@ -567,15 +567,15 @@
             for (let i = 0; i < 15; i++) { // Tăng số vòng lặp lên một chút để bù cho delay ngắn lại
                 let els = Array.from(document.querySelectorAll('.ohke-tab-btn, .tab-btn-, .select-holder div'))
                     .filter(el => el.offsetWidth > 0 && el.textContent.toLowerCase().includes(text.toLowerCase()));
-                
+
                 if (els.length > 0) {
                     let priorityEls = els.filter(el => /\[\d+\]/.test(el.textContent));
                     let target = priorityEls.length > 0 ? priorityEls[0] : els[0];
-                    
-                    if (target) { 
-                        forceClick(target); 
+
+                    if (target) {
+                        forceClick(target);
                         await delay(300); // GIẢM MẠNH: Từ 1000ms xuống chỉ còn 300ms
-                        return true; 
+                        return true;
                     }
                 }
                 await delay(200); // GIẢM TỐC ĐỘ QUÉT: Từ 400ms xuống 200ms
@@ -586,13 +586,13 @@
 
         const handleBatchTransition = async (targetText) => {
             log(`⚡ Đang thực thi: [${targetText.toUpperCase()}]...`);
-            
+
             // 1. Tìm và bấm nút Chuyển Tiếp (Giảm thời gian quét)
             let chuyenTiepBtn = null;
             for (let i = 0; i < 5; i++) {
                 let els = Array.from(document.querySelectorAll('a, button, .ohke-btn')).filter(el => el.offsetWidth > 0 && el.textContent.toLowerCase().includes('chuyển tiếp'));
                 if (els.length > 0) { chuyenTiepBtn = els[0]; break; }
-                await delay(200); 
+                await delay(200);
             }
             if (!chuyenTiepBtn) return false;
 
@@ -606,8 +606,8 @@
 
             let options = Array.from(batchModal.querySelectorAll('a, button, label, .ohke-btn')).filter(el => el.offsetWidth > 0 && el.textContent.toLowerCase().includes(targetText.toLowerCase()));
             if (options.length > 0) {
-                forceClick(options[0]); 
-                await delay(300); 
+                forceClick(options[0]);
+                await delay(300);
             } else {
                 let closeBtn = batchModal.querySelector('.close-btn, a[class*="close-btn"], i.fa-close');
                 if (closeBtn) forceClick(closeBtn);
@@ -630,10 +630,10 @@
                         inputField.dispatchEvent(new Event('change', { bubbles: true }));
                     }
                 }
-                
+
                 let dongYBtn = Array.from(confirmModal.querySelectorAll('button, a, .ohke-btn')).find(el => el.offsetWidth > 0 && (el.textContent.toLowerCase().includes('đồng ý') || el.textContent.toLowerCase().includes('tiếp tục')));
-                if (dongYBtn) { 
-                    forceClick(dongYBtn); 
+                if (dongYBtn) {
+                    forceClick(dongYBtn);
                     await delay(300); // Rút từ 1500ms xuống 300ms
                 }
             }
@@ -644,8 +644,8 @@
                 let infoModal = activeModals[activeModals.length - 1];
                 if (infoModal.innerText.toLowerCase().includes('enqueued successfully') || infoModal.innerText.toLowerCase().includes('hàng đợi')) {
                     let dongYBtn2 = Array.from(infoModal.querySelectorAll('button, a, .ohke-btn')).find(el => el.offsetWidth > 0 && el.textContent.toLowerCase().includes('đồng ý'));
-                    if (dongYBtn2) { 
-                        forceClick(dongYBtn2); 
+                    if (dongYBtn2) {
+                        forceClick(dongYBtn2);
                         await delay(300);
                     }
                 }
@@ -655,16 +655,16 @@
             let isCompleted = false;
             for (let wait = 0; wait < 60; wait++) { // Polling mỗi 500ms là đủ an toàn
                 await delay(500);
-                
+
                 let modals = document.querySelectorAll('.w3-modal.w3-show');
-                if (modals.length === 0) break; 
+                if (modals.length === 0) break;
                 let currentModal = modals[modals.length - 1];
                 let modalText = currentModal.innerText.toLowerCase();
 
                 if (modalText.includes('trạng thái') && modalText.includes('completed')) {
                     let closeX = currentModal.querySelector('i.fa-close, .close-btn, .w3-button.w3-display-topright');
                     if (!closeX) closeX = Array.from(currentModal.querySelectorAll('button, a, i')).find(el => el.className.includes('close') || (el.textContent && el.textContent.toLowerCase().trim() === 'x'));
-                    
+
                     if (closeX) forceClick(closeX);
                     isCompleted = true;
                     await delay(400); // Rút từ 1500ms xuống 400ms để đóng popup
@@ -680,7 +680,7 @@
                     if (closeX) forceClick(closeX);
                 }
             }
-            
+
             return true;
         };
 
@@ -688,132 +688,18 @@
         // MODULE: ĐỌC EXCEL (AUTO 1 LỚP - BẢN GỐC ĐÃ CHẠY ỔN)
         // ==========================================
         // ==========================================
-        // ==========================================
-        // MODULE: BỘ LÕI XỬ LÝ (BIÊN GIỚI CỘT & ÉP NUMBER STT)
-        // ==========================================
-        const extractScoresFromSheet = (jsonArray) => {
-            const clean = str => String(str || '').toLowerCase().replace(/[\n\r\s\-]/g, '');
-
-            // 1. Tìm Header
-            let headerRowIdx = jsonArray.findIndex(r => r.some(c => clean(c).includes('họvàtên')));
-            if (headerRowIdx === -1) return null;
-
-            let rowH = jsonArray[headerRowIdx];
-            let sttCol = -1, nameCol = -1, txStart = -1, gkCol = -1, ckCol = -1;
-
-            // 2. RADAR dò biên giới các cột
-            for (let c = 0; c < rowH.length; c++) {
-                let cell = clean(rowH[c]);
-                if (sttCol === -1 && (cell === 'stt' || cell === 'sốtt')) sttCol = c;
-                if (nameCol === -1 && cell.includes('họvàtên')) nameCol = c;
-                if (txStart === -1 && cell.includes('đđgtx')) txStart = c;
-                if (gkCol === -1 && (cell.includes('đđggk') || cell.includes('giữak'))) gkCol = c;
-                if (ckCol === -1 && (cell.includes('đđgck') || cell.includes('cuốik'))) ckCol = c;
-            }
-            if (sttCol === -1) sttCol = 0;
-
-            // 3. THUẬT TOÁN BIÊN GIỚI: Hốt sạch cột giữa TX và GK
-            let txCols = {};
-            if (txStart !== -1 && gkCol !== -1) {
-                let count = 1;
-                for (let c = txStart; c < gkCol; c++) {
-                    if (c !== nameCol && c !== sttCol) { txCols['TX' + count] = c; count++; }
-                }
-            }
-
-            let fullData = { 'GK': {}, 'CK': {} };
-            for (let i = 1; i <= 15; i++) fullData['TX' + i] = {};
-            let countDiem = 0, countHS = 0;
-
-            // 4. Rút điểm (Ép kiểu Number cho STT)
-            for (let i = headerRowIdx + 1; i < jsonArray.length; i++) {
-                let row = jsonArray[i] || [];
-                let stt = parseInt(String(row[sttCol] || '').replace(/[^\d]/g, ''), 10);
-                let name = String(row[nameCol] || '').trim();
-
-                if (isNaN(stt) || !name || clean(name).includes('sốhọcsinh')) continue;
-
-                countHS++;
-                for (let key in txCols) {
-                    let s = String(row[txCols[key]] || '').replace(/,/g, '.').replace(/[^\d.]/g, '');
-                    if (s !== '') { fullData[key][name] = s; countDiem++; }
-                }
-                if (gkCol !== -1) { 
-                    let s = String(row[gkCol] || '').replace(/,/g, '.').replace(/[^\d.]/g, '');
-                    if (s !== '') { fullData['GK'][name] = s; countDiem++; }
-                }
-                if (ckCol !== -1) { 
-                    let s = String(row[ckCol] || '').replace(/,/g, '.').replace(/[^\d.]/g, '');
-                    if (s !== '') { fullData['CK'][name] = s; countDiem++; }
-                }
-            }
-            return { scores: fullData, countDiem, countHS };
-        };
-
-        // ==========================================
-        // MODULE: ĐÓNG GÓI THÙNG HÀNG KÉP [LỚP] - [MÔN]
-        // ==========================================
-        const parseAllFilesUpfront = async () => {
-            const fileInput = document.getElementById('excel-file');
-            let queue = [];
-            
-            for (let file of fileInput.files) {
-                let tasks = await new Promise(resolve => {
-                    const reader = new FileReader();
-                    reader.onload = (e) => {
-                        const workbook = XLSX.read(new Uint8Array(e.target.result), { type: 'array' });
-                        let extracted = [];
-
-                        for (let sheetName of workbook.SheetNames) {
-                            const json = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName], { header: 1 });
-                            const cleanStr = str => String(str || '').toLowerCase().replace(/[\n\r\s\-]/g, '');
-
-                            // Tìm Lớp và Môn gốc
-                            let className = "UNKNOWN", rawSubj = "UNKNOWN";
-                            for (let i = 0; i < Math.min(15, json.length); i++) {
-                                let rowStr = (json[i] || []).join(" ");
-                                let cM = rowStr.match(/lớp:\s*([a-zA-Z0-9]+)/i);
-                                if (cM && className === "UNKNOWN") className = cM[1].trim().toUpperCase();
-                                let sM = rowStr.match(/môn(?:\s*học)?:\s*(.*?)(?:\s*-|\s*gv:|,|$)/i);
-                                if (sM && rawSubj === "UNKNOWN") rawSubj = sM[1].trim();
-                            }
-
-                            let parsed = extractScoresFromSheet(json);
-                            if (parsed && parsed.countHS > 0) {
-                                // HIỂN THỊ THÙNG HÀNG KÉP
-                                log(`📦 Nạp THÙNG [${className}] - [${rawSubj}]: ${parsed.countHS} HS | ${parsed.countDiem} điểm.`);
-                                extracted.push({
-                                    className,
-                                    subjectRaw: rawSubj, // Tên gốc để đối soát
-                                    scores: parsed.scores,
-                                    countDiem: parsed.countDiem
-                                });
-                            }
-                        }
-                        resolve(extracted);
-                    };
-                    reader.readAsArrayBuffer(file);
-                });
-                queue = queue.concat(tasks);
-            }
-            return queue;
-        };
-
-        // ==========================================
-        // MODULE: RÚT DỮ LIỆU ĐỂ NHẬP ĐIỂM
+        // MODULE 2: RÚT DỮ LIỆU CẤP TỐC (DÙNG CHO BATCH HOẶC 1 LỚP)
         // ==========================================
         const extractAllExcelData = async () => {
-            // NẾU ĐANG CHẠY BATCH -> LẤY LUÔN THÙNG ĐIỂM ĐÃ ĐÓNG GÓI
             if (window.isBatchMode && window.currentBatchScores) {
-                log(`✔️ Xác nhận rút từ Thùng [${window.currentBatchClassName}]: Chuẩn ${window.currentBatchCount} điểm.`);
+                log(`✔️ Xác nhận: Rút từ thùng [${window.currentBatchClassName}] -> Chuẩn ${window.currentBatchCount} điểm.`);
                 return window.currentBatchScores;
             }
 
-            // NẾU BẤM CHẠY 1 LỚP ĐỘC LẬP -> ĐỌC FILE LẺ BẰNG BỘ LÕI MỚI
             let fileInput = document.getElementById('excel-file');
             if (!fileInput.files.length) { alert("Vui lòng tải lên file Excel!"); return null; }
             let targetFile = fileInput.files[0];
-            
+
             return new Promise((resolve) => {
                 const reader = new FileReader();
                 reader.onload = (e) => {
@@ -822,28 +708,232 @@
                         const workbook = XLSX.read(data, { type: 'array' });
                         const cleanStr = str => String(str || '').toLowerCase().replace(/[\n\r\s\-]/g, '');
 
-                        let targetSheet = workbook.SheetNames[0];
-                        // Tìm sheet hợp lệ
+                        let targetSheet = null;
                         for (let sheetName of workbook.SheetNames) {
-                            const jsonArray = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName], { header: 1 });
-                            let hasHeader = jsonArray.slice(0, 20).some(r => r.some(c => cleanStr(c).includes('họvàtên') || cleanStr(c).includes('họtên')));
-                            if (hasHeader) { targetSheet = sheetName; break; }
+                            let tempArr = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName], { header: 1 });
+                            let hasName = false, hasScoreCol = false;
+                            for (let r = 0; r < Math.min(tempArr.length, 20); r++) {
+                                let rowStr = (tempArr[r] || []).map(cleanStr).join("");
+                                if (rowStr.includes('họvàtên') || rowStr.includes('họtên')) hasName = true;
+                                if (rowStr.includes('đđgtx') || rowStr.includes('đđggk') || rowStr.includes('giữak')) hasScoreCol = true;
+                            }
+                            if (hasName && hasScoreCol) { targetSheet = sheetName; break; }
                         }
+                        if (!targetSheet) targetSheet = workbook.SheetNames[0];
 
                         const jsonArray = XLSX.utils.sheet_to_json(workbook.Sheets[targetSheet], { header: 1 });
-                        let parsedData = extractScoresFromSheet(jsonArray);
-                        
-                        if (parsedData && parsedData.countHS > 0) {
-                            log(`✔️ Rút điểm tại chỗ [${targetFile.name}]: ${parsedData.countHS} Học sinh | Chuẩn ${parsedData.countDiem} điểm.`);
-                            resolve(parsedData.scores);
-                        } else {
-                            log(`❌ File không có điểm hoặc sai định dạng!`);
-                            resolve(null);
+
+                        let headerRowIdx = jsonArray.findIndex(r => r.some(c => cleanStr(c).includes('họvàtên') || cleanStr(c).includes('họtên')));
+                        if (headerRowIdx === -1) { resolve(null); return; }
+
+                        let nameCol = -1, gkCol = -1, ckCol = -1, sTx = -1;
+                        for (let r = Math.max(0, headerRowIdx - 1); r <= Math.min(jsonArray.length - 1, headerRowIdx + 2); r++) {
+                            let row = jsonArray[r] || [];
+                            for (let c = 0; c < row.length; c++) {
+                                let cell = cleanStr(row[c]);
+                                if (nameCol === -1 && (cell.includes('họvàtên') || cell.includes('họtên'))) nameCol = c;
+                                if (gkCol === -1 && (cell.includes('giữak') || cell.includes('đđggk'))) gkCol = c;
+                                if (ckCol === -1 && (cell.includes('cuốik') || cell.includes('đđgck'))) ckCol = c;
+                                if (sTx === -1 && (cell.includes('thườngxuyên') || cell.includes('đđgtx'))) sTx = c;
+                            }
                         }
-                    } catch (e) { log(`❌ Lỗi đọc file!`); resolve(null); }
+
+                        let txCols = {};
+                        if (sTx !== -1 && gkCol !== -1 && gkCol > sTx) {
+                            let count = 1;
+                            for (let c = sTx; c < gkCol; c++) { if (c !== nameCol) { txCols['TX' + count] = c; count++; } }
+                        } else if (sTx !== -1) {
+                            let count = 1;
+                            for (let c = sTx; c < sTx + 5; c++) { if (c !== nameCol) { txCols['TX' + count] = c; count++; } }
+                        } else {
+                            let count = 1;
+                            for (let c = nameCol + 2; c <= nameCol + 6; c++) { txCols['TX' + count] = c; count++; }
+                        }
+
+                        let fullData = { 'GK': {}, 'CK': {} };
+                        for (let i = 1; i <= 15; i++) fullData['TX' + i] = {};
+
+                        let countDiem = 0;
+                        for (let i = headerRowIdx + 1; i < jsonArray.length; i++) {
+                            let rowD = jsonArray[i] || [];
+                            let rawStt = String(rowD[0] || '').trim();
+                            let stt = rawStt.replace(/[^\d]/g, '');
+                            let name = String(rowD[nameCol] || '').trim();
+
+                            if (stt === '' || !name) continue;
+                            if (cleanStr(name).includes('họvàtên')) continue;
+
+                            for (let key in txCols) {
+                                let score = String(rowD[txCols[key]] || '').replace(/,/g, '.').replace(/[^\d.]/g, '');
+                                if (score !== '') { fullData[key][name] = score; countDiem++; }
+                            }
+                            if (gkCol !== -1) {
+                                let sc = String(rowD[gkCol] || '').replace(/,/g, '.').replace(/[^\d.]/g, '');
+                                if (sc !== '') { fullData['GK'][name] = sc; countDiem++; }
+                            }
+                            if (ckCol !== -1) {
+                                let sc = String(rowD[ckCol] || '').replace(/,/g, '.').replace(/[^\d.]/g, '');
+                                if (sc !== '') { fullData['CK'][name] = sc; countDiem++; }
+                            }
+                        }
+
+                        log(`✔️ Rút tại chỗ [${targetFile.name}]: chuẩn ${countDiem} điểm.`);
+                        resolve(fullData);
+
+                    } catch (e) { resolve(null); }
                 };
                 reader.readAsArrayBuffer(targetFile);
             });
+        };
+
+        // ==========================================
+        // MODULE 1: QUÉT NHÃN MÁC TẠO HÀNG ĐỢI (PRE-SCAN)
+        // ==========================================
+        // ==========================================
+        // MODULE 1: ĐÓNG GÓI DỮ LIỆU TỪ ĐẦU (V5 - RADAR & DIỆT KÝ TỰ ẨN)
+        // ==========================================
+        const parseAllFilesUpfront = async () => {
+            const fileInput = document.getElementById('excel-file');
+            if (!fileInput.files.length) { alert("Vui lòng tải lên file Excel!"); return null; }
+
+            let queue = [];
+            log(`📂 Đang quét và ĐÓNG GÓI dữ liệu từ ${fileInput.files.length} file...`);
+
+            for (let f = 0; f < fileInput.files.length; f++) {
+                const file = fileInput.files[f];
+                let fileTasks = await new Promise((resolve) => {
+                    const reader = new FileReader();
+                    reader.onload = (e) => {
+                        let extracted = [];
+                        try {
+                            const data = new Uint8Array(e.target.result);
+                            const workbook = XLSX.read(data, { type: 'array' });
+
+                            // Lọc bỏ sheet rác
+                            let validSheets = workbook.SheetNames.filter(n => {
+                                let txt = n.toLowerCase();
+                                return !txt.includes('hướng') && !txt.includes('huong') && !txt.includes('bìa') && !txt.includes('bia');
+                            });
+                            if (validSheets.length === 0) validSheets = [workbook.SheetNames[0]];
+
+                            const cleanStr = str => String(str || '').toLowerCase().replace(/[\n\r\s\-]/g, '');
+
+                            // Vòng lặp quét tất cả các sheet (hỗ trợ cả file Sổ Điểm Tổng Hợp)
+                            for (let targetSheet of validSheets) {
+                                const jsonArray = XLSX.utils.sheet_to_json(workbook.Sheets[targetSheet], { header: 1 });
+
+                                let className = "UNKNOWN", subjectName = "UNKNOWN";
+                                for (let i = 0; i < Math.min(15, jsonArray.length); i++) {
+                                    let rowStr = jsonArray[i].map(c => String(c || '')).join(" ");
+                                    let cMatch = rowStr.match(/lớp:\s*([a-zA-Z0-9]+)/i);
+                                    if (cMatch && className === "UNKNOWN") className = cMatch[1].trim().toUpperCase();
+                                    let sMatch = rowStr.match(/môn(?:\s*học)?:\s*(.*?)(?:\s*-|\s*gv:|,|$)/i);
+                                    if (sMatch && subjectName === "UNKNOWN") subjectName = sMatch[1].trim();
+                                }
+
+                                let headerRowIdx = jsonArray.findIndex(r => r.some(c => cleanStr(c).includes('họvàtên') || cleanStr(c).includes('họtên')));
+                                if (headerRowIdx === -1) continue;
+
+                                // RADAR DÒ CỘT TỰ ĐỘNG
+                                let sttCol = -1, nameCol = -1, gkCol = -1, ckCol = -1, sTx = -1;
+                                for (let r = Math.max(0, headerRowIdx - 1); r <= Math.min(jsonArray.length - 1, headerRowIdx + 2); r++) {
+                                    let row = jsonArray[r] || [];
+                                    for (let c = 0; c < row.length; c++) {
+                                        let cell = cleanStr(row[c]);
+                                        if (sttCol === -1 && (cell === 'stt' || cell === 'sốtt')) sttCol = c;
+                                        if (nameCol === -1 && (cell.includes('họvàtên') || cell.includes('họtên'))) nameCol = c;
+                                        if (gkCol === -1 && (cell.includes('giữak') || cell.includes('đđggk'))) gkCol = c;
+                                        if (ckCol === -1 && (cell.includes('cuốik') || cell.includes('đđgck'))) ckCol = c;
+                                        if (sTx === -1 && (cell.includes('thườngxuyên') || cell.includes('đđgtx'))) sTx = c;
+                                    }
+                                }
+                                if (sttCol === -1) sttCol = 0;
+
+                                let txCols = {};
+                                if (sTx !== -1 && gkCol !== -1 && gkCol > sTx) {
+                                    let count = 1;
+                                    for (let c = sTx; c < gkCol; c++) { if (c !== nameCol && c !== sttCol) { txCols['TX' + count] = c; count++; } }
+                                } else if (sTx !== -1) {
+                                    let count = 1;
+                                    for (let c = sTx; c < sTx + 5; c++) { if (c !== nameCol && c !== sttCol) { txCols['TX' + count] = c; count++; } }
+                                } else {
+                                    let count = 1;
+                                    for (let c = nameCol + 2; c <= nameCol + 6; c++) { txCols['TX' + count] = c; count++; }
+                                }
+
+                                let fullData = { 'GK': {}, 'CK': {} };
+                                for (let i = 1; i <= 15; i++) fullData['TX' + i] = {};
+
+                                let countDiem = 0, countStudents = 0;
+
+                                // QUÉT ĐIỂM
+                                for (let i = headerRowIdx + 1; i < jsonArray.length; i++) {
+                                    let rowD = jsonArray[i] || [];
+
+                                    // BÓP NÁT MỌI KÝ TỰ ẨN TRONG CỘT STT
+                                    let rawStt = String(rowD[sttCol] || '').trim();
+                                    let stt = rawStt.replace(/[^\d]/g, '');
+                                    let name = String(rowD[nameCol] || '').trim();
+
+                                    // Chốt chặn an toàn: Phải có STT dạng số và phải có Tên
+                                    if (stt === '' || !name) continue;
+                                    if (cleanStr(name).includes('họvàtên') || cleanStr(name).includes('sốhọcsinh')) continue;
+
+                                    countStudents++;
+
+                                    for (let key in txCols) {
+                                        let score = String(rowD[txCols[key]] || '').replace(/,/g, '.').replace(/[^\d.]/g, '');
+                                        if (score !== '') { fullData[key][name] = score; countDiem++; }
+                                    }
+                                    if (gkCol !== -1) {
+                                        let sc = String(rowD[gkCol] || '').replace(/,/g, '.').replace(/[^\d.]/g, '');
+                                        if (sc !== '') { fullData['GK'][name] = sc; countDiem++; }
+                                    }
+                                    if (ckCol !== -1) {
+                                        let sc = String(rowD[ckCol] || '').replace(/,/g, '.').replace(/[^\d.]/g, '');
+                                        if (sc !== '') { fullData['CK'][name] = sc; countDiem++; }
+                                    }
+                                }
+
+                                if (countStudents > 0) {
+                                    log(`📦 Đã nạp THÙNG [${className}]: ${countStudents} Học sinh | Chuẩn ${countDiem} điểm.`);
+                                    
+                                    // BỘ CHIA NHÁNH MÔN HỌC (SUBJECT SPLITTER)
+                                    // Nếu môn học trong Excel là KHTN hoặc Sử-Địa, ta tự nhân bản task cho các phân môn trên web
+                                    const SPLIT_MAP = {
+                                        "khoahọctựnhiên": ["Lý", "Hóa", "Sinh"],
+                                        "khtn": ["Lý", "Hóa", "Sinh"],
+                                        "lịchsửvàđịalý": ["Sử", "Địa"],
+                                        "lịchsửđịalý": ["Sử", "Địa"],
+                                        "lsđl": ["Sử", "Địa"]
+                                    };
+
+                                    let normSub = cleanStr(subjectName);
+                                    if (SPLIT_MAP[normSub]) {
+                                        log(`🔱 Phát hiện môn tích hợp [${subjectName}]. Đang tách thành ${SPLIT_MAP[normSub].length} nhiệm vụ...`);
+                                        SPLIT_MAP[normSub].forEach(subKey => {
+                                            extracted.push({ 
+                                                className, 
+                                                subjectName: subKey, // Ghi đè tên môn để Master Loop dễ tìm
+                                                fileObj: file, 
+                                                scores: fullData, 
+                                                countDiem,
+                                                isSplit: true 
+                                            });
+                                        });
+                                    } else {
+                                        extracted.push({ className, subjectName, fileObj: file, scores: fullData, countDiem });
+                                    }
+                                }
+                            }
+                            resolve(extracted);
+                        } catch (e) { resolve([]); }
+                    };
+                    reader.readAsArrayBuffer(file);
+                });
+                queue = queue.concat(fileTasks);
+            }
+            return queue;
         };
 
         // ==========================================
@@ -905,29 +995,29 @@
             const applyValue = async (targetInput, val, skipEnter = false, postDelay = 200) => {
                 let formattedVal = val.toString().replace(',', '.');
                 targetInput.scrollIntoView({ behavior: 'auto', block: 'center' });
-                
+
                 // Nghỉ 1 nhịp siêu ngắn để DOM kịp cuộn
                 await delay(20);
-                
+
                 targetInput.dispatchEvent(new Event('focus', { bubbles: true }));
                 targetInput.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
                 targetInput.dispatchEvent(new MouseEvent('click', { bubbles: true }));
-                
+
                 targetInput.value = formattedVal;
                 targetInput.dispatchEvent(new Event('input', { bubbles: true }));
                 targetInput.dispatchEvent(new KeyboardEvent('keyup', { bubbles: true }));
-                
+
                 if (!skipEnter) {
                     targetInput.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, key: 'Enter', code: 'Enter', keyCode: 13, which: 13 }));
                     targetInput.dispatchEvent(new KeyboardEvent('keyup', { bubbles: true, key: 'Enter', code: 'Enter', keyCode: 13, which: 13 }));
                 }
-                
+
                 targetInput.dispatchEvent(new Event('change', { bubbles: true }));
                 targetInput.dispatchEvent(new Event('blur', { bubbles: true }));
-                
+
                 // THỜI GIAN CHỜ LINH HOẠT THEO CHỈ ĐỊNH
                 await delay(postDelay);
-                
+
                 if (typeof checkAndCloseErrorGrading === "function") return await checkAndCloseErrorGrading();
             };
 
@@ -946,7 +1036,7 @@
             // =======================================
             let openedTabNhanh = await clickTabGrading('Nhập Nhanh');
             if (!openedTabNhanh) return false;
-            
+
             window.scrollTo({ top: 0, behavior: 'smooth' });
             await delay(400);
 
@@ -957,22 +1047,22 @@
                 let inputsToScroll = document.querySelectorAll('.tab-content input[type="text"][name="quantitative_result"]');
                 if (inputsToScroll.length > 0) inputsToScroll[inputsToScroll.length - 1].scrollIntoView({ behavior: 'smooth', block: 'center' });
                 if (tabContent) tabContent.scrollBy({ top: 800, behavior: 'smooth' });
-                window.scrollBy({ top: 400, behavior: 'smooth' }); 
+                window.scrollBy({ top: 400, behavior: 'smooth' });
                 await delay(300);
                 if (inputsToScroll.length === lastLen && inputsToScroll.length > 0) break;
                 lastLen = inputsToScroll.length;
             }
-            
+
             // =======================================
             // GIAI ĐOẠN 2: NHẬP ĐIỂM
             // =======================================
             log("⬆️ Đang ép trình duyệt nhảy lên đầu bảng điểm...");
-            
+
             // 1. Ép cuộn cứng mọi thẻ chứa nội dung bằng scrollTop
             window.scrollTo({ top: 0, behavior: 'auto' });
             let containers = document.querySelectorAll('.dynamic-content, .agent-list, .tab-content, .tab-content .active, div[style*="overflow"]');
-            containers.forEach(c => { 
-                try { c.scrollTop = 0; } catch(e) {} 
+            containers.forEach(c => {
+                try { c.scrollTop = 0; } catch (e) { }
             });
             await delay(300);
 
@@ -982,12 +1072,12 @@
                 let firstInp = tempInputs[0];
                 firstInp.scrollIntoView({ behavior: 'auto', block: 'center' });
                 await delay(100);
-                
+
                 // Giả lập click chuột thật mạnh để đánh thức framework
                 firstInp.dispatchEvent(new Event('focus', { bubbles: true }));
                 firstInp.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
                 firstInp.dispatchEvent(new MouseEvent('click', { bubbles: true }));
-                
+
                 await delay(400); // Chờ UI thực sự load xong và nhả khung hình
             } else {
                 // Nếu chưa thấy ô điểm nào, thử click vào hàng đầu tiên
@@ -1005,44 +1095,44 @@
 
             for (let input of inputs) {
                 if (input.disabled || input.readOnly || input.className.includes('disabled')) {
-                    continue; 
+                    continue;
                 }
 
                 let rowText = input.closest('tr, .list-item, .w3-row').innerText;
                 for (let name of Object.keys(scoreDict)) {
                     if (rowText.includes(name)) {
-                        let targetScore = scoreDict[name].toString().replace(/,/g, '.'); 
+                        let targetScore = scoreDict[name].toString().replace(/,/g, '.');
 
                         let successInput = false;
                         for (let attempt = 1; attempt <= 3; attempt++) {
-                            
+
                             // CÔNG THỨC TỐC ĐỘ (Cập nhật an toàn): 
                             // - 3 bạn đầu tiên hoặc đang phải thử lại do lỗi: Chờ 400ms để ổn định.
                             // - Từ bạn thứ 4 trở đi: Chạy đều ở tốc độ 200ms.
                             let speedDelay = (countFill < 3 || attempt > 1) ? 400 : 200;
-                            
+
                             await applyValue(input, targetScore, false, speedDelay);
 
                             let hasErrorPopup = typeof checkAndCloseErrorGrading === "function" ? await checkAndCloseErrorGrading() : false;
                             let checkVal = parseFloat(String(input.value).replace(/,/g, '.'));
-                            
+
                             if (!hasErrorPopup && !isNaN(checkVal) && checkVal <= 10) {
                                 successInput = true;
                                 countFill++;
-                                break; 
+                                break;
                             } else {
                                 log(`⚠️ Lỗi nhập liệu cho [${name}] (Thử lại lần ${attempt}/3)...`);
                                 input.style.border = '2px solid red';
                                 await delay(400); // Lỗi thì dừng lại 1 chút để DOM thở
-                                input.value = ""; 
+                                input.value = "";
                             }
                         }
 
                         if (!successInput) {
                             input.style.border = '2px solid orange';
                         }
-                        
-                        break; 
+
+                        break;
                     }
                 }
             }
@@ -1057,14 +1147,14 @@
             // =======================================
             let openedSoDiem = await clickTabGrading('Sổ Điểm');
             if (!openedSoDiem) return false;
-            await delay(2000); 
+            await delay(2000);
 
             let studentsToFix = [];
-            let scoreDivs = document.querySelectorAll('.control-number .content, .list-item [class*="evaluation_result"]'); 
+            let scoreDivs = document.querySelectorAll('.control-number .content, .list-item [class*="evaluation_result"]');
             for (let div of scoreDivs) {
                 let textContent = div.innerText.trim();
-                if(textContent === '' || isNaN(parseFloat(textContent.replace(/,/g, '.')))) continue;
-                
+                if (textContent === '' || isNaN(parseFloat(textContent.replace(/,/g, '.')))) continue;
+
                 let val = parseFloat(textContent.replace(/,/g, '.'));
                 if (val > 10) {
                     let rowText = div.closest('tr, .list-item, .w3-row').innerText;
@@ -1083,8 +1173,8 @@
                 log(`🛠️ Lùi về [Nhập Nhanh] để sửa lỗi > 10...`);
                 let openedTabNhanhAgain = await clickTabGrading('Nhập Nhanh');
                 if (openedTabNhanhAgain) {
-                    await delay(1500); 
-                    
+                    await delay(1500);
+
                     let lastLenFix = 0;
                     for (let k = 0; k < 15; k++) {
                         let inputsToScroll = document.querySelectorAll('.tab-content input[type="text"][name="quantitative_result"]');
@@ -1096,7 +1186,7 @@
                     }
                     window.scrollTo({ top: 0, behavior: 'smooth' });
                     await delay(500);
-                    
+
                     for (let student of studentsToFix) {
                         let targetInputs = document.querySelectorAll('input[type="text"][name="quantitative_result"]');
                         for (let input of targetInputs) {
@@ -1104,18 +1194,18 @@
                             if (rowText.includes(student.name)) {
                                 log(`🔨 Sửa điểm cho ${student.name} -> ${student.targetScore}`);
                                 let fixedTarget = parseFloat(student.targetScore).toFixed(2);
-                                
+
                                 // GỌI HÀM VỚI THAM SỐ skipEnter = true ĐỂ KHÔNG BẤM ENTER
                                 await applyValue(input, fixedTarget, true);
-                                
+
                                 await delay(400);
                                 break;
                             }
                         }
                     }
-                    log("⏳ Đang chờ lưu các sửa đổi..."); 
+                    log("⏳ Đang chờ lưu các sửa đổi...");
                     await delay(2000);
-                    
+
                     log("⏩ Trở lại [Sổ Điểm] để kiểm tra & chốt...");
                     await clickTabGrading('Sổ Điểm');
                     await delay(2000);
@@ -1143,11 +1233,11 @@
             // GIAI ĐOẠN 4: AUTO PHÊ DUYỆT (TỐI ƯU MỚI)
             // =======================================
             log("🚀 Tiến hành quá trình Gửi & Phê duyệt (Sẽ tự động bỏ qua nếu đã duyệt)...");
-            
+
             // Cứ bấm chuyển tiếp, nếu có nút Gửi thì chạy, không có thì tự tắt
-            await handleBatchTransition('gửi người phê duyệt'); 
-            await delay(1000); 
-            
+            await handleBatchTransition('gửi người phê duyệt');
+            await delay(1000);
+
             // Cứ bấm chuyển tiếp, nếu có nút Chấp nhận thì chạy, không có thì tự tắt
             await handleBatchTransition('chấp nhận');
 
@@ -1159,8 +1249,8 @@
 
             // 1. Mở Cánh Cửa [959]
             let isReady = await switchToVerticalAssessment();
-            if (!isReady) return false; 
-            
+            if (!isReady) return false;
+
             let evalRows = Array.from(document.querySelectorAll('.list-item[data-entity]')).filter(r => r.innerText.includes('Tiến Trình Đánh Giá'));
             if (evalRows.length === 0) { log("⚠️ Lớp này chưa có đầu điểm nào."); return false; }
 
@@ -1177,7 +1267,7 @@
                 else if (text.includes('hs1-4')) key = 'TX4'; else if (text.includes('hs1-5')) key = 'TX5'; else if (text.includes('hs2')) key = 'GK'; else if (text.includes('hs3')) key = 'CK';
 
                 if (key && fullData[key] && Object.keys(fullData[key]).length > 0) {
-                    if (!firstValidRow) firstValidRow = row; 
+                    if (!firstValidRow) firstValidRow = row;
 
                     let scrollContainer = row.closest('.dynamic-content, .agent-list, div[style*="overflow"]');
                     if (scrollContainer) scrollContainer.scrollTo({ top: row.offsetTop - 50, behavior: 'auto' });
@@ -1185,10 +1275,10 @@
 
                     let radioBtn = row.querySelector('.switch-check, .check, input[type="checkbox"], input[type="radio"]') || row;
                     forceClick(radioBtn);
-                    
+
                     // Nghỉ 1 chút để UI xóa dữ liệu của cột cũ và gọi API load cột mới
-                    await delay(800); 
-                    
+                    await delay(800);
+
                     log(`🔍 Đang kiểm tra trạng thái bảng [${key}]...`);
 
                     // SMART POLLING: Bộ nhận diện trạng thái bảng
@@ -1197,10 +1287,10 @@
 
                     for (let w = 0; w < 8; w++) { // Chờ tối đa 1.6 giây
                         await delay(200);
-                        
+
                         taoBangBtn = Array.from(document.querySelectorAll('a, button, .ohke-btn'))
                             .find(el => el.offsetWidth > 0 && el.textContent.toLowerCase().includes('tạo bảng tiêu chí'));
-                        
+
                         // Nếu thấy các tab con xuất hiện => Bảng đã được tạo từ trước
                         let existTabs = Array.from(document.querySelectorAll('.ohke-tab-btn, .tab-btn-'))
                             .find(el => el.offsetWidth > 0 && /\[\d+\]/.test(el.textContent) && (el.textContent.toLowerCase().includes('nhập nhanh') || el.textContent.toLowerCase().includes('sổ điểm')));
@@ -1219,17 +1309,17 @@
 
                     if (taoBangBtn) {
                         log(`🔨 Bảng [${key}] chưa có. Tiến hành Tạo mới...`);
-                        forceClick(taoBangBtn); 
-                        await delay(500); 
-                        
+                        forceClick(taoBangBtn);
+                        await delay(500);
+
                         let tiepTucBtn = document.querySelector('.ohke-popup .btn-continue, .w3-modal .btn-continue');
                         if (!tiepTucBtn) tiepTucBtn = Array.from(document.querySelectorAll('.ohke-popup a, .w3-modal a, button')).find(el => el.offsetWidth > 0 && el.textContent.trim() === 'Tiếp Tục');
-                        
+
                         if (tiepTucBtn) {
-                            forceClick(tiepTucBtn); 
-                            await delay(1000); 
+                            forceClick(tiepTucBtn);
+                            await delay(1000);
                             let dongBtn = Array.from(document.querySelectorAll('.w3-modal.w3-show a, .w3-modal.w3-show button')).find(el => el.offsetWidth > 0 && (el.textContent.includes('Đóng') || el.textContent.includes('Đồng ý') || el.textContent.includes('OK')));
-                            if (dongBtn) { forceClick(dongBtn); await delay(400); } 
+                            if (dongBtn) { forceClick(dongBtn); await delay(400); }
                         }
 
                         // Nháy qua Nhập Nhanh & cuộn mồi để DOM load trước danh sách
@@ -1239,14 +1329,14 @@
                             await delay(300);
                             for (let k = 0; k < 6; k++) {
                                 window.scrollBy({ top: 1200, behavior: 'auto' });
-                                await delay(100); 
+                                await delay(100);
                             }
                         }
                     }
                 }
             }
 
-            if(firstValidRow) {
+            if (firstValidRow) {
                 let scrollContainer = firstValidRow.closest('.dynamic-content, .agent-list, div[style*="overflow"]');
                 if (scrollContainer) scrollContainer.scrollTo({ top: 0, behavior: 'auto' });
                 let radioBtn = firstValidRow.querySelector('.switch-check, .check, input[type="checkbox"], input[type="radio"]') || firstValidRow;
@@ -1277,12 +1367,12 @@
                     let scrollContainer = row.closest('.dynamic-content, .agent-list, div[style*="overflow"]');
                     if (scrollContainer) scrollContainer.scrollTo({ top: row.offsetTop - 50, behavior: 'smooth' });
                     await delay(300);
-                    
+
                     let btn = row.querySelector('.switch-check, .check, input[type="checkbox"], input[type="radio"]') || row;
                     forceClick(btn);
-                    await delay(2000); 
+                    await delay(2000);
 
-                    let success = await processSingleColumn(fullData[key], 'fill', key); 
+                    let success = await processSingleColumn(fullData[key], 'fill', key);
                     if (!success) { log("🛑 Dừng AUTO do có lỗi."); return false; }
                 }
             }
@@ -1293,9 +1383,9 @@
         // AUTO TOÀN TẬP (MASTER LOOP)
         // ==========================================
         document.getElementById('btn-auto-full').onclick = async () => {
-            let fullData = await extractAllExcelData(); 
+            let fullData = await extractAllExcelData();
             if (!fullData) return;
-            
+
             let success = await runAutoGradingForCurrentClass(fullData);
             if (success) {
                 // NẾU ĐANG CHẠY BATCH NHIỀU LỚP THÌ TỰ TẮT THÔNG BÁO, CHỈ HIỆN KHI BẤM CHẠY 1 LỚP
@@ -1309,9 +1399,9 @@
         // CÁC NÚT TIỆN ÍCH BỔ SUNG
         // ==========================================
         document.getElementById('btn-auto-input').onclick = async () => {
-            let fullData = await extractAllExcelData(); 
+            let fullData = await extractAllExcelData();
             if (!fullData) return;
-            
+
             let key = document.getElementById('score-col').value;
             let colData = fullData[key];
             if (!colData || Object.keys(colData).length === 0) { alert("⚠️ Cột điểm này trong file Excel trống!"); return; }
@@ -1335,7 +1425,7 @@
             let openedTabNhanh = await clickTabGrading('Nhập Nhanh');
             if (openedTabNhanh) {
                 log("🧹 Đang xoá trắng điểm số (Chế độ Turbo Max Speed)...");
-                
+
                 // Kéo xuống cuối siêu tốc để DOM load toàn bộ học sinh
                 let lastLen = 0;
                 let tabContent = document.querySelector('.tab-content .active .dynamic-content, .tab-content .active .agent-list') || document.querySelector('.tab-content');
@@ -1356,34 +1446,34 @@
                     if (input.value !== "") {
                         // Không dùng cuộn smooth nữa để tăng tốc tối đa
                         input.value = "";
-                        
+
                         // Bắn sự kiện thay đổi dữ liệu
                         input.dispatchEvent(new Event('input', { bubbles: true }));
                         input.dispatchEvent(new Event('change', { bubbles: true }));
-                        
+
                         // Mô phỏng ấn phím Enter và Delete siêu tốc
                         input.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, key: 'Delete', code: 'Delete', keyCode: 46 }));
                         input.dispatchEvent(new KeyboardEvent('keyup', { bubbles: true, key: 'Delete', code: 'Delete', keyCode: 46 }));
                         input.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, key: 'Enter', code: 'Enter', keyCode: 13 }));
                         input.dispatchEvent(new KeyboardEvent('keyup', { bubbles: true, key: 'Enter', code: 'Enter', keyCode: 13 }));
-                        
+
                         input.dispatchEvent(new Event('blur', { bubbles: true }));
-                        
+
                         countDeleted++;
-                        
+
                         // Đã tăng delay lên 150ms để server kịp phản hồi các gói JSON
-                        await delay(150); 
+                        await delay(150);
                     }
                 }
-                
+
                 if (countDeleted > 0) {
                     log(`✔️ Đã xoá siêu tốc ${countDeleted} ô điểm. Chuyển sang bước tiếp theo...`);
                     // Đã bỏ delay(3000) ở đây để tool chạy lướt qua các bảng liên tục
-                    if(typeof checkAndCloseErrorGrading === 'function') await checkAndCloseErrorGrading();
+                    if (typeof checkAndCloseErrorGrading === 'function') await checkAndCloseErrorGrading();
                 } else {
                     log(`✔️ Bảng này đã trống sẵn.`);
                 }
-                
+
                 return true;
             }
             return false;
@@ -1402,10 +1492,10 @@
             if (!confirmAction) return;
 
             log("💣 Kích hoạt quy trình XÓA SẠCH TOÀN BỘ BẢNG ĐIỂM...");
-            
+
             // 1. Chuyển vào view Đánh giá Chiều dọc [959] để thấy tất cả các cột
             let isReady = await switchToVerticalAssessment();
-            if (!isReady) return; 
+            if (!isReady) return;
 
             // 2. Tìm tất cả các hàng đầu điểm
             let evalRows = Array.from(document.querySelectorAll('.list-item[data-entity]')).filter(r => r.innerText.includes('Tiến Trình Đánh Giá'));
@@ -1414,10 +1504,10 @@
             // 3. Vòng lặp duyệt qua từng đầu điểm để xoá
             for (let i = 0; i < evalRows.length; i++) {
                 let row = evalRows[i];
-                let nameCol = row.innerText.split('\n')[0].trim() || `Cột số ${i+1}`;
-                
+                let nameCol = row.innerText.split('\n')[0].trim() || `Cột số ${i + 1}`;
+
                 log(`\n-------------------------------------------`);
-                log(`🗑️ ĐANG XÓA CỘT: [${nameCol}] (${i+1}/${evalRows.length})`);
+                log(`🗑️ ĐANG XÓA CỘT: [${nameCol}] (${i + 1}/${evalRows.length})`);
 
                 // Kiểm tra lại xem có đang ở view 959 không (tránh bị nhảy tab)
                 let isVertical = document.body.innerText.includes('Bộ Chọn Điểm Đánh Giá');
@@ -1430,10 +1520,10 @@
                 let scrollContainer = row.closest('.dynamic-content, .agent-list, div[style*="overflow"]');
                 if (scrollContainer) scrollContainer.scrollTo({ top: row.offsetTop - 50, behavior: 'smooth' });
                 await delay(300);
-                
+
                 let radioBtn = row.querySelector('.switch-check, .check, input[type="checkbox"], input[type="radio"]') || row;
                 forceClick(radioBtn);
-                await delay(2000); 
+                await delay(2000);
 
                 // 4. Gọi hàm Xoá (Dùng chung)
                 await resetCurrentTable();
@@ -1442,93 +1532,94 @@
             alert("🎉 HOÀN TẤT: Đã xóa sạch sẽ toàn bộ các cột điểm của lớp này!");
         };
 
-        // Hàm cập nhật trạng thái hàng đợi (Queue)
+        // ==========================================
+        // THE ULTIMATE MASTER LOOP (DELEGATION MODE V2)
+        // ==========================================
         const updateQueueUI = (id, statusHtml) => {
             let row = document.getElementById(id);
-            if (row) {
-                let statusEl = row.querySelector('.q-status');
-                if (statusEl) statusEl.innerHTML = statusHtml;
-            }
+            if (row) row.querySelector('.q-status').innerHTML = statusHtml;
         };
 
-        // ==========================================
-        // MASTER LOOP: RỬA KEY & TRA TỪ ĐIỂN CHUẨN XÁC
-        // ==========================================
-        btnAutoBatch.onclick = async () => {
-            let queue = await parseAllFilesUpfront();
-            if (!queue || queue.length === 0) return;
+        let btnAutoBatch = document.getElementById('btn-auto-batch');
+        if (btnAutoBatch) {
+            btnAutoBatch.onclick = async () => {
+                let queue = await parseAllFilesUpfront(); // CHẠY HÀM ĐÓNG GÓI TRƯỚC
+                if (!queue || queue.length === 0) return;
 
-            let queueList = document.getElementById('queue-list');
-            queueList.innerHTML = '';
-            queue.forEach((q, idx) => {
-                queueList.innerHTML += `<div id="q-${idx}" style="padding:3px; border-bottom:1px dashed #ccc;">
-                    <span class="q-status">⏳</span> <b>${q.className}</b> - ${q.subjectRaw}
-                </div>`;
-            });
+                let queueList = document.getElementById('queue-list');
+                queueList.innerHTML = '';
+                queue.forEach((q, idx) => {
+                    queueList.innerHTML += `<div id="q-${idx}" style="padding:3px; border-bottom:1px dashed #ccc;">
+                        <span class="q-status">⏳</span> <b>${q.className}</b> - ${q.subjectName}
+                    </div>`;
+                });
 
-            log(`🚀 BẮT ĐẦU CHẾ ĐỘ BATCH: Lên lịch xử lý ${queue.length} lớp...`);
-            window.isBatchMode = true;
+                log(`🚀 BẮT ĐẦU CHẾ ĐỘ BATCH: Lên lịch xử lý ${queue.length} lớp...`);
+                window.isBatchMode = true;
 
-            for (let i = 0; i < queue.length; i++) {
-                let task = queue[i];
-                log(`\n======================================`);
-                log(`🎯 TÌM: [${task.className}] - [${task.subjectRaw}]`);
-                updateQueueUI(`q-${i}`, `🏃`);
+                for (let i = 0; i < queue.length; i++) {
+                    let task = queue[i];
+                    log(`\n======================================`);
+                    log(`🎯 TÌM LỚP: [${task.className}] - Môn [${task.subjectName}]`);
+                    updateQueueUI(`q-${i}`, `🏃`);
 
-                // 1. RỬA TÊN MÔN (Xóa đuôi Học kỳ để tra từ điển)
-                let cleanedSubj = task.subjectRaw.replace(/(HỌC KỲ|HK)\s*[IV12]+/i, '').trim();
-                
-                // 2. TRA TỪ ĐIỂM (Dùng tên đã rửa HOẶC tên gốc nếu bạn thích để cả cụm trong Mapping)
-                let subjectMap = getSubjectMapping();
-                let keywords = subjectMap[task.subjectRaw] || subjectMap[cleanedSubj] || [cleanedSubj.toLowerCase()];
-
-                // 3. TÌM SIDEBAR (Kết hợp Lớp + Keywords)
-                let classBtn = Array.from(document.querySelectorAll('.sidebar-item, a, .ohke-row, .list-item'))
-                    .find(el => {
-                        if (el.offsetWidth === 0) return false; // Bỏ qua phần tử ẩn
-                        let txt = el.textContent.toLowerCase().replace(/\s+/g, ' '); // Chuẩn hóa khoảng trắng
-                        
-                        // Kiểm tra xem có chứa Tên Lớp VÀ một trong các từ khóa môn học không
-                        let matchClass = txt.includes(task.className.toLowerCase());
-                        let matchSubj = keywords.some(k => txt.includes(k.toLowerCase().trim()));
-                        
-                        return matchClass && matchSubj;
+                    let subjectMap = getSubjectMapping();
+                    let keywords = subjectMap[task.subjectName] || [task.subjectName.toLowerCase()];
+                    
+                    let classBtn = null;
+                    // BỘ LỌC STRICT MATCHING: Dùng Regex để tìm chính xác cụm Lớp (Tránh 9A nhầm với 9A1)
+                    let classRegex = new RegExp(`\\b${task.className}\\b`, 'i');
+                    
+                    let sidebarItems = Array.from(document.querySelectorAll('.ohke-row, .list-item, .sidebar-item, a')).filter(el => {
+                        return el.offsetWidth > 0 && classRegex.test(el.innerText);
                     });
 
-                if (classBtn) {
-                    classBtn.scrollIntoView({ behavior: 'auto', block: 'center' });
-                    forceClick(classBtn);
-                    log("⏳ Đang đợi load giao diện lớp...");
-                    await delay(3500);
-                    
-                    try {
-                        window.currentBatchScores = task.scores;
-                        window.currentBatchClassName = `${task.className}-${task.subjectRaw}`;
-                        window.currentBatchCount = task.countDiem;
-                        
-                        log(`🤖 Đã vào Lớp ${task.className}. Mở THÙNG, nạp chuẩn ${task.countDiem} điểm.`);
-                        
-                        await document.getElementById('btn-auto-full').onclick();
-                        
-                        log(`✅ Xong: [${task.className}] - [${task.subjectRaw}]`);
-                        updateQueueUI(`q-${i}`, `✅`);
-                        
-                        classBtn.style.background = '#e9ecef'; classBtn.style.opacity = '0.6';
-                        if(!classBtn.innerHTML.includes('✅')) classBtn.innerHTML = `✅ ` + classBtn.innerHTML;
-
-                    } catch (err) {
-                        log(`❌ LỖI tại ${task.className}: ${err.message}`);
-                        updateQueueUI(`q-${i}`, `❌`);
+                    for (let item of sidebarItems) {
+                        let txt = item.innerText.toLowerCase();
+                        // Kiểm tra: Phải có tên lớp VÀ ít nhất một từ khóa của môn học
+                        if (classRegex.test(txt) && keywords.some(k => txt.includes(k.toLowerCase()))) { 
+                            classBtn = item; 
+                            break; 
+                        }
                     }
-                } else {
-                    log(`⚠️ Không thấy Sidebar cho: ${task.className} - ${task.subjectRaw}`);
-                    updateQueueUI(`q-${i}`, `❌ Không thấy`);
+
+                    if (classBtn) {
+                        classBtn.scrollIntoView({ behavior: 'auto', block: 'center' });
+                        forceClick(classBtn);
+                        log("⏳ Đang đợi load giao diện lớp...");
+                        await delay(3500);
+
+                        try {
+                            // NÉM THẲNG THÙNG ĐIỂM VÀO BỘ NHỚ TOÀN CỤC
+                            window.currentBatchScores = task.scores;
+                            window.currentBatchClassName = task.className;
+                            window.currentBatchCount = task.countDiem;
+
+                            log(`🤖 Đã vào Lớp ${task.className}. Mở THÙNG [${task.className}], nạp chuẩn ${task.countDiem} điểm.`);
+
+                            await document.getElementById('btn-auto-full').onclick();
+
+                            log(`✅ HOÀN TẤT LỚP: [${task.className}]`);
+                            updateQueueUI(`q-${i}`, `✅`);
+
+                            classBtn.style.background = '#e9ecef'; classBtn.style.opacity = '0.6';
+                            if (!classBtn.innerHTML.includes('✅')) classBtn.innerHTML = `✅ ` + classBtn.innerHTML;
+
+                        } catch (err) {
+                            log(`❌ LỖI tại ${task.className}: ${err.message}`);
+                            updateQueueUI(`q-${i}`, `❌`);
+                        }
+                    } else {
+                        log(`⚠️ KHÔNG TÌM THẤY [${task.className}] trên Sidebar. Bỏ qua!`);
+                        updateQueueUI(`q-${i}`, `❌ Không tìm thấy`);
+                    }
                 }
-            }
-            window.isBatchMode = false;
-            window.currentBatchScores = null;
-            alert("🎉 QUY TRÌNH BATCH HOÀN TẤT! Đã cày xong toàn bộ danh sách.");
-        };
+
+                window.isBatchMode = false;
+                window.currentBatchScores = null;
+                alert("🎉 QUY TRÌNH BATCH HOÀN TẤT! Đã cày xong toàn bộ danh sách.");
+            };
+        }
 
         // Mặc định khởi chạy thì kích hoạt Tab Điểm danh (Free)
         document.getElementById('tab-attendance').click();
