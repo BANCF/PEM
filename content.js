@@ -634,6 +634,9 @@
             return true;
         };
 
+        // ==========================================
+        // MODULE: ĐỌC EXCEL (THUẬT TOÁN XUYÊN GIÁP CHỐNG LỖI FORMAT)
+        // ==========================================
         const processMultipleExcelFiles = async () => {
             const fileInput = document.getElementById('excel-file');
             if (!fileInput.files.length) { alert("Vui lòng tải lên file Excel!"); return null; }
@@ -649,72 +652,94 @@
                         try {
                             const data = new Uint8Array(e.target.result);
                             const workbook = XLSX.read(data, { type: 'array' });
-                            const jsonArray = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]], { header: 1 });
+                            
+                            // 1. Tự động bỏ qua sheet "Hướng dẫn", chỉ đọc sheet Dữ liệu
+                            let targetSheet = workbook.SheetNames.find(n => !n.toLowerCase().includes('hướng dẫn') && !n.toLowerCase().includes('huong dan'));
+                            if(!targetSheet) targetSheet = workbook.SheetNames[0];
+                            
+                            const jsonArray = XLSX.utils.sheet_to_json(workbook.Sheets[targetSheet], { header: 1 });
 
                             let className = "UNKNOWN"; 
                             let subjectName = "UNKNOWN";
 
-                            // SỬA LỖI TREO Ở ĐÂY: Đã đồng nhất biến classMatch và subjMatch
                             for (let i = 0; i < Math.min(10, jsonArray.length); i++) {
                                 let rowStr = jsonArray[i].map(c => String(c || '')).join(" "); 
-                                
                                 let classMatch = rowStr.match(/lớp:\s*([a-zA-Z0-9]+)/i);
                                 if (classMatch && className === "UNKNOWN") className = classMatch[1].trim().toUpperCase();
-                                
                                 let subjMatch = rowStr.match(/môn học:\s*(.*?)(?:\s*-|\s*gv:|$)/i);
                                 if (subjMatch && subjectName === "UNKNOWN") subjectName = subjMatch[1].trim();
                             }
 
+                            // 2. Tìm hàng tiêu đề chính thức
                             let headerRowIdx = jsonArray.findIndex(r => r.some(c => String(c).toLowerCase().includes('họ và tên')));
                             if (headerRowIdx === -1) { 
-                                log(`⚠️ File [${file.name}] lỗi: Không có cột Họ và Tên!`);
+                                log(`⚠️ File [${file.name}]: Không tìm thấy cột 'Họ và Tên'!`);
                                 resolve(null); return; 
                             }
 
-                            let nameCol = 2; let gkCol = -1; let ckCol = -1; let txCols = {};
-                            let r1 = jsonArray[headerRowIdx] || []; let r2 = jsonArray[headerRowIdx + 1] || [];
-                            let curMain = '';
+                            let rowH = jsonArray[headerRowIdx];
+                            let nameCol = rowH.findIndex(c => String(c).toLowerCase().includes('họ và tên'));
+                            let gkCol = -1, ckCol = -1;
+                            let txCols = {};
 
-                            for (let c = 0; c < Math.max(r1.length, r2.length); c++) {
-                                let h1 = String(r1[c] || '').trim().toLowerCase(); let h2 = String(r2[c] || '').trim().toLowerCase();
-                                if (h1) curMain = h1;
-                                if (curMain.includes('họ và tên') || h1.includes('họ và tên')) nameCol = c;
-                                else if (curMain.includes('đđggk') || h1.includes('giữa k')) gkCol = c;
-                                else if (curMain.includes('đđgck') || h1.includes('cuối k')) ckCol = c;
-                                else if (curMain.includes('đđgtx') || curMain.includes('thường xuyên')) {
-                                    if (h2 === '1') txCols['TX1'] = c; else if (h2 === '2') txCols['TX2'] = c; else if (h2 === '3') txCols['TX3'] = c;
-                                    else if (h2 === '4') txCols['TX4'] = c; else if (h2 === '5') txCols['TX5'] = c;
+                            // 3. Quét linh hoạt 3 dòng header liên tiếp để săn tìm cột GK và CK
+                            for (let r = headerRowIdx; r <= Math.min(headerRowIdx + 2, jsonArray.length - 1); r++) {
+                                let rData = jsonArray[r] || [];
+                                for (let c = 0; c < rData.length; c++) {
+                                    let cell = String(rData[c] || '').trim().toLowerCase();
+                                    if (cell.includes('giữa k') || cell.includes('đđggk')) gkCol = c;
+                                    if (cell.includes('cuối k') || cell.includes('đđgck')) ckCol = c;
                                 }
                             }
-                            if (Object.keys(txCols).length === 0) {
-                                let sTx = r1.findIndex(x => String(x).toLowerCase().includes('đđgtx'));
-                                let eTx = r1.findIndex(x => String(x).toLowerCase().includes('đđggk'));
-                                if (sTx !== -1 && eTx !== -1) { let count = 1; for (let c = sTx; c < eTx; c++) { txCols['TX' + count] = c; count++; } }
+
+                            // 4. Tìm dải cột TX: Mọi cột nằm giữa "ĐĐGtx" và "ĐĐGgk" đều được tính là điểm TX
+                            let sTx = rowH.findIndex(c => String(c).toLowerCase().includes('đđgtx'));
+                            if (sTx !== -1 && gkCol !== -1 && gkCol > sTx) {
+                                let count = 1;
+                                for (let c = sTx; c < gkCol; c++) {
+                                    txCols['TX' + count] = c; count++;
+                                }
                             }
 
+                            // 5. Quét tìm dòng bắt đầu của Sinh viên (Bỏ qua dòng trống, dòng phụ)
                             let dStart = headerRowIdx + 1;
-                            if (!isNaN(String(jsonArray[dStart]?.[nameCol] || '').trim())) dStart++;
+                            while (dStart < jsonArray.length) {
+                                let rowD = jsonArray[dStart] || [];
+                                let nameVal = String(rowD[nameCol] || '').trim();
+                                if (nameVal !== '' && isNaN(nameVal) && !nameVal.toLowerCase().includes('họ và tên')) {
+                                    break; // Đã chạm tới sinh viên đầu tiên
+                                }
+                                dStart++;
+                            }
 
                             let fullData = { 'GK': {}, 'CK': {} };
                             for (let i = 1; i <= 10; i++) fullData['TX' + i] = {};
+                            
+                            let countStudents = 0;
+                            let countScores = 0;
 
+                            // 6. Trích xuất điểm
                             for (let i = dStart; i < jsonArray.length; i++) {
-                                let name = String(jsonArray[i][nameCol] || '').trim();
+                                let rowD = jsonArray[i] || [];
+                                let name = String(rowD[nameCol] || '').trim();
                                 if (!name) continue;
+                                countStudents++;
+                                
                                 for (let key in txCols) {
-                                    let score = String(jsonArray[i][txCols[key]] || '').trim().replace(/,/g, '.');
-                                    if (score && score.toLowerCase() !== 'nan') fullData[key][name] = score;
+                                    let score = String(rowD[txCols[key]] || '').trim().replace(/,/g, '.');
+                                    if (score && score.toLowerCase() !== 'nan') { fullData[key][name] = score; countScores++; }
                                 }
-                                if (gkCol !== -1) { let sc = String(jsonArray[i][gkCol] || '').trim().replace(/,/g, '.'); if (sc && sc !== 'nan') fullData['GK'][name] = sc; }
-                                if (ckCol !== -1) { let sc = String(jsonArray[i][ckCol] || '').trim().replace(/,/g, '.'); if (sc && sc !== 'nan') fullData['CK'][name] = sc; }
+                                if (gkCol !== -1) { let sc = String(rowD[gkCol] || '').trim().replace(/,/g, '.'); if (sc && sc !== 'nan') { fullData['GK'][name] = sc; countScores++; } }
+                                if (ckCol !== -1) { let sc = String(rowD[ckCol] || '').trim().replace(/,/g, '.'); if (sc && sc !== 'nan') { fullData['CK'][name] = sc; countScores++; } }
                             }
                             
-                            log(`✔️ Đã nạp: [${className}] - [${subjectName}]`);
+                            // Ghi log chi tiết để dễ bắt bệnh
+                            log(`✔️ Nạp [${className}]: ${countStudents} HS | Tìm thấy ${Object.keys(txCols).length} cột TX | ${countScores} đầu điểm.`);
                             resolve({ fileName: file.name, className: className, subjectName: subjectName, scores: fullData });
                             
                         } catch (error) {
                             log(`❌ Bỏ qua file [${file.name}] do lỗi định dạng!`);
-                            resolve(null); // Giải phóng lệnh chờ nếu có lỗi
+                            resolve(null);
                         }
                     };
                     reader.readAsArrayBuffer(file);
