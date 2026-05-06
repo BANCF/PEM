@@ -830,19 +830,19 @@
 
                                     // Radar Lớp: Chấp nhận Lớp, Lớp học, Lớp/Nhóm
                                     if (className === "UNKNOWN") {
-                                        let cMatch = rowStr.match(/lớp(?:\s*học|\/\s*nhóm)?:\s*([a-zA-Z0-9\-\/]+)/i);
+                                        // Dừng lại trước các từ khóa tiếp theo như Môn, Năm học...
+                                        let cMatch = rowStr.match(/(?:lớp(?:\s*học|\/\s*nhóm)?|class)[:\s]*([a-zA-Z0-9\-\/]+)(?=\s*môn|\s*học|\s*năm|$)/i);
                                         if (cMatch) className = cMatch[1].trim().toUpperCase();
                                     }
 
-                                    // Radar Môn: Chấp nhận Môn, Môn học, Học phần
+                                    // Radar Môn (V10 - LOOKAHEAD PRECISION)
                                     if (subjectName === "UNKNOWN") {
-                                        // Tìm từ khóa dài trước (Môn học) rồi mới đến Môn
-                                        let sMatch = rowStr.match(/(?:môn\s*học|học\s*phần|môn):\s*([^-\n\r,]+)/i);
-                                        if (sMatch) {
-                                            let val = sMatch[1].trim();
-                                            // Loại bỏ các từ khóa rác thường gặp ở cuối chuỗi
-                                            val = val.split(/gv:|giáo\s*viên|học\s*kỳ|năm\s*học/i)[0].trim();
-                                            if (val.length > 1 && val.length < 40) subjectName = val;
+                                        // Kỹ thuật Lookahead: Lấy nội dung và dừng lại ngay trước khi gặp Học kỳ, Lớp, GV, hoặc dấu gạch ngang
+                                        const sRegex = /(?:môn(?:\s*học)?|học\s*phần|subject)[:\s]*(.*?)(?=\s*học\s*kỳ|\s*lớp|\s*gv:|\s*giáo\s*viên|\s*-|$)/i;
+                                        const sMatch = rowStr.match(sRegex);
+                                        if (sMatch && sMatch[1]) {
+                                            let val = sMatch[1].replace(/[,:]/g, "").trim();
+                                            if (val.length > 1 && val.length < 50) subjectName = val;
                                         }
                                     }
                                 }
