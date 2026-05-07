@@ -2,6 +2,35 @@
     const delay = ms => new Promise(res => setTimeout(res, ms));
 
     // ==========================================
+    // MODULE: SMART WAIT (CHỜ THÔNG MINH BẰNG DOM)
+    // ==========================================
+    const waitForCondition = async (conditionFn, timeout = 10000, interval = 200) => {
+        let elapsed = 0;
+        while (elapsed < timeout) {
+            if (conditionFn()) return true; // Nếu điều kiện thỏa mãn -> Trả về true luôn, không đợi thêm
+            await delay(interval);
+            elapsed += interval;
+        }
+        return false; // Quá thời gian mà chưa thấy -> Trả về false
+    };
+
+    const waitForElementToDisappear = async (selector, timeout = 5000) => {
+        return await waitForCondition(() => {
+            let els = document.querySelectorAll(selector);
+            return els.length === 0 || Array.from(els).every(el => el.offsetWidth === 0);
+        }, timeout);
+    };
+
+    const log = (msg) => {
+        let logEl = document.getElementById('tool-log');
+        if (logEl) {
+            logEl.insertAdjacentHTML('beforeend', `<div>👉 ${msg}</div>`);
+            logEl.scrollTop = logEl.scrollHeight;
+        }
+        console.log(msg); // In thêm ra F12 để dễ kiểm tra
+    };
+
+    // ==========================================
     // 0. CẤU HÌNH SERVER BẢO MẬT
     // ==========================================
     const API_URL = "https://script.google.com/macros/s/AKfycbxjz6kq9gkh6OuK3-2wxjhHEgJ3c_5BgoxATDQJP1kRov127nvJwRU2FcI1VhDh8sFN/exec";
@@ -9,12 +38,12 @@
     // ==========================================
     // 1. TẢI THƯ VIỆN & XÓA GIAO DIỆN CŨ
     // ==========================================
-    if (typeof XLSX === 'undefined') {
-        let script = document.createElement('script');
-        script.src = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
-        document.head.appendChild(script);
-        await new Promise(r => script.onload = r);
-    }
+    // if (typeof XLSX === 'undefined') {
+    //     let script = document.createElement('script');
+    //     script.src = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
+    //     document.head.appendChild(script);
+    //     await new Promise(r => script.onload = r);
+    // }
 
     if (document.getElementById('ohke-hub-tools')) {
         document.getElementById('ohke-hub-tools').remove();
@@ -76,35 +105,56 @@
             background: #ffffff; border: 2px solid #004085; border-radius: 8px;
             box-shadow: 0 10px 30px rgba(0,0,0,0.4); z-index: 999999; 
             font-family: Arial, sans-serif; color: #333; overflow: hidden;
+            display: flex; flex-direction: column; max-height: 85vh;
         `;
 
         let displayAuth = currentToken ? 'none' : 'block';
         let displayTools = currentToken ? 'block' : 'none';
 
+        // Thêm biến để theo dõi trạng thái
+        let isMinimized = false;
+
         panel.innerHTML = `
-            <div id="ohke-drag-handle" title="Nhấn giữ để kéo thả" style="display: flex; background: #004085; color: white; border-bottom: 2px solid #002752; cursor: move; user-select: none;">
-                <div id="tab-grader" style="flex: 1; text-align: center; padding: 12px; font-weight: bold; cursor: inherit; background: #004085;">⚡ NHẬP ĐIỂM (PRO)</div>
-                <div id="tab-attendance" style="flex: 1; text-align: center; padding: 12px; font-weight: bold; cursor: inherit; background: #0056b3;">🙋 ĐIỂM DANH (FREE)</div>
+            <style>
+                #ohke-hub-tools { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif !important; }
+                #ohke-hub-tools ::-webkit-scrollbar { width: 6px; }
+                #ohke-hub-tools ::-webkit-scrollbar-track { background: #f1f1f1; border-radius: 4px; }
+                #ohke-hub-tools ::-webkit-scrollbar-thumb { background: #bbb; border-radius: 4px; }
+                #ohke-hub-tools .control-btn:hover { background: rgba(255,255,255,0.2); border-radius: 4px; }
+                #ohke-hub-tools button { font-size: 13px !important; } /* Ép font 13px cho mọi nút */
+            </style>
+
+            <div id="ohke-drag-handle" style="display: flex; justify-content: space-between; align-items: center; background: #002752; color: white; padding: 10px 12px; cursor: move; user-select: none; flex-shrink: 0;">
+                <div style="font-size: 14px; font-weight: bold; letter-spacing: 0.5px;">🛠️ ClassHub Pro Tools</div>
+                <div style="display: flex; gap: 8px;">
+                    <div id="btn-minimize-tool" class="control-btn" title="Thu nhỏ" style="padding: 0 6px; cursor: pointer; font-weight: bold; font-size: 18px; line-height: 1;">−</div>
+                    <div id="btn-close-tool-top" class="control-btn" title="Đóng hẳn" style="padding: 0 6px; cursor: pointer; font-weight: bold; font-size: 18px; line-height: 1;">×</div>
+                </div>
             </div>
 
-            <div style="padding: 15px;">
+            <div id="ohke-tabs-container" style="display: flex; flex-shrink: 0; border-bottom: 2px solid #002752;">
+                <div id="tab-grader" style="flex: 1; text-align: center; padding: 10px; font-weight: bold; cursor: pointer; background: #004085; color: white; font-size: 13px; transition: 0.2s;">⚡ NHẬP ĐIỂM (PRO)</div>
+                <div id="tab-attendance" style="flex: 1; text-align: center; padding: 10px; font-weight: bold; cursor: pointer; background: #0056b3; color: white; font-size: 13px; transition: 0.2s;">🙋 ĐIỂM DANH (FREE)</div>
+            </div>
+
+            <div id="ohke-panel-body" style="padding: 15px; overflow-y: auto; flex-grow: 1; transition: all 0.3s ease;">
                 <div id="section-grader" style="display: none;">
                     <div id="grader-auth" style="display: ${displayAuth}; text-align: center; padding: 10px 0;">
-                        <p style="font-size: 12px; margin-bottom: 10px; color: #dc3545; font-weight: bold;">Tính năng này yêu cầu mã Token bản quyền.</p>
+                        <p style="font-size: 13px; margin-bottom: 10px; color: #dc3545; font-weight: bold;">Tính năng này yêu cầu mã Token bản quyền.</p>
                         <input type="text" id="input-token" placeholder="Nhập mã Token..." style="width: 100%; padding: 8px; text-align: center; font-weight: bold; font-size: 13px; border: 2px solid #ccc; border-radius: 4px; margin-bottom: 10px; outline: none;">
                         <button id="btn-verify" style="width: 100%; background: #28a745; color: white; padding: 8px; border: none; border-radius: 4px; font-weight: bold; cursor: pointer;">KÍCH HOẠT PRO</button>
-                        <div id="auth-log" style="margin-top: 10px; font-size: 12px; color: red; font-weight: bold;"></div>
+                        <div id="auth-log" style="margin-top: 10px; font-size: 13px; color: red; font-weight: bold;"></div>
                     </div>
 
                     <div id="grader-tools" style="display: ${displayTools};">
                         <div style="text-align: right; margin-bottom: 8px;">
-                            <a href="#" id="btn-logout-token" style="font-size: 11px; color: #dc3545; text-decoration: underline;">Thoát Token</a>
+                            <a href="#" id="btn-logout-token" style="font-size: 12px; color: #dc3545; text-decoration: underline;">Thoát Token</a>
                         </div>
-                        <label style="font-size: 12px; font-weight: bold;">1. Chọn file Excel</label>
-                        <input type="file" id="excel-file" accept=".xlsx, .xls" multiple style="width: 100%; margin: 8px 0 10px 0; font-size: 12px;">
+                        <label style="font-size: 13px; font-weight: bold;">1. Chọn file Excel</label>
+                        <input type="file" id="excel-file" accept=".xlsx, .xls" multiple style="width: 100%; margin: 8px 0 10px 0; font-size: 13px;">
                         
-                        <label style="font-size: 12px; font-weight: bold;">2. Cột điểm hiện tại</label>
-                        <select id="score-col" style="width: 100%; margin: 8px 0 5px 0; padding: 6px; border-radius: 4px; border: 1px solid #aaa;">
+                        <label style="font-size: 13px; font-weight: bold;">2. Cột điểm hiện tại</label>
+                        <select id="score-col" style="width: 100%; margin: 8px 0 5px 0; padding: 6px; border-radius: 4px; border: 1px solid #aaa; font-size: 13px;">
                             <option value="TX1" ${defaultKey === 'TX1' ? 'selected' : ''}>ĐĐG Thường xuyên 1 (HS1-1)</option>
                             <option value="TX2" ${defaultKey === 'TX2' ? 'selected' : ''}>ĐĐG Thường xuyên 2 (HS1-2)</option>
                             <option value="TX3" ${defaultKey === 'TX3' ? 'selected' : ''}>ĐĐG Thường xuyên 3 (HS1-3)</option>
@@ -115,49 +165,77 @@
                         </select>
                         
                         <div style="margin-top: 10px; border: 1px solid #ccc; border-radius: 4px; padding: 8px; background: #f9f9f9;">
-                            <div style="font-size: 12px; font-weight: bold; margin-bottom: 5px; color:#d81b60;">📔 TỪ ĐIỂN MÔN HỌC (Tự động lưu)</div>
-                            <table style="width: 100%; font-size: 11px; text-align: left;">
-                                <thead><tr style="border-bottom: 1px solid #ddd;"><th>Tên Excel</th><th>Từ khóa Web (Cắt bởi dấu phẩy)</th><th></th></tr></thead>
+                            <div style="font-size: 13px; font-weight: bold; margin-bottom: 5px; color:#d81b60;">📔 TỪ ĐIỂN MÔN HỌC (Tự động lưu)</div>
+                            <table style="width: 100%; font-size: 12px; text-align: left;">
+                                <thead><tr style="border-bottom: 1px solid #ddd;"><th>Tên Excel</th><th>Từ khóa Web (Ngăn bởi dấu phẩy)</th><th style="width:20px;"></th></tr></thead>
                                 <tbody id="dict-body"></tbody>
                             </table>
-                            <button id="btn-add-dict" style="width: 100%; font-size: 10px; margin-top: 5px; padding: 4px; cursor:pointer;">+ Thêm từ khóa mới</button>
+                            <button id="btn-add-dict" style="width: 100%; margin-top: 8px; padding: 6px; cursor:pointer; border: 1px dashed #aaa; border-radius: 4px;">+ Thêm từ khóa mới</button>
                         </div>
 
                         <div style="margin-top: 10px; border: 1px solid #007bff; border-radius: 4px; padding: 8px;">
-                            <div style="font-size: 12px; font-weight: bold; margin-bottom: 5px; color:#007bff;">📋 TIẾN ĐỘ CHẠY (QUEUE)</div>
-                            <div id="queue-list" style="max-height: 120px; overflow-y: auto; font-size: 11px; background: #fff; border: 1px solid #eee; padding: 4px;">
-                                <i>Chưa có dữ liệu...</i>
+                            <div style="font-size: 13px; font-weight: bold; margin-bottom: 5px; color:#007bff;">📋 TIẾN ĐỘ CHẠY (QUEUE)</div>
+                            <div id="queue-list" style="max-height: 120px; overflow-y: auto; font-size: 12px; background: #fff; border: 1px solid #eee; padding: 6px;">
+                                <i style="color: #666;">Chưa có dữ liệu...</i>
                             </div>
                         </div>
                         
                         <div style="display: flex; flex-direction: column; gap: 8px; margin-top: 15px;">
-                            <button id="btn-auto-batch" style="background: #e91e63; color: white; padding: 10px; border: none; border-radius: 4px; font-weight: bold; cursor: pointer; font-size: 12px;">🚀 AUTO CHẠY TẤT CẢ FILE ĐÃ CHỌN</button>
-                            <button id="btn-auto-full" style="background: #28a745; color: white; padding: 8px; border: none; border-radius: 4px; font-weight: bold; cursor: pointer;">🚀 AUTO LỚP HIỆN TẠI</button>
+                            <button id="btn-auto-batch" style="background: #e91e63; color: white; padding: 10px; border: none; border-radius: 4px; font-weight: bold; cursor: pointer;">🚀 AUTO CHẠY TẤT CẢ FILE ĐÃ CHỌN</button>
+                            <button id="btn-auto-full" style="background: #28a745; color: white; padding: 8px; border: none; border-radius: 4px; font-weight: bold; cursor: pointer;">🚀 AUTO LỚP HIỆY TẠI</button>
                             <button id="btn-auto-input" style="background: #007bff; color: white; padding: 8px; border: none; border-radius: 4px; font-weight: bold; cursor: pointer;">⚡ CHỈ NHẬP ĐIỂM CỘT ĐANG CHỌN</button>
                             
-                            <div style="border-top: 1px dashed #ccc; margin: 5px 0;"></div> <button id="btn-reset" style="background: #ffc107; color: black; padding: 8px; border: none; border-radius: 4px; font-weight: bold; cursor: pointer;">🔄 RESET ĐIỂM (Cột Đang Chọn)</button>
+                            <div style="border-top: 1px dashed #ccc; margin: 5px 0;"></div> 
+                            <button id="btn-reset" style="background: #ffc107; color: black; padding: 8px; border: none; border-radius: 4px; font-weight: bold; cursor: pointer;">🔄 RESET ĐIỂM (Cột Đang Chọn)</button>
                             <button id="btn-reset-all" style="background: #dc3545; color: white; padding: 8px; border: none; border-radius: 4px; font-weight: bold; cursor: pointer;">💣 RESET TOÀN BỘ (Tất Cả Các Cột)</button>
                         </div>
                     </div>
                 </div>
 
                 <div id="section-attendance" style="display: flex; flex-direction: column; gap: 10px;">
-                    <div style="background: #e9ecef; padding: 10px; border-radius: 5px; font-size: 12px; margin-bottom: 5px;">
+                    <div style="background: #e9ecef; padding: 10px; border-radius: 5px; font-size: 13px; margin-bottom: 5px; line-height: 1.4;">
                         <b>Miễn phí:</b> Mở cửa sổ điểm danh trên web, sau đó bấm nút tự động dưới đây.
                     </div>
                     <button id="btn-auto-attendance" style="background: #dc3545; color: white; padding: 10px; border: none; border-radius: 4px; font-weight: bold; cursor: pointer;">🚀 AUTO ĐIỂM DANH TẤT CẢ</button>
-                    <button id="btn-att-students" style="background: #17a2b8; color: white; padding: 10px; border: none; border-radius: 4px; font-weight: bold; cursor: pointer;">👨‍🎓 ĐIỂM DANH HỌC SINH (Như tiết trước)</button>
-                    <button id="btn-att-teacher" style="background: #6f42c1; color: white; padding: 10px; border: none; border-radius: 4px; font-weight: bold; cursor: pointer;">👨‍🏫 ĐIỂM DANH GIÁO VIÊN</button>
+                    <button id="btn-att-students" style="background: #17a2b8; color: white; padding: 10px; border: none; border-radius: 4px; font-weight: bold; cursor: pointer;">👨🎓 ĐIỂM DANH HỌC SINH (Như tiết trước)</button>
+                    <button id="btn-att-teacher" style="background: #6f42c1; color: white; padding: 10px; border: none; border-radius: 4px; font-weight: bold; cursor: pointer;">👨🏫 ĐIỂM DANH GIÁO VIÊN</button>
                     <button id="btn-att-complete" style="background: #28a745; color: white; padding: 10px; border: none; border-radius: 4px; font-weight: bold; cursor: pointer;">✅ HOÀN THÀNH & TIẾP TỤC</button>
                 </div>
 
                 <div style="margin-top: 15px;">
-                    <button id="btn-close-tool" style="width: 100%; background: #6c757d; color: white; padding: 6px; border: none; border-radius: 4px; font-weight: bold; cursor: pointer;">Đóng Cửa Sổ</button>
+                    <button id="btn-close-tool" style="width: 100%; background: #6c757d; color: white; padding: 8px; border: none; border-radius: 4px; font-weight: bold; cursor: pointer;">Đóng Cửa Sổ</button>
                 </div>
-                <div id="tool-log" style="margin-top: 10px; font-size: 11px; color: #444; max-height: 120px; overflow-y: auto; background: #f8f9fa; padding: 8px; border-radius: 4px; border: 1px solid #eee;">Trạng thái: Sẵn sàng...</div>
+                <div id="tool-log" style="margin-top: 12px; font-size: 12px; color: #444; max-height: 140px; overflow-y: auto; background: #f8f9fa; padding: 10px; border-radius: 4px; border: 1px solid #ccc; line-height: 1.4;">Trạng thái: Sẵn sàng...</div>
             </div>
         `;
-        document.body.appendChild(panel);
+        document.documentElement.appendChild(panel);
+
+        const panelBody = document.getElementById('ohke-panel-body');
+        const tabsContainer = document.getElementById('ohke-tabs-container');
+        const btnMinimize = document.getElementById('btn-minimize-tool');
+
+        btnMinimize.onclick = (e) => {
+            e.stopPropagation();
+            isMinimized = !isMinimized;
+
+            if (isMinimized) {
+                panelBody.style.display = 'none';
+                tabsContainer.style.display = 'none'; // Ẩn luôn tầng Tab
+                panel.style.height = 'auto';
+                panel.style.width = '240px';
+                btnMinimize.innerText = '+';
+                btnMinimize.title = "Mở rộng";
+            } else {
+                panelBody.style.display = 'block';
+                tabsContainer.style.display = 'flex'; // Hiện lại tầng Tab
+                panel.style.width = '360px';
+                panel.style.maxHeight = '85vh';
+                btnMinimize.innerText = '−';
+                btnMinimize.title = "Thu nhỏ";
+            }
+        };
+
+        document.getElementById('btn-close-tool-top').onclick = () => panel.remove();
 
         // ==========================================
         // MODULE: KÉO THẢ GIAO DIỆN (DRAG & DROP)
@@ -209,13 +287,6 @@
             }
         });
 
-        const log = (msg) => {
-            const logEl = document.getElementById('tool-log');
-            if (!logEl) return;
-            logEl.innerHTML += `<div>👉 ${msg}</div>`;
-            logEl.scrollTop = logEl.scrollHeight;
-        };
-
         const clearLogUI = (className) => {
             const logEl = document.getElementById('tool-log');
             if (logEl) {
@@ -236,9 +307,9 @@
                 let tr = document.createElement('tr');
                 tr.className = 'dict-row';
                 tr.innerHTML = `
-                    <td><input type="text" class="ex-name" value="${exName}" style="width:90%; padding:2px; font-size:10px;"></td>
-                    <td><input type="text" class="web-names" value="${dictObj[exName]}" style="width:90%; padding:2px; font-size:10px;"></td>
-                    <td><button class="del-row" style="color:red; background:none; border:none; cursor:pointer;">x</button></td>
+                    <td><input type="text" class="ex-name" value="${exName}" style="width:95%; padding:4px; font-size:12px; border: 1px solid #ccc; border-radius: 3px;"></td>
+                    <td><input type="text" class="web-names" value="${dictObj[exName]}" style="width:95%; padding:4px; font-size:12px; border: 1px solid #ccc; border-radius: 3px;"></td>
+                    <td style="text-align: right;"><button class="del-row" style="color:red; background:none; border:none; cursor:pointer; font-weight: bold; font-size: 14px;">×</button></td>
                 `;
                 tbody.appendChild(tr);
             }
@@ -270,9 +341,9 @@
                 let tr = document.createElement('tr');
                 tr.className = 'dict-row';
                 tr.innerHTML = `
-                    <td><input type="text" class="ex-name" placeholder="Ví dụ: Khoa học Tự nhiên" style="width:90%; padding:2px; font-size:10px;"></td>
-                    <td><input type="text" class="web-names" placeholder="KHTN, Lý 8, Hóa 8..." style="width:90%; padding:2px; font-size:10px;"></td>
-                    <td><button class="del-row" style="color:red; background:none; border:none; cursor:pointer;">x</button></td>
+                    <td><input type="text" class="ex-name" placeholder="Vd: Khoa học Tự nhiên" style="width:95%; padding:4px; font-size:12px; border: 1px solid #007bff; border-radius: 3px;"></td>
+                    <td><input type="text" class="web-names" placeholder="KHTN, Lý 8..." style="width:95%; padding:4px; font-size:12px; border: 1px solid #007bff; border-radius: 3px;"></td>
+                    <td style="text-align: right;"><button class="del-row" style="color:red; background:none; border:none; cursor:pointer; font-weight: bold; font-size: 14px;">×</button></td>
                 `;
                 document.getElementById('dict-body').appendChild(tr);
                 bindDictEvents();
@@ -297,6 +368,27 @@
         };
 
         document.getElementById('btn-close-tool').onclick = () => panel.remove();
+
+        // ==========================================
+        // MODULE: TỰ ĐỘNG ĐIỀU HƯỚNG BẰNG DEEP LINK (V5)
+        // ==========================================
+        const getDeepLink = (type) => {
+            // Tự động quét và lấy mã ID hệ thống (VD: 47817) từ URL hiện tại
+            let match = window.location.href.match(/idcloud\.vn\/(\d+)/);
+            let tenantId = match ? match[1] : '47817'; // Nếu đứng ở ngoài trang chủ, lấy tạm 47817
+            let baseUrl = `https://idcloud.vn/${tenantId}`;
+            
+            if (type === 'CLASSHUB') return `${baseUrl}/appstart/classhub/source=deeplink`;
+            if (type === 'CLASSROOM') return `${baseUrl}/appstart/classroom/source=deeplink`;
+            return window.location.href;
+        };
+
+        const forceNavigate = async (type) => {
+            let targetUrl = getDeepLink(type);
+            log(`🚀 Dùng Deep Link ép chuyển thẳng tới: ${type}...`);
+            window.location.href = targetUrl; // Ép trình duyệt nhảy thẳng URL
+            return 'HARD_RELOAD';
+        };
 
         document.getElementById('btn-verify').onclick = async () => {
             let tk = document.getElementById('input-token').value.trim();
@@ -356,10 +448,10 @@
         const clickText = async (tuKhoa, loaiTru = null) => {
             const vung = getTopModal();
             let els = Array.from(vung.querySelectorAll('a, button, div, span, label')).filter(el => {
-                if (el.offsetWidth === 0) return false;
                 let text = el.textContent.trim();
                 if (!text.includes(tuKhoa)) return false;
                 if (loaiTru && text.includes(loaiTru)) return false;
+                if (el.offsetWidth === 0) return false;
                 return true;
             });
             if (els.length === 0) return 0;
@@ -372,7 +464,7 @@
             const vung = getTopModal();
             if (vung === document) return;
             let nutDong = vung.querySelector('.close-btn, a[onclick*="close"]');
-            if (nutDong && nutDong.offsetWidth > 0) {
+            if (nutDong && nutDong.textContent.trim() !== "" && nutDong.offsetWidth > 0) {
                 nutDong.scrollIntoView({ behavior: 'smooth', block: 'center' });
                 await delay(200);
                 nutDong.click();
@@ -386,8 +478,20 @@
         // ==========================================
         document.getElementById('btn-auto-attendance').onclick = async () => {
             log("🚀 Kích hoạt quy trình Tự Động Hóa Điểm Danh...");
-            let cacPhanTu = Array.from(document.querySelectorAll('a, button, div, span'));
-            let giaoDienTiengAnh = cacPhanTu.find(el => el.offsetWidth > 0 && (el.textContent.trim().toLowerCase() === 'past' || el.textContent.trim().toLowerCase() === 'today'));
+            
+            // Check xem URL hiện tại có đang ở ClassHub chưa
+            if (!window.location.href.includes('classhub')) {
+                log("Đang lưu trạng thái và dùng Deep Link tới ClassHub...");
+                await chrome.storage.local.set({ 'pending_action': 'AUTO_ATTENDANCE' });
+                await forceNavigate('CLASSHUB');
+                return; // Dừng code nhường cho trang load lại
+            }
+
+            chrome.storage.local.remove(['pending_action']);
+            
+            // --- GIỮ NGUYÊN CODE TÌM TÊN GIÁO VIÊN BÊN DƯỚI CỦA BẠN ---
+            log("🔍 Đang trích xuất danh tính Giáo viên...");
+            let giaoDienTiengAnh = Array.from(document.querySelectorAll('a, button, div, span')).find(el => el.offsetWidth > 0 && (el.textContent.trim().toLowerCase() === 'past' || el.textContent.trim().toLowerCase() === 'today'));
 
             if (giaoDienTiengAnh) {
                 log("🌐 Phát hiện giao diện Tiếng Anh! Đang tiến hành đổi sang Tiếng Việt...");
@@ -428,11 +532,15 @@
             if (!tenGiaoVien) { alert("❌ LỖI BẢO MẬT: Không thể đọc được tên của bạn trên hệ thống!"); return; }
             log(`✅ Thành công! Xin chào Giáo viên: [${tenGiaoVien}]`);
 
-            let cacTab = Array.from(document.querySelectorAll('a, button, div, span')).filter(el => el.offsetWidth > 0);
+            let cacTab = Array.from(document.querySelectorAll('a, button, div, span')).filter(el => el.textContent.trim() !== "" && el.offsetWidth > 0);
             let tabQuaKhu = cacTab.find(el => el.textContent.trim().toLowerCase() === 'quá khứ');
 
             if (tabQuaKhu) {
-                tabQuaKhu.scrollIntoView({ behavior: 'smooth', block: 'center' }); await delay(300); tabQuaKhu.click(); await delay(3000);
+                tabQuaKhu.scrollIntoView({ behavior: 'smooth', block: 'center' }); 
+                await delay(300); 
+                tabQuaKhu.click(); 
+                log("⏳ Đang tải danh sách lớp trong quá khứ (5s)...");
+                await delay(5000); // Tăng lên 5s để đảm bảo load hết danh sách
             } else { alert("❌ LỖI: Không tìm thấy tab 'Quá Khứ'."); return; }
 
             const tabActive = document.querySelector('.tab-content > .tab-item:not(.w3-hide)');
@@ -440,9 +548,10 @@
 
             let tongSoLopDaXuLy = 0;
             while (true) {
-                let cacLop = Array.from(tabActive.querySelectorAll('.list-item')).filter(el =>
-                    el.offsetWidth > 0 && !el.dataset.daDiemDanh && (el.textContent.includes('CHƯA NỘP BẢNG ĐIỂM DANH') || el.textContent.includes('CHƯA ĐIỂM DANH GIÁO VIÊN'))
-                );
+                let cacLop = Array.from(tabActive.querySelectorAll('.list-item')).filter(el => {
+                    let txt = el.textContent;
+                    return (txt.includes('CHƯA NỘP BẢNG ĐIỂM DANH') || txt.includes('CHƯA ĐIỂM DANH GIÁO VIÊN')) && el.offsetWidth > 0 && !el.dataset.daDiemDanh;
+                });
 
                 if (cacLop.length > 0) {
                     for (let i = 0; i < cacLop.length; i++) {
@@ -497,7 +606,10 @@
 
                             for (let j = 0; j < 15; j++) {
                                 await delay(500);
-                                let checkLai = Array.from(getTopModal().querySelectorAll('a, button, .btn, .w3-button')).filter(el => el.offsetWidth > 50 && el.textContent.trim().includes('Đánh Dấu Hoàn Thành') && !el.closest('td'));
+                                let checkLai = Array.from(getTopModal().querySelectorAll('a, button, .btn, .w3-button')).filter(el => {
+                                    let txt = el.textContent.trim();
+                                    return txt.includes('Đánh Dấu Hoàn Thành') && el.offsetWidth > 50 && !el.closest('td');
+                                });
                                 if (checkLai.length < danhSachHoanThanh.length) break;
                             }
                         }
@@ -506,10 +618,13 @@
                     }
                 } else {
                     let dsPhanTu = Array.from(tabActive.querySelectorAll('a, button, div, span'));
-                    let nutXemThem = dsPhanTu.find(el => el.offsetWidth > 0 && el.textContent.trim() === 'Xem Thêm');
+                    let nutXemThem = dsPhanTu.find(el => el.textContent.trim() === 'Xem Thêm' && el.offsetWidth > 0);
                     if (nutXemThem) {
                         forceClick(nutXemThem); await delay(3500);
-                        let kiemTraTheDoMoi = Array.from(tabActive.querySelectorAll('.list-item')).filter(el => el.offsetWidth > 0 && !el.dataset.daDiemDanh && (el.textContent.includes('CHƯA NỘP BẢNG ĐIỂM DANH') || el.textContent.includes('CHƯA ĐIỂM DANH GIÁO VIÊN')));
+                        let kiemTraTheDoMoi = Array.from(tabActive.querySelectorAll('.list-item')).filter(el => {
+                            let txt = el.textContent;
+                            return (txt.includes('CHƯA NỘP BẢNG ĐIỂM DANH') || txt.includes('CHƯA ĐIỂM DANH GIÁO VIÊN')) && el.offsetWidth > 0 && !el.dataset.daDiemDanh;
+                        });
                         if (kiemTraTheDoMoi.length === 0) break;
                     } else break;
                 }
@@ -520,17 +635,17 @@
         const clickLoadMore = async () => {
             let loadMoreCount = 0; let xemThemBtn;
             do {
-                xemThemBtn = Array.from(document.querySelectorAll('a, button, span, .ohke-btn')).find(el => el.offsetWidth > 0 && el.textContent.toLowerCase().includes('xem thêm'));
+                xemThemBtn = Array.from(document.querySelectorAll('a, button, span, .ohke-btn')).find(el => el.textContent.toLowerCase().includes('xem thêm') && el.offsetWidth > 0);
                 if (xemThemBtn) { forceClick(xemThemBtn); await delay(1000); loadMoreCount++; }
             } while (xemThemBtn && loadMoreCount < 10);
         };
 
         document.getElementById('btn-att-students').onclick = async () => {
             await clickLoadMore();
-            let copyBtn = Array.from(document.querySelectorAll('a, button, .ohke-btn')).find(el => el.offsetWidth > 0 && el.textContent.toLowerCase().includes('đánh dấu như tiết trước'));
+            let copyBtn = Array.from(document.querySelectorAll('a, button, .ohke-btn')).find(el => el.textContent.toLowerCase().includes('đánh dấu như tiết trước') && el.offsetWidth > 0);
             if (copyBtn) { forceClick(copyBtn); await delay(1000); }
             else {
-                let coMatBtn = Array.from(document.querySelectorAll('a, button, .ohke-btn')).find(el => el.offsetWidth > 0 && el.textContent.toLowerCase().includes('có mặt'));
+                let coMatBtn = Array.from(document.querySelectorAll('a, button, .ohke-btn')).find(el => el.textContent.toLowerCase().includes('có mặt') && el.offsetWidth > 0);
                 if (coMatBtn) forceClick(coMatBtn);
             }
         };
@@ -552,9 +667,9 @@
         };
 
         document.getElementById('btn-att-complete').onclick = async () => {
-            let doneBtn = Array.from(document.querySelectorAll('a, button, .ohke-btn')).find(el => el.offsetWidth > 0 && el.textContent.toLowerCase().includes('hoàn thành'));
+            let doneBtn = Array.from(document.querySelectorAll('a, button, .ohke-btn')).find(el => el.textContent.toLowerCase().includes('hoàn thành') && el.offsetWidth > 0);
             if (doneBtn) { forceClick(doneBtn); await delay(1500); }
-            let nextBtn = Array.from(document.querySelectorAll('.w3-modal.w3-show a, .w3-modal.w3-show button, button')).find(el => el.offsetWidth > 0 && el.textContent.toLowerCase().includes('tiếp tục'));
+            let nextBtn = Array.from(document.querySelectorAll('.w3-modal.w3-show a, .w3-modal.w3-show button, button')).find(el => el.textContent.toLowerCase().includes('tiếp tục') && el.offsetWidth > 0);
             if (nextBtn) forceClick(nextBtn);
         };
 
@@ -575,7 +690,7 @@
             log(`Mở tab con [${text}]...`);
             for (let i = 0; i < 15; i++) { // Tăng số vòng lặp lên một chút để bù cho delay ngắn lại
                 let els = Array.from(document.querySelectorAll('.ohke-tab-btn, .tab-btn-, .select-holder div'))
-                    .filter(el => el.offsetWidth > 0 && el.textContent.toLowerCase().includes(text.toLowerCase()));
+                    .filter(el => el.textContent.toLowerCase().includes(text.toLowerCase()) && el.offsetWidth > 0);
 
                 if (els.length > 0) {
                     let priorityEls = els.filter(el => /\[\d+\]/.test(el.textContent));
@@ -596,100 +711,79 @@
         const handleBatchTransition = async (targetText) => {
             log(`⚡ Đang thực thi: [${targetText.toUpperCase()}]...`);
 
-            // 1. Tìm và bấm nút Chuyển Tiếp (Giảm thời gian quét)
             let chuyenTiepBtn = null;
-            for (let i = 0; i < 5; i++) {
-                let els = Array.from(document.querySelectorAll('a, button, .ohke-btn')).filter(el => el.offsetWidth > 0 && el.textContent.toLowerCase().includes('chuyển tiếp'));
-                if (els.length > 0) { chuyenTiepBtn = els[0]; break; }
-                await delay(200);
-            }
+            await waitForCondition(() => {
+                let els = Array.from(document.querySelectorAll('a, button, .ohke-btn')).filter(el => el.textContent.toLowerCase().includes('chuyển tiếp') && el.offsetWidth > 0);
+                if (els.length > 0) { chuyenTiepBtn = els[0]; return true; }
+                return false;
+            }, 2000);
+            
             if (!chuyenTiepBtn) return false;
-
             forceClick(chuyenTiepBtn);
-            await delay(400); // Chờ popup mở cực nhanh
+            
+            // SMART WAIT: Chờ Popup tuỳ chọn mở ra
+            await waitForCondition(() => document.querySelectorAll('.w3-modal.w3-show').length > 0, 3000);
 
-            // 2. Click tuỳ chọn (Gửi Người Phê Duyệt / Chấp Nhận)
-            let activeModals = document.querySelectorAll('.w3-modal.w3-show');
-            if (activeModals.length === 0) return false;
-            let batchModal = activeModals[activeModals.length - 1];
+            let batchModal = document.querySelectorAll('.w3-modal.w3-show')[document.querySelectorAll('.w3-modal.w3-show').length - 1];
+            if(!batchModal) return false;
 
-            let options = Array.from(batchModal.querySelectorAll('a, button, label, .ohke-btn')).filter(el => el.offsetWidth > 0 && el.textContent.toLowerCase().includes(targetText.toLowerCase()));
+            let options = Array.from(batchModal.querySelectorAll('a, button, label, .ohke-btn')).filter(el => el.textContent.toLowerCase().includes(targetText.toLowerCase()) && el.offsetWidth > 0);
             if (options.length > 0) {
                 forceClick(options[0]);
-                await delay(300);
             } else {
                 let closeBtn = batchModal.querySelector('.close-btn, a[class*="close-btn"], i.fa-close');
                 if (closeBtn) forceClick(closeBtn);
                 return false;
             }
 
-            // 3. Xử lý popup XÁC NHẬN & NHẬP CAPTCHA SIÊU TỐC
-            activeModals = document.querySelectorAll('.w3-modal.w3-show');
-            let confirmModal = activeModals[activeModals.length - 1];
-
-            if (confirmModal && confirmModal.innerText.includes('mã sau:')) {
-                let match = confirmModal.innerText.match(/mã sau:\s*(\d+)/i);
-                if (match && match[1]) {
-                    let code = match[1];
-                    let inputField = confirmModal.querySelector('input[name="input"], input[type="text"]');
-                    if (inputField) {
-                        inputField.value = code;
-                        // Kích hoạt event ngay lập tức không có độ trễ
-                        inputField.dispatchEvent(new Event('input', { bubbles: true }));
-                        inputField.dispatchEvent(new Event('change', { bubbles: true }));
-                    }
-                }
-
-                let dongYBtn = Array.from(confirmModal.querySelectorAll('button, a, .ohke-btn')).find(el => el.offsetWidth > 0 && (el.textContent.toLowerCase().includes('đồng ý') || el.textContent.toLowerCase().includes('tiếp tục')));
-                if (dongYBtn) {
-                    forceClick(dongYBtn);
-                    await delay(300); // Rút từ 1500ms xuống 300ms
-                }
-            }
-
-            // 4. Bỏ qua popup THÔNG TIN cực nhanh
-            activeModals = document.querySelectorAll('.w3-modal.w3-show');
-            if (activeModals.length > 0) {
-                let infoModal = activeModals[activeModals.length - 1];
-                if (infoModal.innerText.toLowerCase().includes('enqueued successfully') || infoModal.innerText.toLowerCase().includes('hàng đợi')) {
-                    let dongYBtn2 = Array.from(infoModal.querySelectorAll('button, a, .ohke-btn')).find(el => el.offsetWidth > 0 && el.textContent.toLowerCase().includes('đồng ý'));
-                    if (dongYBtn2) {
-                        forceClick(dongYBtn2);
-                        await delay(300);
-                    }
-                }
-            }
-
-            // 5. ĐỌC LOAD BAR TRONG BATCH TRANSITION VÀ CHỜ KẾT THÚC
-            let isCompleted = false;
-            for (let wait = 0; wait < 60; wait++) { // Polling mỗi 500ms là đủ an toàn
-                await delay(500);
-
+            // SMART WAIT: Xử lý Popup Mã Xác Nhận
+            await waitForCondition(() => {
                 let modals = document.querySelectorAll('.w3-modal.w3-show');
-                if (modals.length === 0) break;
+                if(modals.length === 0) return false;
+                let current = modals[modals.length - 1];
+                
+                if (current.innerText.includes('mã sau:')) {
+                    let match = current.innerText.match(/mã sau:\s*(\d+)/i);
+                    if (match && match[1]) {
+                        let inputField = current.querySelector('input[name="input"], input[type="text"]');
+                        if (inputField) {
+                            inputField.value = match[1];
+                            inputField.dispatchEvent(new Event('input', { bubbles: true }));
+                            inputField.dispatchEvent(new Event('change', { bubbles: true }));
+                        }
+                    }
+                    let dongYBtn = Array.from(current.querySelectorAll('button, a, .ohke-btn')).find(el => (el.textContent.toLowerCase().includes('đồng ý') || el.textContent.toLowerCase().includes('tiếp tục')) && el.offsetWidth > 0);
+                    if (dongYBtn) forceClick(dongYBtn);
+                }
+                return true;
+            }, 3000);
+
+            // Tự động bấm đồng ý bảng "Enqueued"
+            await waitForCondition(() => {
+                let modals = document.querySelectorAll('.w3-modal.w3-show');
+                if(modals.length > 0 && (modals[modals.length - 1].innerText.toLowerCase().includes('successfully') || modals[modals.length - 1].innerText.toLowerCase().includes('hàng đợi'))) {
+                    let btn = Array.from(modals[modals.length - 1].querySelectorAll('button, a, .ohke-btn')).find(el => el.textContent.toLowerCase().includes('đồng ý') && el.offsetWidth > 0);
+                    if(btn) forceClick(btn);
+                    return true;
+                }
+                return false;
+            }, 2000);
+
+            // SMART WAIT: Theo dõi thanh Loading đến khi Completed
+            let isCompleted = await waitForCondition(() => {
+                let modals = document.querySelectorAll('.w3-modal.w3-show');
+                if (modals.length === 0) return false;
                 let currentModal = modals[modals.length - 1];
-                let modalText = currentModal.innerText.toLowerCase();
-
-                if (modalText.includes('trạng thái') && modalText.includes('completed')) {
-                    let closeX = currentModal.querySelector('i.fa-close, .close-btn, .w3-button.w3-display-topright');
-                    if (!closeX) closeX = Array.from(currentModal.querySelectorAll('button, a, i')).find(el => el.className.includes('close') || (el.textContent && el.textContent.toLowerCase().trim() === 'x'));
-
+                if (currentModal.innerText.toLowerCase().includes('trạng thái') && currentModal.innerText.toLowerCase().includes('completed')) {
+                    let closeX = currentModal.querySelector('i.fa-close, .close-btn, .w3-button.w3-display-topright') || Array.from(currentModal.querySelectorAll('button, a, i')).find(el => el.className.includes('close') || (el.textContent && el.textContent.toLowerCase().trim() === 'x'));
                     if (closeX) forceClick(closeX);
-                    isCompleted = true;
-                    await delay(400); // Rút từ 1500ms xuống 400ms để đóng popup
-                    break;
+                    return true;
                 }
-            }
+                return false;
+            }, 30000, 500); // Đợi tối đa 30 giây cho máy chủ duyệt xong
 
-            if (!isCompleted) {
-                let modals = document.querySelectorAll('.w3-modal.w3-show');
-                if (modals.length > 0) {
-                    let currentModal = modals[modals.length - 1];
-                    let closeX = currentModal.querySelector('i.fa-close, .close-btn, .w3-button.w3-display-topright');
-                    if (closeX) forceClick(closeX);
-                }
-            }
-
+            // Chờ các popup biến mất sạch sẽ
+            await waitForElementToDisappear('.w3-modal.w3-show', 3000);
             return true;
         };
 
@@ -801,6 +895,9 @@
         // ==========================================
         // MODULE 1: ĐÓNG GÓI DỮ LIỆU TỪ ĐẦU (V5 - RADAR & DIỆT KÝ TỰ ẨN)
         // ==========================================
+        // ==========================================
+        // MODULE 1: ĐÓNG GÓI DỮ LIỆU TỪ ĐẦU (V6 - TÁCH BIỆT DOM)
+        // ==========================================
         const parseAllFilesUpfront = async () => {
             const fileInput = document.getElementById('excel-file');
             if (!fileInput.files.length) { alert("Vui lòng tải lên file Excel!"); return null; }
@@ -818,7 +915,6 @@
                             const data = new Uint8Array(e.target.result);
                             const workbook = XLSX.read(data, { type: 'array' });
 
-                            // Lọc bỏ sheet rác
                             let validSheets = workbook.SheetNames.filter(n => {
                                 let txt = n.toLowerCase();
                                 return !txt.includes('hướng') && !txt.includes('huong') && !txt.includes('bìa') && !txt.includes('bia');
@@ -827,28 +923,19 @@
 
                             const cleanStr = str => String(str || '').toLowerCase().replace(/[\n\r\s\-]/g, '');
 
-                            // Vòng lặp quét tất cả các sheet (hỗ trợ cả file Sổ Điểm Tổng Hợp)
                             for (let targetSheet of validSheets) {
                                 const jsonArray = XLSX.utils.sheet_to_json(workbook.Sheets[targetSheet], { header: 1 });
-
                                 let className = "UNKNOWN", subjectName = "UNKNOWN";
-                                // QUÉT THÔNG TIN LỚP & MÔN (V9 - SEMANTIC SCANNER)
-                                for (let i = 0; i < Math.min(20, jsonArray.length); i++) {
-                                    let row = jsonArray[i] || [];
-                                    let rowStr = row.map(c => String(c || '')).join(" ");
 
-                                    // Radar Lớp: Chấp nhận Lớp, Lớp học, Lớp/Nhóm
+                                // QUÉT LỚP & MÔN
+                                for (let i = 0; i < Math.min(20, jsonArray.length); i++) {
+                                    let rowStr = (jsonArray[i] || []).map(c => String(c || '')).join(" ");
                                     if (className === "UNKNOWN") {
-                                        // Dừng lại trước các từ khóa tiếp theo như Môn, Năm học...
                                         let cMatch = rowStr.match(/(?:lớp(?:\s*học|\/\s*nhóm)?|class)[:\s]*([a-zA-Z0-9\-\/]+)(?=\s*môn|\s*học|\s*năm|$)/i);
                                         if (cMatch) className = cMatch[1].trim().toUpperCase();
                                     }
-
-                                    // Radar Môn (V10 - LOOKAHEAD PRECISION)
                                     if (subjectName === "UNKNOWN") {
-                                        // Kỹ thuật Lookahead: Lấy nội dung và dừng lại ngay trước khi gặp Học kỳ, Lớp, GV, hoặc dấu gạch ngang
-                                        const sRegex = /(?:môn(?:\s*học)?|học\s*phần|subject)[:\s]*(.*?)(?=\s*học\s*kỳ|\s*lớp|\s*gv:|\s*giáo\s*viên|\s*-|$)/i;
-                                        const sMatch = rowStr.match(sRegex);
+                                        const sMatch = rowStr.match(/(?:môn(?:\s*học)?|học\s*phần|subject)[:\s]*(.*?)(?=\s*học\s*kỳ|\s*lớp|\s*gv:|\s*giáo\s*viên|\s*-|$)/i);
                                         if (sMatch && sMatch[1]) {
                                             let val = sMatch[1].replace(/[,:]/g, "").trim();
                                             if (val.length > 1 && val.length < 50) subjectName = val;
@@ -859,7 +946,6 @@
                                 let headerRowIdx = jsonArray.findIndex(r => r.some(c => cleanStr(c).includes('họvàtên') || cleanStr(c).includes('họtên')));
                                 if (headerRowIdx === -1) continue;
 
-                                // RADAR DÒ CỘT TỰ ĐỘNG (V8 - DYNAMIC RANGE)
                                 let sttCol = -1, nameCol = -1, gkCol = -1, ckCol = -1, sTx = -1;
                                 let headers = jsonArray[headerRowIdx] || [];
 
@@ -878,37 +964,23 @@
 
                                 let txCols = {};
                                 let txCount = 1;
-
-                                // CHIẾN THUẬT 1: Tìm đích danh cột "1", "2", "3", "4" trong vùng tìm kiếm
                                 let searchStart = sTx !== -1 ? sTx : (nameCol !== -1 ? nameCol + 1 : 0);
                                 let searchEnd = gkCol !== -1 ? gkCol : searchStart + 12;
 
                                 for (let c = searchStart; c < searchEnd; c++) {
                                     let cell = String(headers[c] || '').trim();
-                                    // Nếu tiêu đề là số (1, 2, 3...)
-                                    if (/^[1-9]$/.test(cell)) {
-                                        txCols['TX' + txCount] = c;
-                                        txCount++;
-                                    }
+                                    if (/^[1-9]$/.test(cell)) { txCols['TX' + txCount] = c; txCount++; }
                                 }
 
-                                // CHIẾN THUẬT 2: Nếu ko thấy 1,2,3.. -> Kích hoạt "Vùng Động" (Lấy tất cả giữa TX và GK)
                                 if (Object.keys(txCols).length === 0 && sTx !== -1 && gkCol !== -1) {
-                                    log("⚠️ Không thấy cột 1,2,3. Kích hoạt Dò tìm Vùng Động...");
                                     for (let c = sTx; c < gkCol; c++) {
-                                        if (c !== nameCol && c !== sttCol) {
-                                            txCols['TX' + txCount] = c;
-                                            txCount++;
-                                        }
+                                        if (c !== nameCol && c !== sttCol) { txCols['TX' + txCount] = c; txCount++; }
                                     }
                                 }
 
-                                // CHIẾN THUẬT 3: Fallback cuối cùng (Mặc định 5 cột sau Tên)
                                 if (Object.keys(txCols).length === 0) {
                                     let base = sTx !== -1 ? sTx : (nameCol !== -1 ? nameCol + 2 : 2);
-                                    for (let i = 0; i < 5; i++) {
-                                        txCols['TX' + (i + 1)] = base + i;
-                                    }
+                                    for (let i = 0; i < 5; i++) { txCols['TX' + (i + 1)] = base + i; }
                                 }
 
                                 let fullData = { 'GK': {}, 'CK': {} };
@@ -916,16 +988,12 @@
 
                                 let countDiem = 0, countStudents = 0;
 
-                                // QUÉT ĐIỂM
                                 for (let i = headerRowIdx + 1; i < jsonArray.length; i++) {
                                     let rowD = jsonArray[i] || [];
-
-                                    // BÓP NÁT MỌI KÝ TỰ ẨN TRONG CỘT STT
                                     let rawStt = String(rowD[sttCol] || '').trim();
                                     let stt = rawStt.replace(/[^\d]/g, '');
                                     let name = String(rowD[nameCol] || '').trim();
 
-                                    // Chốt chặn an toàn: Phải có STT dạng số và phải có Tên
                                     if (stt === '' || !name) continue;
                                     if (cleanStr(name).includes('họvàtên') || cleanStr(name).includes('sốhọcsinh')) continue;
 
@@ -948,58 +1016,14 @@
                                 if (countStudents > 0) {
                                     log(`📦 Đã nạp THÙNG [${className}]: ${countStudents} Học sinh | Chuẩn ${countDiem} điểm.`);
                                     
-                                    // BỘ ĐỐI SOÁT TỪ ĐIỂN & SIDEBAR (V7 - CHỐNG TRÙNG LẶP)
-                                    let mapping = getSubjectMapping();
-                                    let sidebarItems = Array.from(document.querySelectorAll('.ohke-row, .list-item, .sidebar-item, a')).filter(el => el.offsetWidth > 0);
-                                    let classRegex = new RegExp(`\\b${className}\\b`, 'i');
-
-                                    // Tìm entry trong từ điển
-                                    let excelEntryKey = Object.keys(mapping).find(k => 
-                                        k.toLowerCase() === subjectName.toLowerCase() || subjectName.toLowerCase().includes(k.toLowerCase())
-                                    );
-
-                                    if (excelEntryKey) {
-                                        let webKeywords = mapping[excelEntryKey];
-                                        // Tìm tất cả các mục trên Sidebar của lớp này
-                                        let myClassItems = sidebarItems.filter(el => classRegex.test(el.innerText));
-                                        
-                                        // Với mỗi mục trên Web, xem nó có khớp với bất kỳ từ khóa nào không
-                                        myClassItems.forEach(el => {
-                                            let txt = el.innerText.toLowerCase();
-                                            let matchedKw = webKeywords.find(kw => txt.includes(kw.toLowerCase()));
-                                            
-                                            if (matchedKw) {
-                                                log(`✅ Khớp mục [${el.innerText}] trên Web. Thêm vào hàng đợi.`);
-                                                extracted.push({ 
-                                                    className, 
-                                                    subjectName: el.innerText, // Dùng luôn tên hiển thị trên web
-                                                    fileObj: file, 
-                                                    scores: fullData, 
-                                                    countDiem, 
-                                                    isSplit: true,
-                                                    exactWebName: el.innerText 
-                                                });
-                                            }
-                                        });
-                                    } else {
-                                        // Fallback nếu không có trong từ điển
-                                        let originalItem = sidebarItems.find(el => {
-                                            let txt = el.innerText.toLowerCase();
-                                            return classRegex.test(txt) && txt.includes(subjectName.toLowerCase());
-                                        });
-                                        if (originalItem) {
-                                            extracted.push({ 
-                                                className, 
-                                                subjectName: originalItem.innerText, 
-                                                fileObj: file, 
-                                                scores: fullData, 
-                                                countDiem,
-                                                exactWebName: originalItem.innerText
-                                            });
-                                        } else {
-                                            log(`⏭️ Bỏ qua [${className} - ${subjectName}]: Không thấy trên Sidebar.`);
-                                        }
-                                    }
+                                    // PUSH TRỰC TIẾP VÀO HÀNG ĐỢI (KHÔNG QUÉT DOM NỮA)
+                                    extracted.push({
+                                        className,
+                                        subjectName,
+                                        fileObj: file,
+                                        scores: fullData,
+                                        countDiem
+                                    });
                                 }
                             }
                             resolve(extracted);
@@ -1018,48 +1042,55 @@
         const switchToVerticalAssessment = async () => {
             log("🎯 Đang mở tab [Đánh Giá]...");
             window.scrollTo({ top: 0, behavior: 'smooth' });
-            await delay(800);
 
             let tabAssessment = document.querySelector('.ohke-tab-btn[data-item-class="sf-V2253-179197"]');
-            if (!tabAssessment) {
-                tabAssessment = Array.from(document.querySelectorAll('.ohke-tab-btn')).find(el => el.innerText.includes('Đánh Giá') && el.offsetWidth > 0);
-            }
+            if (!tabAssessment) tabAssessment = Array.from(document.querySelectorAll('.ohke-tab-btn')).find(el => el.innerText.includes('Đánh Giá') && el.offsetWidth > 0);
 
             if (tabAssessment) {
                 forceClick(tabAssessment);
-                log("⏳ Đợi giao diện Đánh giá tải dữ liệu...");
-                await delay(2500);
             } else {
-                let opened = await clickTabGrading('Đánh Giá');
-                if (opened) await delay(2000);
+                await clickTabGrading('Đánh Giá');
             }
+
+            // SMART WAIT: Đợi các tab con bên trong Đánh Giá nạp xong
+            await waitForCondition(() => document.querySelectorAll('.ohke-tab-btn').length > 5, 5000);
 
             log("⏳ Đang tìm và kích hoạt tab [959 - Chiều Dọc]...");
-            let foundChieuDoc = false;
-
-            for (let j = 0; j < 15; j++) {
-                let btn959 = Array.from(document.querySelectorAll('.ohke-tab-btn')).find(el => el.offsetWidth > 0 && el.innerText.includes('[959]'));
+            let foundChieuDoc = await waitForCondition(() => {
+                let btn959 = Array.from(document.querySelectorAll('.ohke-tab-btn')).find(el => el.innerText.includes('[959]') && el.offsetWidth > 0);
                 if (btn959) {
-                    log("✅ Đã thấy nút [959], đang kích hoạt...");
                     btn959.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                    await delay(500);
-                    window.scrollBy({ top: -150, behavior: 'smooth' });
-                    await delay(300);
                     const events = ['mouseover', 'mousedown', 'mouseup', 'click'];
                     events.forEach(evtType => btn959.dispatchEvent(new MouseEvent(evtType, { bubbles: true, cancelable: true, view: window })));
-                    foundChieuDoc = true;
-                    break;
+                    return true;
                 }
-                await delay(500);
-            }
+                return false;
+            }, 8000, 400);
 
             if (!foundChieuDoc) {
-                alert(`⚠️ Lỗi: Không thể tìm thấy tab [959] Đánh giá chiều dọc. Hãy thử F5 lại trang!`);
+                alert(`⚠️ Lỗi: Không thể tìm thấy tab [959]. Hãy thử F5 lại trang!`);
                 return false;
             }
 
-            log("⏳ Đang chờ danh sách đầu điểm tải xong...");
-            await delay(3000);
+            // ==========================================
+            // FIX LỖI CHẠY QUÁ NHANH: CHỜ ĐÚNG MỤC TIÊU
+            // ==========================================
+            log("⏳ Đang chờ hệ thống nạp các cột điểm...");
+            let listLoaded = await waitForCondition(() => {
+                // Phải bắt buộc nhìn thấy chữ "Tiến Trình Đánh Giá" mới tính là tải xong
+                let rows = Array.from(document.querySelectorAll('.list-item[data-entity]'));
+                return rows.some(r => r.innerText.includes('Tiến Trình Đánh Giá'));
+            }, 8000, 500); // Quét 0.5s/lần, đợi tối đa 8s
+
+            if (!listLoaded) {
+                // Nếu đợi 8s mà vẫn không có, chờ thêm 2s để chắc chắn mạng không bị đứt
+                log("⚠️ Chưa thấy cột điểm nào. Đợi thêm 2 giây để xác nhận...");
+                await delay(2000);
+            } else {
+                log("✅ Đã thấy các cột điểm xuất hiện!");
+                await delay(500); // Nghỉ 1 nhịp siêu nhỏ để DOM thực sự hoàn thiện
+            }
+
             return true;
         };
 
@@ -1114,7 +1145,36 @@
             if (!openedTabNhanh) return false;
 
             window.scrollTo({ top: 0, behavior: 'smooth' });
-            await delay(400);
+
+            log("⏳ Mắt thần đang kiểm tra cấu trúc bảng và dữ liệu...");
+            
+            const LOADING_SELECTOR = '.fa-spinner, .fa-refresh.fa-spin, .loading, .w3-display-middle i.fa-spin';
+            const HEADER_SELECTOR = '.tab-content .active th, .w3-table-all th, .ohke-table th';
+            const SCORE_INPUT_SELECTOR = 'input[type="text"][name="quantitative_result"], .tab-content .active input[type="text"]';
+            
+            let isDataReady = await waitForCondition(() => {
+                // 1. Kiểm tra Spinner (phải mất ĐI)
+                let loaders = Array.from(document.querySelectorAll(LOADING_SELECTOR)).filter(el => el.offsetWidth > 0);
+                
+                // 2. Kiểm tra Header (phải hiện LÊN)
+                let headers = Array.from(document.querySelectorAll(HEADER_SELECTOR));
+                let hasStandardHeader = headers.some(th => {
+                    let txt = th.textContent.trim().toLowerCase();
+                    return txt.includes('họ và tên') || txt.includes('định lượng') || txt.includes('stt');
+                });
+                
+                return loaders.length === 0 && hasStandardHeader;
+            }, 10000, 200);
+
+            if (!isDataReady) {
+                log("⚠️ Hệ thống chưa sẵn sàng. Đang thử quét lại lần cuối...");
+                await delay(1000); 
+            } else {
+                log("✅ XÁC NHẬN: Bảng và dữ liệu đã nạp xong!");
+                await delay(200); // Bước đệm ổn định UI
+            }
+
+            log("⚡ Bắt đầu gõ điểm...");
 
             // Lazy Load trước khi nhập (Kết hợp trong & ngoài)
             let tabContent = document.querySelector('.tab-content .active .dynamic-content, .tab-content .active .agent-list') || document.querySelector('.tab-content');
@@ -1365,11 +1425,11 @@
                         await delay(200);
 
                         taoBangBtn = Array.from(document.querySelectorAll('a, button, .ohke-btn'))
-                            .find(el => el.offsetWidth > 0 && el.textContent.toLowerCase().includes('tạo bảng tiêu chí'));
+                            .find(el => el.textContent.toLowerCase().includes('tạo bảng tiêu chí') && el.offsetWidth > 0);
 
                         // Nếu thấy các tab con xuất hiện => Bảng đã được tạo từ trước
                         let existTabs = Array.from(document.querySelectorAll('.ohke-tab-btn, .tab-btn-'))
-                            .find(el => el.offsetWidth > 0 && /\[\d+\]/.test(el.textContent) && (el.textContent.toLowerCase().includes('nhập nhanh') || el.textContent.toLowerCase().includes('sổ điểm')));
+                            .find(el => /\[\d+\]/.test(el.textContent) && (el.textContent.toLowerCase().includes('nhập nhanh') || el.textContent.toLowerCase().includes('sổ điểm')) && el.offsetWidth > 0);
 
                         if (taoBangBtn) break; // Chưa tạo -> Thoát vòng lặp chờ để tạo
                         if (existTabs) {
@@ -1389,12 +1449,12 @@
                         await delay(500);
 
                         let tiepTucBtn = document.querySelector('.ohke-popup .btn-continue, .w3-modal .btn-continue');
-                        if (!tiepTucBtn) tiepTucBtn = Array.from(document.querySelectorAll('.ohke-popup a, .w3-modal a, button')).find(el => el.offsetWidth > 0 && el.textContent.trim() === 'Tiếp Tục');
+                        if (!tiepTucBtn) tiepTucBtn = Array.from(document.querySelectorAll('.ohke-popup a, .w3-modal a, button')).find(el => el.textContent.trim() === 'Tiếp Tục' && el.offsetWidth > 0);
 
                         if (tiepTucBtn) {
                             forceClick(tiepTucBtn);
                             await delay(1000);
-                            let dongBtn = Array.from(document.querySelectorAll('.w3-modal.w3-show a, .w3-modal.w3-show button')).find(el => el.offsetWidth > 0 && (el.textContent.includes('Đóng') || el.textContent.includes('Đồng ý') || el.textContent.includes('OK')));
+                            let dongBtn = Array.from(document.querySelectorAll('.w3-modal.w3-show a, .w3-modal.w3-show button')).find(el => (el.textContent.includes('Đóng') || el.textContent.includes('Đồng ý') || el.textContent.includes('OK')) && el.offsetWidth > 0);
                             if (dongBtn) { forceClick(dongBtn); await delay(400); }
                         }
 
@@ -1458,16 +1518,77 @@
         // ==========================================
         // AUTO TOÀN TẬP (MASTER LOOP)
         // ==========================================
+        // ==========================================
+        // NÚT AUTO NHẬP ĐIỂM 1 LỚP (V8 - ÉP VÀO TRONG LỚP)
+        // ==========================================
         document.getElementById('btn-auto-full').onclick = async () => {
-            let fullData = await extractAllExcelData();
+            let fullData = window.restoredFullData || await extractAllExcelData();
             if (!fullData) return;
 
-            let success = await runAutoGradingForCurrentClass(fullData);
-            if (success) {
-                // NẾU ĐANG CHẠY BATCH NHIỀU LỚP THÌ TỰ TẮT THÔNG BÁO, CHỈ HIỆN KHI BẤM CHẠY 1 LỚP
-                if (!window.isBatchMode) {
-                    alert("🎉 HOÀN TẤT: Đã xử lý xong toàn bộ các cột điểm của lớp này!");
+            // KIỂM TRA NGỮ CẢNH: Đã vào trong giao diện có Sổ Điểm/Sidebar chưa?
+            let isInsideClass = Array.from(document.querySelectorAll('.ohke-tab-btn, .tab-btn-, a, button')).some(el => 
+                el.offsetWidth > 0 && (el.textContent.includes('Đánh Giá') || el.textContent.includes('Sổ Điểm') || el.textContent.includes('Nhập điểm'))
+            );
+
+            if (!isInsideClass) {
+                // CHƯA VÀO LỚP: Đang ở trang chủ -> Nhảy Deep Link
+                if (!window.location.href.includes('classroom')) {
+                    log("🚀 Chưa ở Phòng học. Đang lưu dữ liệu và nhảy Deep Link...");
+                    await chrome.storage.local.set({ 'pending_action': 'AUTO_GRADING_FULL', 'pending_data': fullData });
+                    await forceNavigate('CLASSROOM');
+                    return; 
                 }
+
+                // CHƯA VÀO LỚP: Đang ở cửa Phòng Học (dạng thẻ) -> Phải click vào lớp đầu tiên
+                log("🖱️ Đang ở cửa Phòng Học. Tự động click vào lớp đầu tiên để lấy giao diện...");
+                await delay(1500); 
+                let classCards = Array.from(document.querySelectorAll('.w3-col .w3-card')).filter(card => card.offsetWidth > 0);
+
+                if (classCards.length > 0) {
+                    let targetCard = classCards[0];
+                    try { targetCard.scrollIntoView({ behavior: 'smooth', block: 'center' }); } catch(e){}
+
+                    let titleH5 = targetCard.querySelector('h5');
+                    let clickTarget = titleH5 ? titleH5 : targetCard;
+
+                    // Backup dữ liệu vào RAM phòng trường hợp click thẻ làm web load lại
+                    await chrome.storage.local.set({ 'pending_action': 'AUTO_GRADING_FULL', 'pending_data': fullData });
+
+                    if (typeof window.$ !== 'undefined') try { window.$(clickTarget).trigger('click'); } catch(e){}
+                    clickTarget.click();
+                    
+                    log(`⏳ Đã click mở lớp. Đang theo dõi tiến trình nạp Sidebar và Sổ Điểm...`);
+                    
+                    // RADAR: Bám đuổi cho đến khi thấy Sổ Điểm xuất hiện mới chạy tiếp
+                    let isLoaded = await waitForCondition(() => {
+                        return Array.from(document.querySelectorAll('.ohke-tab-btn, .tab-btn-, a, button')).some(el => 
+                            el.offsetWidth > 0 && (el.textContent.includes('Đánh Giá') || el.textContent.includes('Sổ Điểm') || el.textContent.includes('Nhập điểm'))
+                        );
+                    }, 15000, 500); // Quét mỗi 500ms, đợi tối đa 15s
+
+                    if (isLoaded) {
+                        log("🔄 ĐÃ VÀO GIAO DIỆN CHUẨN! Tiếp tục tiến trình...");
+                        await delay(1000); // Chờ UI Render lần cuối
+                        window.restoredFullData = fullData; 
+                        document.getElementById('btn-auto-full').click(); 
+                    } else {
+                        log("⚠️ Quá thời gian tải lớp. Vui lòng thử lại.");
+                    }
+                    return; 
+                } else {
+                    log("⚠️ Không thấy thẻ lớp nào. Bạn hãy tự click vào 1 lớp nhé!");
+                    return;
+                }
+            }
+
+            // GIAI ĐOẠN CUỐI: ĐÃ Ở BÊN TRONG LỚP (CÓ SIDEBAR & SỔ ĐIỂM)
+            chrome.storage.local.remove(['pending_action', 'pending_data', 'pending_queue']);
+            window.restoredFullData = null; 
+            
+            log("🚀 Ngữ cảnh đã chuẩn 100%. Bắt đầu đẩy điểm...");
+            let success = await runAutoGradingForCurrentClass(fullData);
+            if (success && !window.isBatchMode) {
+                alert("🎉 HOÀN TẤT: Đã xử lý xong toàn bộ các cột điểm của lớp này!");
             }
         };
 
@@ -1616,93 +1737,160 @@
             if (row) row.querySelector('.q-status').innerHTML = statusHtml;
         };
 
+        // ==========================================
+        // NÚT AUTO CHẠY TẤT CẢ (V8 - ÉP VÀO LỚP RỒI MỚI XẢ QUEUE)
+        // ==========================================
         let btnAutoBatch = document.getElementById('btn-auto-batch');
         if (btnAutoBatch) {
             btnAutoBatch.onclick = async () => {
-                let queue = await parseAllFilesUpfront(); // CHẠY HÀM ĐÓNG GÓI TRƯỚC
+                let queue = window.restoredBatchQueue || await parseAllFilesUpfront(); 
                 if (!queue || queue.length === 0) return;
+
+                let isInsideClass = Array.from(document.querySelectorAll('.ohke-tab-btn, .tab-btn-, a, button')).some(el => 
+                    el.offsetWidth > 0 && (el.textContent.includes('Đánh Giá') || el.textContent.includes('Sổ Điểm') || el.textContent.includes('Nhập điểm'))
+                );
+
+                if (!isInsideClass) {
+                    if (!window.location.href.includes('classroom')) {
+                        log("🚀 Đang lưu Hàng Đợi và nhảy Deep Link tới cửa Phòng học...");
+                        let safeQueue = queue.map(q => ({...q, fileObj: null}));
+                        await chrome.storage.local.set({ 'pending_action': 'AUTO_BATCH', 'pending_queue': safeQueue });
+                        await forceNavigate('CLASSROOM');
+                        return; 
+                    }
+
+                    log("🖱️ Đang ở cửa Phòng Học. Tự động click lớp đầu tiên để mở Sidebar...");
+                    await delay(1500); 
+                    let classCards = Array.from(document.querySelectorAll('.w3-col .w3-card')).filter(card => card.offsetWidth > 0);
+
+                    if (classCards.length > 0) {
+                        let targetCard = classCards[0];
+                        try { targetCard.scrollIntoView({ behavior: 'smooth', block: 'center' }); } catch(e){}
+
+                        let titleH5 = targetCard.querySelector('h5');
+                        let clickTarget = titleH5 ? titleH5 : targetCard;
+
+                        // Giữ lại Queue
+                        let safeQueue = queue.map(q => ({...q, fileObj: null}));
+                        await chrome.storage.local.set({ 'pending_action': 'AUTO_BATCH', 'pending_queue': safeQueue });
+
+                        if (typeof window.$ !== 'undefined') try { window.$(clickTarget).trigger('click'); } catch(e){}
+                        clickTarget.click();
+                        
+                        log(`⏳ Đã click mở lớp. Đang chờ Sidebar làm việc xuất hiện...`);
+                        
+                        // RADAR SPA THEO DÕI GIAO DIỆN CHUẨN
+                        let isClassLoaded = await waitForCondition(() => {
+                            return Array.from(document.querySelectorAll('.ohke-tab-btn, .tab-btn-, a, button')).some(el => 
+                                el.offsetWidth > 0 && (el.textContent.includes('Đánh Giá') || el.textContent.includes('Sổ Điểm') || el.textContent.includes('Nhập điểm'))
+                            );
+                        }, 15000, 500);
+
+                        if (isClassLoaded) {
+                            log("🔄 ĐÃ VÀO GIAO DIỆN CHUẨN! Bắt đầu xả Queue...");
+                            await delay(1000); 
+                            window.restoredBatchQueue = queue; 
+                            document.getElementById('btn-auto-batch').click(); 
+                            return;
+                        } else {
+                            log("⚠️ Quá thời gian tải lớp. Bỏ qua.");
+                        }
+                    } else {
+                        log("⚠️ Không thấy thẻ lớp. Hãy tự click vào 1 lớp!");
+                    }
+                    return; 
+                }
+
+                // ========================================
+                // GIAI ĐOẠN ĐÃ Ở BÊN TRONG (CÓ SIDEBAR)
+                // ========================================
+                chrome.storage.local.remove(['pending_action', 'pending_queue']);
+                window.restoredBatchQueue = null;
 
                 let queueList = document.getElementById('queue-list');
                 queueList.innerHTML = '';
                 queue.forEach((q, idx) => {
-                    queueList.innerHTML += `<div id="q-${idx}" style="padding:3px; border-bottom:1px dashed #ccc;">
+                    queueList.insertAdjacentHTML('beforeend', `<div id="q-${idx}" style="padding:3px; border-bottom:1px dashed #ccc;">
                         <span class="q-status">⏳</span> <b>${q.className}</b> - ${q.subjectName}
-                    </div>`;
+                    </div>`);
                 });
 
-                log(`🚀 BẮT ĐẦU CHẾ ĐỘ BATCH: Lên lịch xử lý ${queue.length} lớp...`);
+                log(`🚀 BẮT ĐẦU CHẾ ĐỘ BATCH: Xử lý ${queue.length} lớp...`);
                 window.isBatchMode = true;
 
                 for (let i = 0; i < queue.length; i++) {
                     let task = queue[i];
-                    
-                    // LOGIC DỌN RÁC: Nếu i > 0 (tức là từ lớp thứ 2 trở đi)
-                    if (i > 0) {
-                        clearLogUI(task.className);
-                    }
+                    if (i > 0) clearLogUI(task.className);
 
                     log(`\n======================================`);
                     log(`🎯 TÌM LỚP: [${task.className}] - Môn [${task.subjectName}]`);
                     updateQueueUI(`q-${i}`, `🏃`);
 
                     let classBtn = null;
-                    let sidebarItems = Array.from(document.querySelectorAll('.ohke-row, .list-item, .sidebar-item, a')).filter(el => el.offsetWidth > 0);
+                    // TÌM LỚP TRÊN SIDEBAR
+                    let sidebarItems = Array.from(document.querySelectorAll('.ohke-row, .list-item, .sidebar-item, a, .w3-card h5, .w3-card div')).filter(el => el.textContent.trim() !== "" && el.offsetWidth > 0);
 
-                    if (task.exactWebName) {
-                        // CHIẾN THUẬT 1: Tìm đích danh theo tên đã đối soát
-                        classBtn = sidebarItems.find(el => el.innerText === task.exactWebName);
-                    }
+                    if (task.exactWebName) classBtn = sidebarItems.find(el => el.innerText === task.exactWebName);
 
                     if (!classBtn) {
-                        // CHIẾN THUẬT 2: Fallback tìm theo Class + Keywords
-                        let subjectMap = getSubjectMapping();
+                        let subjectMap = getSubjectMapping(); 
                         let keywords = subjectMap[task.subjectName] || [task.subjectName.toLowerCase()];
                         let classRegex = new RegExp(`\\b${task.className}\\b`, 'i');
 
                         for (let item of sidebarItems) {
                             let txt = item.innerText.toLowerCase();
-                            if (classRegex.test(txt) && keywords.some(k => txt.includes(k.toLowerCase()))) { 
-                                classBtn = item; 
-                                break; 
+                            if (classRegex.test(txt) && keywords.some(k => txt.includes(k.toLowerCase()))) {
+                                classBtn = item;
+                                break;
                             }
                         }
                     }
 
                     if (classBtn) {
-                        classBtn.scrollIntoView({ behavior: 'auto', block: 'center' });
-                        forceClick(classBtn);
-                        log("⏳ Đang đợi load giao diện lớp...");
-                        await delay(3500);
+                        try { classBtn.scrollIntoView({ behavior: 'smooth', block: 'center' }); } catch(e){}
+                        if (typeof window.$ !== 'undefined') try { window.$(classBtn).trigger('click'); } catch(e){}
+                        classBtn.click();
+                        
+                        log("⏳ Đang đợi tải bảng điểm của lớp...");
+                        
+                        let isClassLoaded = await waitForCondition(() => {
+                            return Array.from(document.querySelectorAll('.ohke-tab-btn, .tab-btn-, a, button')).some(el => 
+                                el.offsetWidth > 0 && (el.textContent.includes('Đánh Giá') || el.textContent.includes('Sổ Điểm') || el.textContent.includes('Nhập điểm'))
+                            );
+                        }, 15000, 500);
 
-                        try {
-                            // NÉM THẲNG THÙNG ĐIỂM VÀO BỘ NHỚ TOÀN CỤC
-                            window.currentBatchScores = task.scores;
-                            window.currentBatchClassName = task.className;
-                            window.currentBatchCount = task.countDiem;
+                        if (isClassLoaded) {
+                            try {
+                                await delay(1000); // Chờ ổn định
+                                window.currentBatchScores = task.scores;
+                                window.currentBatchClassName = task.className;
+                                window.currentBatchCount = task.countDiem;
 
-                            log(`🤖 Đã vào Lớp ${task.className}. Mở THÙNG [${task.className}], nạp chuẩn ${task.countDiem} điểm.`);
+                                log(`🤖 Đã ở Lớp ${task.className}. Mở THÙNG nạp ${task.countDiem} điểm.`);
+                                
+                                let btnFull = document.getElementById('btn-auto-full');
+                                if (btnFull) await btnFull.onclick();
 
-                            await document.getElementById('btn-auto-full').onclick();
+                                log(`✅ HOÀN TẤT LỚP: [${task.className}]`);
+                                updateQueueUI(`q-${i}`, `✅`);
 
-                            log(`✅ HOÀN TẤT LỚP: [${task.className}]`);
-                            updateQueueUI(`q-${i}`, `✅`);
-
-                            classBtn.style.background = '#e9ecef'; classBtn.style.opacity = '0.6';
-                            if (!classBtn.innerHTML.includes('✅')) classBtn.innerHTML = `✅ ` + classBtn.innerHTML;
-
-                        } catch (err) {
-                            log(`❌ LỖI tại ${task.className}: ${err.message}`);
-                            updateQueueUI(`q-${i}`, `❌`);
+                            } catch (err) {
+                                log(`❌ LỖI: ${err.message}`);
+                                updateQueueUI(`q-${i}`, `❌ Lỗi tiến trình`);
+                            }
+                        } else {
+                            log(`⚠️ Quá thời gian tải lớp [${task.className}]. Bỏ qua.`);
+                            updateQueueUI(`q-${i}`, `❌ Lỗi tải trang`);
                         }
                     } else {
-                        log(`⚠️ KHÔNG TÌM THẤY [${task.className}] trên Sidebar. Bỏ qua!`);
+                        log(`⚠️ KHÔNG TÌM THẤY [${task.className}] trên web. Bỏ qua!`);
                         updateQueueUI(`q-${i}`, `❌ Không tìm thấy`);
                     }
                 }
 
                 window.isBatchMode = false;
                 window.currentBatchScores = null;
-                alert("🎉 QUY TRÌNH BATCH HOÀN TẤT! Đã cày xong toàn bộ danh sách.");
+                alert("🎉 QUY TRÌNH BATCH HOÀN TẤT!");
             };
         }
 
@@ -1714,5 +1902,48 @@
     // KHỞI ĐỘNG HỆ THỐNG
     // ==========================================
     renderMainApp();
+
+        // ==========================================
+        // AUTO RESUME: ĐÁNH THỨC VÀ KHÔI PHỤC DỮ LIỆU EXCEL
+        // ==========================================
+        chrome.storage.local.get(['pending_action', 'pending_data', 'pending_queue'], (res) => {
+            if (res.pending_action) {
+                let action = res.pending_action;
+                let pData = res.pending_data;
+                let pQueue = res.pending_queue;
+                
+                // QUAN TRỌNG: Phải xóa khỏi bộ nhớ ngay lập tức
+                chrome.storage.local.remove(['pending_action', 'pending_data', 'pending_queue']); 
+                
+                log(`⏳ Đang thiết lập tự động chạy tiếp [${action}] sau 4 giây...`);
+
+                setTimeout(() => {
+                    log(`🔄 Khôi phục trạng thái thành công. Đang chạy lệnh...`);
+                    
+                    if (action === 'AUTO_ATTENDANCE') {
+                        let tabAtt = document.getElementById('tab-attendance');
+                        if (tabAtt) tabAtt.click();
+                        let btnAtt = document.getElementById('btn-auto-attendance');
+                        if (btnAtt) btnAtt.click();
+                        
+                    } else if (action === 'AUTO_GRADING_FULL') {
+                        let tabGrad = document.getElementById('tab-grader');
+                        if (tabGrad) tabGrad.click();
+                        if (pData) window.restoredFullData = pData;
+                        
+                        let btnGrad = document.getElementById('btn-auto-full');
+                        if (btnGrad) btnGrad.click();
+
+                    } else if (action === 'AUTO_BATCH') {
+                        let tabGrad = document.getElementById('tab-grader');
+                        if (tabGrad) tabGrad.click();
+                        if (pQueue) window.restoredBatchQueue = pQueue;
+                        
+                        let btnBatch = document.getElementById('btn-auto-batch');
+                        if (btnBatch) btnBatch.click();
+                    }
+                }, 4000); 
+            }
+        });
 
 })();
