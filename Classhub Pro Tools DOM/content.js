@@ -36,23 +36,6 @@
     const API_URL = "https://script.google.com/macros/s/AKfycbxjz6kq9gkh6OuK3-2wxjhHEgJ3c_5BgoxATDQJP1kRov127nvJwRU2FcI1VhDh8sFN/exec";
 
     // ==========================================
-    // CẤU HÌNH KIỂU ĐIỂM DANH MỞ (EXTENSIBLE CONFIG - V14)
-    // ==========================================
-    const ATTENDANCE_CONFIG = {
-        teacherStatus: "CÓ MẶT", // Tương lai có thể đổi thành "DẠY TỪ XA"
-        studentNormal: "Đánh Dấu Như Tiết Học Trước",
-        studentLessonZero: "Đánh Dấu Tất Cả Có Mặt"
-    };
-
-    // ==========================================
-    // CẤU HÌNH HEADLESS API MỞ (API_CONFIG - V15)
-    // ==========================================
-    const API_CONFIG = {
-        teacherTargetState: "INSTRUCTOR_ATTENDANCE_STATUS_PRESENT", // Đổi thành _LATE_ARRIVAL, _REMOTE_LEARNING... nếu cần
-        studentActionApi: "bttAction_x2447C_" // Mặc định: Copy tiết trước
-    };
-
-    // ==========================================
     // 1. TẢI THƯ VIỆN & XÓA GIAO DIỆN CŨ
     // ==========================================
     // if (typeof XLSX === 'undefined') {
@@ -468,9 +451,9 @@
         // MODULE: TỰ ĐỘNG ĐIỀU HƯỚNG BẰNG DEEP LINK (V5)
         // ==========================================
         const getDeepLink = (type) => {
-            // Tự động quét và lấy mã ID hệ thống (VD: 47817) từ URL hiện tại
+            // Tự động quét và lấy mã ID hệ thống (VD: 61892) từ URL hiện tại
             let match = window.location.href.match(/idcloud\.vn\/(\d+)/);
-            let tenantId = match ? match[1] : '47817'; // Nếu đứng ở ngoài trang chủ, lấy tạm 47817
+            let tenantId = match ? match[1] : '61892'; // Cập nhật ID mới của trường
             let baseUrl = `https://idcloud.vn/${tenantId}`;
 
             if (type === 'CLASSHUB') return `${baseUrl}/appstart/classhub/source=deeplink`;
@@ -569,1279 +552,162 @@
         };
 
         // ==========================================
-        // 4. MODULE ĐIỂM DANH (CHUẨN MASTER V22 - SPA RPC)
+        // 4. MODULE ĐIỂM DANH (GIỮ NGUYÊN)
         // ==========================================
-        class AttendanceAutomationPro {
-            constructor(logFn) {
-                this.log = logFn || console.log;
-                this.ATTENDANCE_CONFIG = ATTENDANCE_CONFIG;
-                this.API_CONFIG = API_CONFIG;
-                this.tenantId = (window.Ohke && window.Ohke.SITE && window.Ohke.SITE.id) ? window.Ohke.SITE.id : '61892';
-                let urlMatch = window.location.href.match(/idcloud\.vn\/(\d+)/);
-                if (urlMatch && urlMatch[1]) {
-                    this.tenantId = urlMatch[1];
+        document.getElementById('btn-auto-attendance').onclick = async () => {
+            log("🚀 Kích hoạt quy trình Tự Động Hóa Điểm Danh...");
+
+            // Check xem URL hiện tại có đang ở ClassHub chưa
+            if (!window.location.href.includes('classhub')) {
+                log("Đang lưu trạng thái và dùng Deep Link tới ClassHub...");
+                await chrome.storage.local.set({ 'pending_action': 'AUTO_ATTENDANCE' });
+                await forceNavigate('CLASSHUB');
+                return; // Dừng code nhường cho trang load lại
+            }
+
+            chrome.storage.local.remove(['pending_action']);
+
+            // --- GIỮ NGUYÊN CODE TÌM TÊN GIÁO VIÊN BÊN DƯỚI CỦA BẠN ---
+            log("🔍 Đang trích xuất danh tính Giáo viên...");
+            let giaoDienTiengAnh = Array.from(document.querySelectorAll('a, button, div, span')).find(el => el.offsetWidth > 0 && (el.textContent.trim().toLowerCase() === 'past' || el.textContent.trim().toLowerCase() === 'today'));
+
+            if (giaoDienTiengAnh) {
+                log("🌐 Phát hiện giao diện Tiếng Anh! Đang tiến hành đổi sang Tiếng Việt...");
+                let coNgoaiNgu = document.querySelector('img[src*="en"], img[src*="us"], img[src*="uk"], .flag-icon-us, .flag-icon-gb');
+                let nutChuyenNgonNgu = coNgoaiNgu ? coNgoaiNgu.closest('a, button, div.w3-dropdown-hover, div.w3-dropdown-click') : null;
+                if (nutChuyenNgonNgu) {
+                    nutChuyenNgonNgu.click(); await delay(500);
+                    let coVN = document.querySelector('img[src*="vn"], .flag-icon-vn, [title*="Việt"], [alt*="Việt"]');
+                    if (coVN) { coVN.click(); log("⏳ Đã chọn Tiếng Việt. Đợi hệ thống tải lại..."); await delay(3500); }
+                    else { await delay(3500); }
                 }
             }
 
-            /**
-             * Lắng nghe sự kiện hoàn thành tải giao diện agent-loaded của jQuery
-             * KHÔNG SỬ DỤNG setTimeout / setInterval để polling DOM
-             */
-            waitForAgentLoaded($targetContainer, timeoutMs = 10000) {
-                return new Promise((resolve, reject) => {
-                    let isDone = false;
-                    const timeoutId = window.setTimeout(() => {
-                        if (!isDone) {
-                            $(document).off('agent-loaded', handler);
-                            resolve(false); // Fallback an toàn nếu timeout vượt quá timeoutMs
-                        }
-                    }, timeoutMs);
-
-                    const handler = (ev, $loadedContainer) => {
-                        if (!$targetContainer || !$targetContainer.length || $loadedContainer[0] === $targetContainer[0] || $.contains($loadedContainer[0], $targetContainer[0]) || $loadedContainer.hasClass('agent-container') || $loadedContainer.hasClass('ohke-content')) {
-                            isDone = true;
-                            window.clearTimeout(timeoutId);
-                            $(document).off('agent-loaded', handler);
-                            resolve($loadedContainer);
-                        }
-                    };
-
-                    $(document).on('agent-loaded', handler);
-                });
-            }
-
-            /**
-             * Điều hướng mượt mà tới module ClassHub bằng inno.History (SPA không reload)
-             */
-            async ensureClassHubSPA() {
-                if (!window.location.pathname.includes('/appstart/classhub')) {
-                    this.log("🚀 Điều hướng SPA tới ClassHub qua inno.History...");
-                    const targetUrl = `/${this.tenantId}/appstart/classhub/source=deeplink`;
-                    
-                    let $mainContainer = $('.main-container .ohke-content, #main-content .ohke-content, .agent-container').first();
-                    let loadPromise = this.waitForAgentLoaded($mainContainer);
-
-                    if (window.inno && window.inno.History && typeof window.inno.History.push === 'function') {
-                        window.inno.History.push(targetUrl);
-                    } else if (window.Ohke && typeof window.Ohke.loadHtml === 'function') {
-                        window.Ohke.loadHtml(targetUrl, $mainContainer, { background: 1 });
-                    } else {
-                        window.location.href = targetUrl;
-                        return false;
-                    }
-                    await loadPromise;
-                }
-                return true;
-            }
-
-            /**
-             * Chuyển tới Tab Quá Khứ và chờ sự kiện agent-loaded
-             */
-            async switchToPastTab() {
-                let $pastTabBtn = $('.ohke-tab-btn, .tab-btn-, a, button, div, span').filter((i, el) => {
-                    let txt = $(el).text().trim().toLowerCase();
-                    return (txt === 'quá khứ' || txt === 'past') && $(el).is(':visible');
-                }).first();
-
-                if ($pastTabBtn.length) {
-                    this.log("⏳ Mở tab 'Quá khứ' và chờ sự kiện agent-loaded...");
-                    let $tabContainer = $('.tab-content > .tab-item, .agent-container').first();
-                    let loadPromise = this.waitForAgentLoaded($tabContainer);
-                    $pastTabBtn.click();
-                    await loadPromise;
-                    return true;
-                }
-                return false;
-            }
-
-            /**
-             * Parse chuỗi JSON từ dataset.entity để xác định danh sách lớp chưa điểm danh & mã tiết (H0 hay thường)
-             */
-            getPendingClasses() {
-                let pendingList = [];
-                let $activeTab = $('.tab-content > .tab-item:not(.w3-hide)');
-                let $items = $activeTab.length ? $activeTab.find('.list-item') : $('.list-item');
-
-                $items.each((i, el) => {
-                    let $el = $(el);
-                    if ($el.attr('data-da-diem-danh') === 'true') return;
-
-                    let rawEntity = $el.attr('data-entity') || ($el[0].dataset && $el[0].dataset.entity);
-                    if (!rawEntity) return;
-
-                    try {
-                        let entity = JSON.parse(rawEntity);
-                        let statusText = $el.text();
-                        let isUnsubmitted = statusText.includes('CHƯA NỘP BẢNG ĐIỂM DANH') || 
-                                            statusText.includes('CHƯA ĐIỂM DANH GIÁO VIÊN') || 
-                                            entity.status === 'PENDING' || 
-                                            entity.is_completed === false ||
-                                            entity.teacher_status !== 'CO_MAT';
-
-                        if (isUnsubmitted) {
-                            let classHourCode = entity.class_hour_code || '';
-                            let isLessonZero = (classHourCode === 'H0' || String(classHourCode).startsWith('H0.'));
-                            pendingList.push({
-                                element: $el,
-                                entity: entity,
-                                id: entity.id || $el.data('id') || entity.master_key,
-                                classHourCode: classHourCode,
-                                isLessonZero: isLessonZero
-                            });
-                        }
-                    } catch (err) {
-                        this.log("⚠️ Lỗi parse dataset.entity: " + err.message);
-                    }
-                });
-
-                return pendingList;
-            }
-
-
-            /**
-             * Chuẩn hóa đường dẫn RPC an toàn (tránh chồng chéo URL 404)
-             */
-            normalizeEndpoint(endpoint) {
-                if (!endpoint) return "";
-                if (endpoint.startsWith('http://') || endpoint.startsWith('https://')) return endpoint;
-                let clean = endpoint.replace(/^\/+/, '');
-                let baseUrl = window.location.origin;
-                let tenantId = this.tenantId || '61892';
-                if (clean.startsWith('appstart/')) {
-                    return `${baseUrl}/${tenantId}/${clean}`;
-                } else if (clean.startsWith(`${tenantId}/`)) {
-                    return `${baseUrl}/${clean}`;
-                } else {
-                    return `${baseUrl}/${tenantId}/appstart/classhub/${clean}`;
-                }
-            }
-
-            /**
-             * Helper gọi Ohke.rpc2 bọc trong Promise và bẫy lỗi an toàn (V12 Compliant - Native Promise)
-             */
-            async rpcCall(endpoint, payload) {
-                let fullUrl = this.normalizeEndpoint(endpoint);
-                if (!window.Ohke || typeof window.Ohke.rpc2 !== 'function') {
-                    return { status: "error", message: "Hệ thống Ohke.rpc2 không sẵn sàng" };
-                }
-                try {
-                    let res = await window.Ohke.rpc2(fullUrl, {
-                        background: 1,
-                        method: "POST",
-                        data: payload
-                    });
-                    return res || {};
-                } catch (err) {
-                    return { status: "error", error: err };
-                }
-            }
-
-            /**
-             * Giả lập thao tác click chuột chính xác trên DOM
-             */
-            forceClick($el) {
-                if (!$el || !$el.length) return false;
-                $el[0].scrollIntoView({ behavior: 'smooth', block: 'center' });
-                $el[0].click();
-                $el.trigger('click');
-                return true;
-            }
-
-            /**
-             * Smart Polling: Lặp kiểm tra điều kiện DOM đến khi đạt yêu cầu hoặc hết timeout
-             */
-            async waitForCondition(checkFn, timeoutMs = 4000, intervalMs = 150) {
-                const delay = (ms) => new Promise(res => setTimeout(res, ms));
-                let start = performance.now();
-                while (performance.now() - start < timeoutMs) {
-                    let result = checkFn();
-                    if (result) return result;
-                    await delay(intervalMs);
+            log("🔍 Đang trích xuất danh tính Giáo viên...");
+            let tenGiaoVien = "";
+            const quetTenNgam = () => {
+                let walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, null, false);
+                let node;
+                while (node = walker.nextNode()) {
+                    let text = node.nodeValue.trim();
+                    let match = text.match(/^\[\d+\]\s+([A-Za-zÀ-ỹ\s]+)/);
+                    if (match && match[1] && match[1].trim().length > 3) return match[1].trim().split('\n')[0].trim();
                 }
                 return null;
+            };
+
+            tenGiaoVien = quetTenNgam();
+
+            if (!tenGiaoVien) {
+                let rightAvatars = document.querySelectorAll('.w3-right .w3-dropdown-click, .w3-right .w3-dropdown-hover, .w3-right img, .w3-top .w3-right > div');
+                if (rightAvatars.length > 0) {
+                    let avatarBtn = rightAvatars[rightAvatars.length - 1];
+                    avatarBtn.scrollIntoView({ behavior: 'smooth', block: 'center' }); avatarBtn.click(); await delay(1000);
+                    tenGiaoVien = quetTenNgam(); avatarBtn.click(); await delay(400);
+                }
             }
 
-            /**
-             * Helper smartClick an toàn V14: Lọc phần tử hiển thị (visible) và ưu tiên phần tử có độ dài text ngắn nhất tránh click nhầm container/JSON
-             */
-            smartClick($container, keywords = [], maxLen = 45) {
-                if (!$container || !$container.length) return false;
-                let bestEl = null;
-                let minLen = Infinity;
+            if (!tenGiaoVien) { alert("❌ LỖI BẢO MẬT: Không thể đọc được tên của bạn trên hệ thống!"); return; }
+            log(`✅ Thành công! Xin chào Giáo viên: [${tenGiaoVien}]`);
 
-                $container.find('a, button, .ohke-btn, span, label, div, i').each(function() {
-                    let $this = $(this);
-                    if ($this[0].offsetWidth === 0 && $this[0].offsetHeight === 0 && !$this.is(':visible')) return;
-                    if ($this.is(':disabled') || $this.hasClass('disabled') || $this.attr('disabled')) return;
+            let cacTab = Array.from(document.querySelectorAll('a, button, div, span')).filter(el => el.textContent.trim() !== "" && el.offsetWidth > 0);
+            let tabQuaKhu = cacTab.find(el => el.textContent.trim().toLowerCase() === 'quá khứ');
 
-                    let txt = $this.text().trim();
-                    if (!txt || txt.length >= maxLen) return;
+            if (tabQuaKhu) {
+                tabQuaKhu.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                await delay(300);
+                tabQuaKhu.click();
+                log("⏳ Đang tải danh sách lớp trong quá khứ (5s)...");
+                await delay(5000); // Tăng lên 5s để đảm bảo load hết danh sách
+            } else { alert("❌ LỖI: Không tìm thấy tab 'Quá Khứ'."); return; }
 
-                    let txtLower = txt.toLowerCase();
-                    let matches = keywords.some(kw => txtLower.includes(kw.toLowerCase()));
-                    if (matches && txt.length < minLen) {
-                        minLen = txt.length;
-                        bestEl = $this;
-                    }
+            const tabActive = document.querySelector('.tab-content > .tab-item:not(.w3-hide)');
+            if (!tabActive) return;
+
+            let tongSoLopDaXuLy = 0;
+            while (true) {
+                let cacLop = Array.from(tabActive.querySelectorAll('.list-item')).filter(el => {
+                    let txt = el.textContent;
+                    return (txt.includes('CHƯA NỘP BẢNG ĐIỂM DANH') || txt.includes('CHƯA ĐIỂM DANH GIÁO VIÊN')) && el.offsetWidth > 0 && !el.dataset.daDiemDanh;
                 });
 
-                if (bestEl) {
-                    bestEl[0].scrollIntoView({ behavior: 'smooth', block: 'center' });
-                    bestEl[0].click();
-                    bestEl.trigger('click');
-                    return true;
-                }
-                return false;
-            }
+                if (cacLop.length > 0) {
+                    for (let i = 0; i < cacLop.length; i++) {
+                        cacLop[i].scrollIntoView({ behavior: 'smooth', block: 'center' }); await delay(300); cacLop[i].click(); await delay(3000);
 
-            /**
-             * Phương pháp Smart DOM Engine V14 (UI Automation Architect & Smart Polling):
-             * Mô phỏng chuẩn xác thao tác người dùng theo ATTENDANCE_CONFIG, mở lớp -> chọn GV -> chọn HS -> Chốt sổ
-             */
-            async submitAttendanceHybridUI(classItem) {
-                const delay = (ms) => new Promise(res => setTimeout(res, ms));
-                let masterKey = classItem.id;
-                let config = this.ATTENDANCE_CONFIG || {
-                    teacherStatus: "CÓ MẶT",
-                    studentNormal: "Đánh Dấu Như Tiết Học Trước",
-                    studentLessonZero: "Đánh Dấu Tất Cả Có Mặt"
-                };
+                        let vungChinh = getTopModal();
+                        let rows = Array.from(vungChinh.querySelectorAll('tr, .list-item, .ohke-row'));
+                        let rowGV = rows.find(r => r.textContent.includes(tenGiaoVien) && r.textContent.includes('CHƯA ĐIỂM DANH'));
 
-                this.log(`⚡ [SMART DOM V14] Đang điểm danh lớp [${classItem.classHourCode || masterKey}]...`);
-
-                try {
-                    // Bước 1: Mở modal lớp học và chờ agent-loaded / w3-modal
-                    let modalContainer = $('.w3-modal, .ohke-popup-subform, .agent-container, #w3-modal').first();
-                    let modalLoadPromise = this.waitForAgentLoaded(modalContainer, 7000);
-                    
-                    this.forceClick(classItem.element);
-                    await modalLoadPromise;
-                    await this.waitForCondition(() => $('.w3-modal:visible, .ohke-popup-subform:visible').last().length > 0, 4500, 200);
-
-                    let $classModal = $('.w3-modal:visible, .ohke-popup-subform:visible').first();
-                    if (!$classModal.length || $classModal.width() === 0) {
-                        this.log(`⚠️ Không tìm thấy Modal Lớp học cho lớp ${masterKey}, fallback sang API flow...`);
-                        return await this.submitAttendanceFlow(classItem);
-                    }
-
-                    // Bước 2: Xử lý Giáo viên (Mở Modal GV -> Chọn theo config -> Đóng chỉ Modal GV)
-                    let clickedTeacherBtn = this.smartClick($classModal, ['chưa điểm danh giáo viên', 'chưa điểm danh'], 45);
-                    if (clickedTeacherBtn) {
-                        this.log("  ├─ ✔️ Click mở Modal Điểm danh Giáo viên");
-                        await this.waitForCondition(() => $('.w3-modal:visible, .ohke-popup-subform:visible').length >= 2 || $('.w3-modal:visible, .ohke-popup-subform:visible').last()[0] !== $classModal[0], 3500, 150);
-                        await delay(300);
-
-                        let $teacherModal = $('.w3-modal:visible, .ohke-popup-subform:visible').last();
-                        if ($teacherModal.length && $teacherModal[0] !== $classModal[0]) {
-                            let selectedTeacher = this.smartClick($teacherModal, [config.teacherStatus], 35);
-                            if (selectedTeacher) {
-                                this.log(`  │    ├─ ✔️ Click chọn trạng thái GV: "${config.teacherStatus}"`);
-                                await this.waitForCondition(() => $('.ohke-loading:visible, .loading:visible, .spinner:visible').length === 0, 3000, 150);
-                                await delay(300);
+                        if (rowGV) {
+                            let btnChuaDiemDanh = Array.from(rowGV.querySelectorAll('a, button, div, span')).find(el => el.textContent.trim().includes('CHƯA ĐIỂM DANH') && el.offsetWidth > 0);
+                            if (btnChuaDiemDanh) {
+                                forceClick(btnChuaDiemDanh); await delay(1500);
+                                let daClickCoMat = await clickText('CÓ MẶT', 'Tất Cả'); if (daClickCoMat > 0) await delay(1000);
+                                let soModal = Array.from(document.querySelectorAll('.w3-modal.w3-show')).filter(m => m.offsetWidth > 0).length;
+                                if (soModal > 1) { await closeTopModal(); await delay(800); }
                             }
-                            // Đóng riêng Modal GV, KHÔNG ĐÓNG Modal Lớp học
-                            let closedTeacherModal = this.smartClick($teacherModal, ['đóng'], 20);
-                            if (!closedTeacherModal) {
-                                let $closeBtn = $teacherModal.find('.close-btn, [onclick*="close"], [data-dismiss="modal"], i.fa-close, .w3-button, .close').first();
-                                if ($closeBtn.length) this.forceClick($closeBtn);
-                                else $teacherModal.removeClass('w3-show').hide();
-                            }
-                            await this.waitForCondition(() => $('.w3-modal:visible, .ohke-popup-subform:visible').last()[0] === $classModal[0], 3000, 150);
-                            await delay(300);
                         }
-                    }
 
-                    // Bước 3: Xử lý Học sinh (theo ATTENDANCE_CONFIG và isLessonZero)
-                    let $activeClassModal = $('.w3-modal:visible, .ohke-popup-subform:visible').first();
-                    let studentKeywords = classItem.isLessonZero ? [config.studentLessonZero, 'tất cả có mặt', 'có mặt tất cả'] : [config.studentNormal, 'như tiết học trước', 'tiết học trước'];
-                    
-                    await this.waitForCondition(() => {
-                        let $currModal = $('.w3-modal:visible, .ohke-popup-subform:visible').first();
-                        return this.smartClick($currModal, studentKeywords, 50);
-                    }, 4000, 200);
-                    this.log(`  ├─ ✔️ Thao tác chọn Học sinh (${classItem.isLessonZero ? 'Tiết 0' : 'Tiết thường'}) hoàn tất`);
-                    await this.waitForCondition(() => $('.ohke-loading:visible, .loading:visible, .spinner:visible').length === 0, 3500, 150);
-                    await delay(800);
-
-                    // Bước 4: Chốt sổ "Đánh Dấu Hoàn Thành" & xử lý Race Condition (nếu có 2 nút thì click cả 2)
-                    let attempt = 0;
-                    let isCompleted = false;
-                    while (attempt < 2 && !isCompleted) {
-                        attempt++;
-                        $activeClassModal = $('.w3-modal:visible, .ohke-popup-subform:visible').first();
-                        let clickedSubmit = await this.waitForCondition(() => {
-                            let $currModal = $('.w3-modal:visible, .ohke-popup-subform:visible').first();
-                            return this.smartClick($currModal, ['đánh dấu hoàn thành', 'hoàn thành', 'lưu'], 40);
-                        }, 4000, 200);
-
-                        if (clickedSubmit) {
-                            this.log(`  ├─ ✔️ Click chốt 'Đánh Dấu Hoàn Thành' (Lần ${attempt})`);
-                            await delay(600);
-
-                            // Nếu còn nút hoàn thành khác (chốt cho GV hoặc HS riêng), tiếp tục click
-                            let extraSubmit = this.smartClick($activeClassModal, ['đánh dấu hoàn thành', 'hoàn thành'], 40);
-                            if (extraSubmit) {
-                                this.log(`  ├─ ✔️ Click nút hoàn thành thứ 2 (nếu có)`);
-                                await delay(600);
+                        let laTiet0 = false;
+                        try {
+                            let dataEntityStr = cacLop[i].dataset.entity;
+                            if (dataEntityStr) {
+                                let entityData = JSON.parse(dataEntityStr);
+                                let classHourCode = entityData.class_hour_code || '';
+                                laTiet0 = classHourCode === 'H0' || classHourCode.startsWith('H0.');
                             }
+                        } catch (e) { }
 
-                            let $errorDialog = $('.ohke-alert:visible, .swal2-popup:visible, .w3-modal:visible').filter(function() {
-                                let txt = $(this).text().toLowerCase();
-                                return txt.includes('đang được hệ thống xử lý') || txt.includes('vui lòng thử lại');
-                            }).last();
-
-                            if ($errorDialog.length) {
-                                this.log("  ├─ ⚠️ Server đang xử lý (Race Condition), tự động xác nhận và thử lại...");
-                                this.smartClick($errorDialog, ['đồng ý', 'ok', 'xác nhận'], 30) || $errorDialog.hide();
-                                await delay(800);
-                            } else {
-                                isCompleted = true;
-                            }
+                        if (laTiet0) {
+                            let daClickCoMatTatCa = await clickText('Đánh Dấu Tất Cả Có Mặt'); if (daClickCoMatTatCa > 0) await delay(1500);
+                            let bamTiepTuc0 = await clickText('Tiếp Tục'); if (bamTiepTuc0 > 0) await delay(2500);
                         } else {
-                            break;
+                            let daClickTietTruoc = await clickText('Đánh Dấu Như Tiết Học Trước');
+                            if (daClickTietTruoc === 0) await clickText('Đánh Dấu Tất Cả Có Mặt');
+                            await delay(1500);
+                            let bamTiepTuc = await clickText('Tiếp Tục'); if (bamTiepTuc > 0) await delay(2500);
                         }
-                    }
 
-                    // Bước 5: Đóng Modal lớp học
-                    let $finalModal = $('.w3-modal:visible, .ohke-popup-subform:visible').last();
-                    if (!this.smartClick($finalModal, ['đóng'], 20)) {
-                        let $closeBtn = $finalModal.find('.close-btn, [onclick*="close"], [data-dismiss="modal"], i.fa-close, .w3-button, .close').first();
-                        if ($closeBtn.length && $finalModal.is(':visible')) this.forceClick($closeBtn);
-                        else $('.w3-modal').removeClass('w3-show').hide();
-                    }
-                    await delay(300);
+                        let soNutDaBam = 0;
+                        while (soNutDaBam < 3) {
+                            let danhSachHoanThanh = Array.from(getTopModal().querySelectorAll('a, button, .btn, .w3-button')).filter(el => el.offsetWidth > 50 && el.textContent.trim().includes('Đánh Dấu Hoàn Thành') && !el.closest('td'));
+                            if (danhSachHoanThanh.length === 0) break;
+                            danhSachHoanThanh.sort((a, b) => a.getBoundingClientRect().top - b.getBoundingClientRect().top);
+                            let targetBtn = danhSachHoanThanh[0];
 
-                    classItem.element.css('opacity', '0.4').attr('data-da-diem-danh', 'true');
-                    this.log(`✅ [SMART DOM V14 XONG] Đã điểm danh lớp [${classItem.classHourCode || masterKey}]`);
-                    return true;
-                } catch (err) {
-                    this.log(`❌ Lỗi Smart DOM V14 lớp ${masterKey}: ${err.message}`);
-                    return false;
+                            for (let w = 0; w < 10; w++) {
+                                if (!targetBtn.disabled && !targetBtn.className.includes('disabled')) break;
+                                await delay(500);
+                            }
+                            forceClick(targetBtn); soNutDaBam++;
+
+                            for (let j = 0; j < 15; j++) {
+                                await delay(500);
+                                let checkLai = Array.from(getTopModal().querySelectorAll('a, button, .btn, .w3-button')).filter(el => {
+                                    let txt = el.textContent.trim();
+                                    return txt.includes('Đánh Dấu Hoàn Thành') && el.offsetWidth > 50 && !el.closest('td');
+                                });
+                                if (checkLai.length < danhSachHoanThanh.length) break;
+                            }
+                        }
+                        await delay(800); await closeTopModal(); await delay(1200);
+                        cacLop[i].dataset.daDiemDanh = "true"; cacLop[i].style.opacity = "0.3"; tongSoLopDaXuLy++;
+                    }
+                } else {
+                    let dsPhanTu = Array.from(tabActive.querySelectorAll('a, button, div, span'));
+                    let nutXemThem = dsPhanTu.find(el => el.textContent.trim() === 'Xem Thêm' && el.offsetWidth > 0);
+                    if (nutXemThem) {
+                        forceClick(nutXemThem); await delay(3500);
+                        let kiemTraTheDoMoi = Array.from(tabActive.querySelectorAll('.list-item')).filter(el => {
+                            let txt = el.textContent;
+                            return (txt.includes('CHƯA NỘP BẢNG ĐIỂM DANH') || txt.includes('CHƯA ĐIỂM DANH GIÁO VIÊN')) && el.offsetWidth > 0 && !el.dataset.daDiemDanh;
+                        });
+                        if (kiemTraTheDoMoi.length === 0) break;
+                    } else break;
                 }
             }
-
-            /**
-             * Phương pháp 100% Headless API V15 (The Full Headless Flow - Khắc phục lỗi Nộp Sổ Trắng):
-             * Triển khai đầy đủ 5 bước API (Tìm Sub-ID GV -> Tick Có mặt GV -> Chốt GV -> Action HS -> Chốt HS)
-             */
-            async submitAttendanceHeadlessAPI(classItem) {
-                const delay = (ms) => new Promise(res => setTimeout(res, ms));
-                let masterKey = classItem.id;
-                let entity = classItem.entity || {};
-                let env = entity.env || { tenant_id: this.tenantId, site_id: this.tenantId };
-                let updateTime = entity.update_time || "";
-                let config = this.API_CONFIG || {
-                    teacherTargetState: "INSTRUCTOR_ATTENDANCE_STATUS_PRESENT",
-                    studentActionApi: "bttAction_x2447C_"
-                };
-                
-                try {
-                    // Bước 0: Fetch Sub-ID & Update Time của Hồ sơ Giáo viên (x24F76_Model)
-                    this.log(`⏳ [Headless V15 0/4] Truy xuất Sub-ID Hồ sơ Giáo viên cho lớp ${masterKey}...`);
-                    let resModel = await this.rpcCall('x24F76_Model', { id: masterKey });
-                    let instructorId = null;
-                    let instructorUpdateTime = updateTime;
-
-                    if (resModel && typeof resModel === 'object') {
-                        let dataObj = resModel.data || resModel.entity || resModel;
-                        instructorId = dataObj.instructor_id || dataObj.id || (dataObj.instructor && dataObj.instructor.id);
-                        if (dataObj.update_time) instructorUpdateTime = dataObj.update_time;
-                    }
-
-                    // Fallback nếu Model trả về HTML string hoặc không bóc được trực tiếp
-                    if (!instructorId && typeof resModel === 'string') {
-                        let idMatch = resModel.match(/data-id="(\d+)"/i) || resModel.match(/id:\s*["']?(\d+)["']?/i);
-                        if (idMatch && idMatch[1]) instructorId = idMatch[1];
-                    }
-                    if (!instructorId) {
-                        instructorId = entity.instructor_id || entity.instructor_sheet_id || masterKey;
-                    }
-                    this.log(`  ├─ ✔️ Sub-ID GV bóc tách được: ${instructorId} (update_time: "${instructorUpdateTime}")`);
-                    await delay(100);
-
-                    // Bước 1: Tick Giáo viên Có mặt (x24F76_jsonPostTransition - Quan trọng để tránh sổ trắng)
-                    let payloadTeacherTick = {
-                        id: instructorId,
-                        field_name: "instructor_attendance_status",
-                        begin_state: "INSTRUCTOR_ATTENDANCE_STATUS_PENDING",
-                        to_state: config.teacherTargetState,
-                        end_state: config.teacherTargetState,
-                        is_reversal: 0,
-                        update_time: instructorUpdateTime,
-                        mode: "V",
-                        entity: entity,
-                        env: env
-                    };
-                    this.log(`⏳ [Headless V15 1/4] Tick trạng thái GV (${config.teacherTargetState})...`);
-                    let res1 = await this.rpcCall('x24F76_jsonPostTransition', payloadTeacherTick);
-                    if (!res1 || (res1.type !== "success" && res1.status !== "success" && res1.code !== 200 && !res1.data)) {
-                        this.log(`⚠️ Bước 1 (Tick GV) cảnh báo/lỗi, tiếp tục thử chốt...`);
-                    } else {
-                        this.log(`  ├─ ✔️ Tick Có mặt GV thành công!`);
-                    }
-                    await delay(100);
-
-                    // Bước 2: Chốt sổ Giáo viên sang ACCEPTED (x35FD3_jsonPostTransition)
-                    let payloadTeacherLock = {
-                        id: masterKey,
-                        field_name: "instructor_attendance_status",
-                        begin_state: entity.instructor_attendance_status || "INSTRUCTOR_ATTENDANCE_SHEET_STATUS_PENDING",
-                        to_state: "INSTRUCTOR_ATTENDANCE_SHEET_STATUS_ACCEPTED",
-                        end_state: "INSTRUCTOR_ATTENDANCE_SHEET_STATUS_ACCEPTED",
-                        is_reversal: 0,
-                        update_time: updateTime,
-                        mode: "V",
-                        entity: entity,
-                        env: env
-                    };
-                    this.log(`⏳ [Headless V15 2/4] Chốt sổ Giáo viên (ACCEPTED)...`);
-                    let res2 = await this.rpcCall('x35FD3_jsonPostTransition', payloadTeacherLock);
-                    if (!res2 || (res2.type !== "success" && res2.status !== "success" && res2.code !== 200 && !res2.data)) {
-                        res2 = await this.rpcCall('x24F76_jsonPostTransition', payloadTeacherLock);
-                    }
-                    if (!res2 || (res2.type !== "success" && res2.status !== "success" && res2.code !== 200 && !res2.data)) {
-                        this.log(`⚠️ Bước 2 thất bại: ${res2 ? (res2.message || JSON.stringify(res2)) : 'Unknown'}`);
-                        return false;
-                    }
-                    this.log(`  ├─ ✔️ Chốt sổ GV thành công!`);
-                    await delay(100);
-
-                    // Bước 3: Action Tick Học sinh (bttAction_x2447C_)
-                    this.log(`⏳ [Headless V15 3/4] Tick Học sinh (${config.studentActionApi})...`);
-                    let res3 = await this.rpcCall(config.studentActionApi, { id: masterKey });
-                    if (!res3 || (res3.type !== "success" && res3.status !== "success" && res3.code !== 200 && !res3.data)) {
-                        this.log(`⚠️ Bước 3 thất bại: ${res3 ? (res3.message || JSON.stringify(res3)) : 'Unknown'}`);
-                        return false;
-                    }
-                    this.log(`  ├─ ✔️ Tick Học sinh thành công!`);
-                    await delay(100);
-
-                    // Bước 4: Chốt sổ Học sinh sang ACCEPTED (x35FD2_jsonPostTransition)
-                    let payloadStudentLock = {
-                        id: masterKey,
-                        field_name: "attendance_sheet_status",
-                        begin_state: entity.attendance_sheet_status || "CLASS_SCHEDULE_SLOT_STATUS_PENDING",
-                        to_state: "CLASS_SCHEDULE_SLOT_STATUS_ACCEPTED",
-                        end_state: "CLASS_SCHEDULE_SLOT_STATUS_ACCEPTED",
-                        is_reversal: 0,
-                        update_time: updateTime,
-                        mode: "V",
-                        entity: entity,
-                        env: env
-                    };
-                    this.log(`⏳ [Headless V15 4/4] Chốt sổ Học sinh (ACCEPTED)...`);
-                    let res4 = await this.rpcCall('x35FD2_jsonPostTransition', payloadStudentLock);
-                    if (!res4 || (res4.type !== "success" && res4.status !== "success" && res4.code !== 200 && !res4.data)) {
-                        this.log(`⚠️ Bước 4 thất bại: ${res4 ? (res4.message || JSON.stringify(res4)) : 'Unknown'}`);
-                        return false;
-                    }
-                    this.log(`  ├─ ✔️ Chốt sổ Học sinh thành công!`);
-
-                    classItem.element.css('opacity', '0.4').attr('data-da-diem-danh', 'true');
-                    this.log(`✅ [HEADLESS API V15 XONG] Đã nộp sổ điểm danh hoàn chỉnh cho lớp [${classItem.classHourCode || masterKey}]`);
-                    return true;
-                } catch (err) {
-                    this.log(`❌ Lỗi ngoại lệ trong submitAttendanceHeadlessAPI lớp ${masterKey}: ${err.message}`);
-                    return false;
-                }
-            }
-
-            /**
-             * Phương pháp UI-Assisted API V16 (Bắn tỉa API - Thỏa mãn tốc độ và độ chính xác tuyệt đối):
-             * Mở Modal lớp học để Ohke tự động dựng dữ liệu -> Bóc tách Sub-ID GV và update_time -> Bắn 4 API mili-giây -> Đóng Modal
-             */
-            async submitAttendanceUIAssistedAPI(classItem) {
-                const delay = (ms) => new Promise(res => setTimeout(res, ms));
-                let masterKey = classItem.id;
-                let entity = classItem.entity || {};
-                let env = entity.env || { tenant_id: this.tenantId, site_id: this.tenantId };
-                let classUpdateTime = entity.update_time || "";
-                let config = this.API_CONFIG || {
-                    teacherTargetState: "INSTRUCTOR_ATTENDANCE_STATUS_PRESENT",
-                    studentActionApi: "bttAction_x2447C_"
-                };
-
-                this.log(`⚡ [UI-ASSISTED API V16] Khởi chạy bắn tỉa API cho lớp [${classItem.classHourCode || masterKey}]...`);
-
-                try {
-                    // Bước 1: Mở Modal Lớp học để Ohke render dữ liệu động và chờ agent-loaded / w3-modal
-                    let modalContainer = $('.w3-modal, .ohke-popup-subform, .agent-container, #w3-modal').first();
-                    let modalLoadPromise = this.waitForAgentLoaded(modalContainer, 7000);
-                    
-                    this.forceClick(classItem.element);
-                    await modalLoadPromise;
-                    await this.waitForCondition(() => $('.w3-modal:visible, .ohke-popup-subform:visible').last().length > 0, 4500, 200);
-
-                    let $classModal = $('.w3-modal:visible, .ohke-popup-subform:visible').first();
-                    if (!$classModal.length || $classModal.width() === 0) {
-                        this.log(`⚠️ Không mở được Modal lớp ${masterKey}, fallback sang Headless API...`);
-                        return await this.submitAttendanceHeadlessAPI(classItem);
-                    }
-
-                    // Bước 2: Bóc tách Sub-ID Hồ sơ Giáo viên (teacherId) và update_time của dòng GV từ Modal vừa dựng
-                    let teacherId = null;
-                    let teacherUpdateTime = classUpdateTime;
-                    let teacherBeginStatus = "INSTRUCTOR_ATTENDANCE_STATUS_NO_ATTENDANCE";
-
-                    $classModal.find('[data-entity], [data-id], .list-item, tr, div').each(function() {
-                        let $el = $(this);
-                        let txt = $el.text().toLowerCase();
-                        if (txt.includes('chưa điểm danh giáo viên') || txt.includes('giáo viên') || txt.includes('instructor')) {
-                            let rawEnt = $el.attr('data-entity') || ($el[0].dataset && $el[0].dataset.entity);
-                            if (rawEnt) {
-                                try {
-                                    let subEnt = (typeof rawEnt === 'string') ? JSON.parse(rawEnt) : rawEnt;
-                                    if (subEnt.id && String(subEnt.id) !== String(masterKey)) {
-                                        teacherId = subEnt.id;
-                                        if (subEnt.update_time) teacherUpdateTime = subEnt.update_time;
-                                        if (subEnt.status) teacherBeginStatus = subEnt.status;
-                                        return false; // Break each
-                                    }
-                                } catch(e) {}
-                            }
-                            let tid = $el.attr('data-id') || $el.data('id');
-                            if (tid && String(tid) !== String(masterKey)) {
-                                teacherId = tid;
-                            }
-                        }
-                    });
-
-                    // Nếu quét DOM chưa ra, thử bóc trong dataset/entity lớp học gốc
-                    if (!teacherId) {
-                        teacherId = entity.instructor_id || entity.instructor_sheet_id || (entity.instructor && entity.instructor.id);
-                    }
-                    if (!teacherId) {
-                        this.log(`⚠️ Không tìm thấy Sub-ID riêng cho GV trong Modal, sử dụng masterKey (${masterKey}) làm fallback.`);
-                        teacherId = masterKey;
-                    } else {
-                        this.log(`  ├─ ✔️ Bóc tách thành công Sub-ID GV: ${teacherId} (update_time: "${teacherUpdateTime}")`);
-                    }
-
-                    // Bước 3: Bắn 4 API siêu tốc liên tiếp (trong vài mili-giây, không thao tác click DOM nút Có mặt/Hoàn thành)
-                    // API 1: Tick GV Có mặt (x24F76_jsonPostTransition - dùng teacherId và field_name: "status")
-                    let payloadApi1 = {
-                        id: teacherId,
-                        field_name: "status",
-                        begin_state: teacherBeginStatus,
-                        to_state: config.teacherTargetState,
-                        end_state: config.teacherTargetState,
-                        is_reversal: 0,
-                        update_time: teacherUpdateTime,
-                        mode: "V",
-                        entity: entity,
-                        env: env
-                    };
-                    this.log(`  ├─ 🚀 [API 1/4] Tick GV Có mặt (${config.teacherTargetState})...`);
-                    try {
-                        let res1 = await this.rpcCall('x24F76_jsonPostTransition', payloadApi1);
-                        if (!res1 || (res1.type !== "success" && res1.status !== "success" && res1.code !== 200 && !res1.data)) {
-                            this.log(`  │    ├─ ⚠️ API 1 cảnh báo/lỗi nhẹ, tiếp tục bắn API tiếp theo...`);
-                        } else {
-                            this.log(`  │    ├─ ✔️ API 1 thành công`);
-                        }
-                    } catch (e1) {
-                        this.log(`  │    ├─ ⚠️ Lỗi ngoại lệ API 1: ${e1.message}, tiếp tục...`);
-                    }
-
-                    // API 2: Chốt sổ GV sang ACCEPTED (x35FD3_jsonPostTransition - dùng masterKey và field_name: "instructor_attendance_status")
-                    let payloadApi2 = {
-                        id: masterKey,
-                        field_name: "instructor_attendance_status",
-                        begin_state: entity.instructor_attendance_status || "INSTRUCTOR_ATTENDANCE_SHEET_STATUS_PENDING",
-                        to_state: "INSTRUCTOR_ATTENDANCE_SHEET_STATUS_ACCEPTED",
-                        end_state: "INSTRUCTOR_ATTENDANCE_SHEET_STATUS_ACCEPTED",
-                        is_reversal: 0,
-                        update_time: classUpdateTime,
-                        mode: "V",
-                        entity: entity,
-                        env: env
-                    };
-                    this.log(`  ├─ 🚀 [API 2/4] Chốt sổ GV (ACCEPTED)...`);
-                    try {
-                        let res2 = await this.rpcCall('x35FD3_jsonPostTransition', payloadApi2);
-                        if (!res2 || (res2.type !== "success" && res2.status !== "success" && res2.code !== 200 && !res2.data)) {
-                            res2 = await this.rpcCall('x24F76_jsonPostTransition', payloadApi2);
-                        }
-                        if (res2 && (res2.type === "success" || res2.status === "success" || res2.code === 200 || res2.data)) {
-                            this.log(`  │    ├─ ✔️ API 2 thành công`);
-                        }
-                    } catch (e2) {
-                        this.log(`  │    ├─ ⚠️ Lỗi ngoại lệ API 2: ${e2.message}`);
-                    }
-
-                    // API 3: Copy HS theo tiết trước (bttAction_x2447C_ - dùng masterKey)
-                    this.log(`  ├─ 🚀 [API 3/4] Copy điểm danh Học sinh...`);
-                    try {
-                        let res3 = await this.rpcCall(config.studentActionApi, { id: masterKey });
-                        if (res3 && (res3.type === "success" || res3.status === "success" || res3.code === 200 || res3.data)) {
-                            this.log(`  │    ├─ ✔️ API 3 thành công`);
-                        }
-                    } catch (e3) {
-                        this.log(`  │    ├─ ⚠️ Lỗi ngoại lệ API 3: ${e3.message}`);
-                    }
-
-                    // API 4: Chốt sổ HS sang ACCEPTED (x35FD2_jsonPostTransition - dùng masterKey và field_name: "attendance_sheet_status")
-                    let payloadApi4 = {
-                        id: masterKey,
-                        field_name: "attendance_sheet_status",
-                        begin_state: entity.attendance_sheet_status || "CLASS_SCHEDULE_SLOT_STATUS_PENDING",
-                        to_state: "CLASS_SCHEDULE_SLOT_STATUS_ACCEPTED",
-                        end_state: "CLASS_SCHEDULE_SLOT_STATUS_ACCEPTED",
-                        is_reversal: 0,
-                        update_time: classUpdateTime,
-                        mode: "V",
-                        entity: entity,
-                        env: env
-                    };
-                    this.log(`  ├─ 🚀 [API 4/4] Chốt sổ Học sinh (ACCEPTED)...`);
-                    try {
-                        let res4 = await this.rpcCall('x35FD2_jsonPostTransition', payloadApi4);
-                        if (res4 && (res4.type === "success" || res4.status === "success" || res4.code === 200 || res4.data)) {
-                            this.log(`  │    ├─ ✔️ API 4 thành công`);
-                        }
-                    } catch (e4) {
-                        this.log(`  │    ├─ ⚠️ Lỗi ngoại lệ API 4: ${e4.message}`);
-                    }
-
-                    // Bước 4: Đóng Modal trả lại màn hình sạch & làm mờ thẻ lớp
-                    let $finalModal = $('.w3-modal:visible, .ohke-popup-subform:visible').last();
-                    if (!this.smartClick($finalModal, ['đóng'], 20)) {
-                        let $closeBtn = $finalModal.find('.close-btn, [onclick*="close"], [data-dismiss="modal"], i.fa-close, .w3-button, .close').first();
-                        if ($closeBtn.length && $finalModal.is(':visible')) this.forceClick($closeBtn);
-                        else $('.w3-modal').removeClass('w3-show').hide();
-                    }
-                    await delay(200);
-
-                    classItem.element.css('opacity', '0.4').attr('data-da-diem-danh', 'true');
-                    this.log(`✅ [UI-ASSISTED API V16 XONG] Đã điểm danh bắn tỉa hoàn chỉnh cho lớp [${classItem.classHourCode || masterKey}]`);
-                    return true;
-                } catch (err) {
-                    this.log(`❌ Lỗi UI-Assisted API V16 lớp ${masterKey}: ${err.message}`);
-                    return false;
-                }
-            }
-
-            /**
-             * Phương pháp Zero-Delay Polling V17 (The Zero-Delay Snipe - Siêu tốc < 1s/lớp):
-             * Loại bỏ event listener tĩnh, quét DOM chu kỳ 50ms để chộp Sub-ID GV ngay khi Ohke render xong, bắn 4 API thần tốc -> Đóng Modal
-             */
-            async submitAttendanceZeroDelaySnipe(classItem) {
-                const delay = (ms) => new Promise(res => setTimeout(res, ms));
-                let masterKey = classItem.id;
-                let entity = classItem.entity || {};
-                let env = entity.env || { tenant_id: this.tenantId, site_id: this.tenantId };
-                let classUpdateTime = entity.update_time || "";
-                let config = this.API_CONFIG || {
-                    teacherTargetState: "INSTRUCTOR_ATTENDANCE_STATUS_PRESENT",
-                    studentActionApi: "bttAction_x2447C_"
-                };
-
-                this.log(`⚡ [ZERO-DELAY SNIPE V17] Khởi chạy chộp dữ liệu chớp nhoáng cho lớp [${classItem.classHourCode || masterKey}]...`);
-                let startTime = performance.now();
-
-                try {
-                    // Bước 1: Kích hoạt UI mở Modal (forceClick)
-                    this.forceClick(classItem.element);
-
-                    // Bước 2: Zero-Delay Polling (chu kỳ 50ms) quét DOM liên tục để chộp teacherId và update_time
-                    let teacherId = null;
-                    let teacherUpdateTime = classUpdateTime;
-                    let teacherBeginStatus = "INSTRUCTOR_ATTENDANCE_STATUS_NO_ATTENDANCE";
-                    let $classModal = null;
-                    let elapsed = 0;
-
-                    while (elapsed < 3500) {
-                        $classModal = $('.w3-modal:visible, .ohke-popup-subform:visible').last();
-                        if ($classModal.length && $classModal.width() > 0) {
-                            $classModal.find('[data-entity], [data-id], .list-item, tr, div').each(function() {
-                                let $el = $(this);
-                                let txt = $el.text().toLowerCase();
-                                if (txt.includes('chưa điểm danh giáo viên') || txt.includes('giáo viên') || txt.includes('instructor')) {
-                                    let rawEnt = $el.attr('data-entity') || ($el[0].dataset && $el[0].dataset.entity);
-                                    if (rawEnt) {
-                                        try {
-                                            let subEnt = (typeof rawEnt === 'string') ? JSON.parse(rawEnt) : rawEnt;
-                                            if (subEnt.id && String(subEnt.id) !== String(masterKey)) {
-                                                teacherId = subEnt.id;
-                                                if (subEnt.update_time) teacherUpdateTime = subEnt.update_time;
-                                                if (subEnt.status) teacherBeginStatus = subEnt.status;
-                                                return false;
-                                            }
-                                        } catch(e) {}
-                                    }
-                                    let tid = $el.attr('data-id') || $el.data('id');
-                                    if (tid && String(tid) !== String(masterKey)) {
-                                        teacherId = tid;
-                                    }
-                                }
-                            });
-
-                            if (teacherId) break;
-                        }
-                        await delay(50);
-                        elapsed += 50;
-                    }
-
-                    // Fallback nếu quét chớp nhoáng chưa ra Sub-ID riêng
-                    if (!teacherId) {
-                        teacherId = entity.instructor_id || entity.instructor_sheet_id || (entity.instructor && entity.instructor.id) || masterKey;
-                    }
-                    this.log(`  ├─ 🎯 Chộp được Sub-ID GV: ${teacherId} (sau ${Math.round(performance.now() - startTime)}ms, update_time: "${teacherUpdateTime}")`);
-
-                    // Bước 3: Bắn tỉa 4 API thần tốc (Ohke.rpc2 background)
-                    // API 1: Tick GV Có mặt
-                    let payloadApi1 = {
-                        id: teacherId,
-                        field_name: "status",
-                        begin_state: teacherBeginStatus,
-                        to_state: config.teacherTargetState,
-                        end_state: config.teacherTargetState,
-                        is_reversal: 0,
-                        update_time: teacherUpdateTime,
-                        mode: "V",
-                        entity: entity,
-                        env: env
-                    };
-                    try {
-                        await this.rpcCall('x24F76_jsonPostTransition', payloadApi1);
-                    } catch (e1) {}
-
-                    // API 2: Chốt sổ GV sang ACCEPTED
-                    let payloadApi2 = {
-                        id: masterKey,
-                        field_name: "instructor_attendance_status",
-                        begin_state: entity.instructor_attendance_status || "INSTRUCTOR_ATTENDANCE_SHEET_STATUS_PENDING",
-                        to_state: "INSTRUCTOR_ATTENDANCE_SHEET_STATUS_ACCEPTED",
-                        end_state: "INSTRUCTOR_ATTENDANCE_SHEET_STATUS_ACCEPTED",
-                        is_reversal: 0,
-                        update_time: classUpdateTime,
-                        mode: "V",
-                        entity: entity,
-                        env: env
-                    };
-                    try {
-                        let res2 = await this.rpcCall('x35FD3_jsonPostTransition', payloadApi2);
-                        if (!res2 || (res2.type !== "success" && res2.status !== "success" && res2.code !== 200 && !res2.data)) {
-                            await this.rpcCall('x24F76_jsonPostTransition', payloadApi2);
-                        }
-                    } catch (e2) {}
-
-                    // API 3: Copy HS theo tiết trước
-                    try {
-                        await this.rpcCall(config.studentActionApi, { id: masterKey });
-                    } catch (e3) {}
-
-                    // API 4: Chốt sổ HS sang ACCEPTED
-                    let payloadApi4 = {
-                        id: masterKey,
-                        field_name: "attendance_sheet_status",
-                        begin_state: entity.attendance_sheet_status || "CLASS_SCHEDULE_SLOT_STATUS_PENDING",
-                        to_state: "CLASS_SCHEDULE_SLOT_STATUS_ACCEPTED",
-                        end_state: "CLASS_SCHEDULE_SLOT_STATUS_ACCEPTED",
-                        is_reversal: 0,
-                        update_time: classUpdateTime,
-                        mode: "V",
-                        entity: entity,
-                        env: env
-                    };
-                    try {
-                        await this.rpcCall('x35FD2_jsonPostTransition', payloadApi4);
-                    } catch (e4) {}
-
-                    // Bước 4: Đóng Modal siêu tốc & làm mờ thẻ lớp
-                    let $finalModal = $('.w3-modal:visible, .ohke-popup-subform:visible').last();
-                    let closed = false;
-                    $finalModal.find('a, button, span, label, i').each(function() {
-                        let txt = $(this).text().trim().toLowerCase();
-                        if ((txt === 'đóng' || txt === 'close') && $(this).is(':visible')) {
-                            $(this)[0].click();
-                            closed = true;
-                            return false;
-                        }
-                    });
-                    if (!closed) {
-                        let $closeBtn = $finalModal.find('.close-btn, [onclick*="close"], [data-dismiss="modal"], i.fa-close, .w3-button, .close').first();
-                        if ($closeBtn.length && $finalModal.is(':visible')) this.forceClick($closeBtn);
-                        else $('.w3-modal').removeClass('w3-show').hide();
-                    }
-
-                    classItem.element.css('opacity', '0.4').attr('data-da-diem-danh', 'true');
-                    let duration = Math.round(performance.now() - startTime);
-                    this.log(`✅ [ZERO-DELAY SNIPE V17 XONG] Đã điểm danh lớp [${classItem.classHourCode || masterKey}] sau ${duration}ms!`);
-                    return true;
-                } catch (err) {
-                    this.log(`❌ Lỗi Zero-Delay Snipe V17 lớp ${masterKey}: ${err.message}`);
-                    return false;
-                }
-            }
-
-            /**
-             * Phương pháp Response Chaining V18 (Xâu chuỗi phản hồi - Khắc phục dứt điểm ERR_CONCURRENT_TRANSITION):
-             * Chộp dữ liệu chớp nhoáng từ Modal, duy trì biến currentEntity, sau mỗi API tự động cập nhật update_time từ res.data
-             */
-            async submitAttendanceResponseChaining(classItem) {
-                const delay = (ms) => new Promise(res => setTimeout(res, ms));
-                let masterKey = classItem.id;
-                let entity = classItem.entity || {};
-                let env = entity.env || { tenant_id: this.tenantId, site_id: this.tenantId };
-                let config = this.API_CONFIG || {
-                    teacherTargetState: "INSTRUCTOR_ATTENDANCE_STATUS_PRESENT",
-                    studentActionApi: "bttAction_x2447C_"
-                };
-
-                this.log(`⚡ [RESPONSE CHAINING V18] Khởi chạy xâu chuỗi phản hồi cho lớp [${classItem.classHourCode || masterKey}]...`);
-                let startTime = performance.now();
-
-                try {
-                    // Bước 1: Kích hoạt UI mở Modal & Zero-Delay Polling (chu kỳ 50ms) chộp dữ liệu ban đầu
-                    this.forceClick(classItem.element);
-
-                    let teacherId = null;
-                    let teacherEntityData = null;
-                    let $classModal = null;
-                    let elapsed = 0;
-
-                    while (elapsed < 3500) {
-                        $classModal = $('.w3-modal:visible, .ohke-popup-subform:visible').last();
-                        if ($classModal.length && $classModal.width() > 0) {
-                            $classModal.find('[data-entity], [data-id], .list-item, tr, div').each(function() {
-                                let $el = $(this);
-                                let txt = $el.text().toLowerCase();
-                                if (txt.includes('chưa điểm danh giáo viên') || txt.includes('giáo viên') || txt.includes('instructor')) {
-                                    let rawEnt = $el.attr('data-entity') || ($el[0].dataset && $el[0].dataset.entity);
-                                    if (rawEnt) {
-                                        try {
-                                            let subEnt = (typeof rawEnt === 'string') ? JSON.parse(rawEnt) : rawEnt;
-                                            if (subEnt.id && String(subEnt.id) !== String(masterKey)) {
-                                                teacherId = subEnt.id;
-                                                teacherEntityData = subEnt;
-                                                return false;
-                                            }
-                                        } catch(e) {}
-                                    }
-                                    let tid = $el.attr('data-id') || $el.data('id');
-                                    if (tid && String(tid) !== String(masterKey)) {
-                                        teacherId = tid;
-                                    }
-                                }
-                            });
-                            if (teacherId) break;
-                        }
-                        await delay(50);
-                        elapsed += 50;
-                    }
-
-                    if (!teacherId) {
-                        teacherId = entity.instructor_id || entity.instructor_sheet_id || (entity.instructor && entity.instructor.id) || masterKey;
-                    }
-
-                    // Khởi tạo các biến currentEntity (xâu chuỗi trạng thái)
-                    let currentEntity = Object.assign({}, entity);
-                    let currentTeacherEntity = Object.assign({}, teacherEntityData || entity);
-
-                    this.log(`  ├─ 🎯 Chộp xong Sub-ID GV: ${teacherId} (update_time GV: "${currentTeacherEntity.update_time}", Lớp: "${currentEntity.update_time}")`);
-
-                    // Bước 2: Bắn 4 API với cơ chế Response Chaining (Cập nhật currentEntity sau mỗi bước)
-                    // API 1: Tick GV Có mặt
-                    let payloadApi1 = {
-                        id: teacherId,
-                        field_name: "status",
-                        begin_state: currentTeacherEntity.status || "INSTRUCTOR_ATTENDANCE_STATUS_NO_ATTENDANCE",
-                        to_state: config.teacherTargetState,
-                        end_state: config.teacherTargetState,
-                        is_reversal: 0,
-                        update_time: currentTeacherEntity.update_time || currentEntity.update_time || "",
-                        mode: "V",
-                        entity: currentTeacherEntity,
-                        env: env
-                    };
-                    try {
-                        let res1 = await this.rpcCall('x24F76_jsonPostTransition', payloadApi1);
-                        if (res1 && res1.data && typeof res1.data === 'object') {
-                            Object.assign(currentTeacherEntity, res1.data);
-                            if (res1.data.update_time) {
-                                currentTeacherEntity.update_time = res1.data.update_time;
-                                currentEntity.update_time = res1.data.update_time;
-                            }
-                            this.log(`  │    ├─ ✔️ [API 1 Xong] Cập nhật update_time mới: "${currentTeacherEntity.update_time}"`);
-                        } else {
-                            this.log(`  │    ├─ ⚠️ [API 1] Phản hồi không có res.data, giữ nguyên update_time: "${currentTeacherEntity.update_time}"`);
-                        }
-                    } catch (e1) {
-                        this.log(`  │    ├─ ⚠️ Ngoại lệ API 1: ${e1.message}`);
-                    }
-
-                    // API 2: Chốt sổ GV sang ACCEPTED (sử dụng currentEntity và update_time mới nhất)
-                    let payloadApi2 = {
-                        id: masterKey,
-                        field_name: "instructor_attendance_status",
-                        begin_state: currentEntity.instructor_attendance_status || "INSTRUCTOR_ATTENDANCE_SHEET_STATUS_PENDING",
-                        to_state: "INSTRUCTOR_ATTENDANCE_SHEET_STATUS_ACCEPTED",
-                        end_state: "INSTRUCTOR_ATTENDANCE_SHEET_STATUS_ACCEPTED",
-                        is_reversal: 0,
-                        update_time: currentEntity.update_time || "",
-                        mode: "V",
-                        entity: currentEntity,
-                        env: env
-                    };
-                    try {
-                        let res2 = await this.rpcCall('x35FD3_jsonPostTransition', payloadApi2);
-                        if (!res2 || (res2.type !== "success" && res2.status !== "success" && res2.code !== 200 && !res2.data)) {
-                            res2 = await this.rpcCall('x24F76_jsonPostTransition', payloadApi2);
-                        }
-                        if (res2 && res2.data && typeof res2.data === 'object') {
-                            Object.assign(currentEntity, res2.data);
-                            if (res2.data.update_time) currentEntity.update_time = res2.data.update_time;
-                            this.log(`  │    ├─ ✔️ [API 2 Xong] Cập nhật update_time mới: "${currentEntity.update_time}"`);
-                        } else {
-                            this.log(`  │    ├─ ⚠️ [API 2] Phản hồi không có res.data, giữ nguyên update_time: "${currentEntity.update_time}"`);
-                        }
-                    } catch (e2) {
-                        this.log(`  │    ├─ ⚠️ Ngoại lệ API 2: ${e2.message}`);
-                    }
-
-                    // API 3: Copy HS (Action không trả về data state nên bỏ qua cập nhật, nhưng kiểm tra nếu có)
-                    try {
-                        let res3 = await this.rpcCall(config.studentActionApi, { id: masterKey });
-                        if (res3 && res3.data && typeof res3.data === 'object' && res3.data.update_time) {
-                            Object.assign(currentEntity, res3.data);
-                            currentEntity.update_time = res3.data.update_time;
-                        }
-                        this.log(`  │    ├─ ✔️ [API 3 Xong] Action Copy HS hoàn tất (update_time hiện tại: "${currentEntity.update_time}")`);
-                    } catch (e3) {
-                        this.log(`  │    ├─ ⚠️ Ngoại lệ API 3: ${e3.message}`);
-                    }
-
-                    // API 4: Chốt sổ HS sang ACCEPTED (sử dụng currentEntity và update_time mới nhất sau bước 2/3)
-                    let payloadApi4 = {
-                        id: masterKey,
-                        field_name: "attendance_sheet_status",
-                        begin_state: currentEntity.attendance_sheet_status || "CLASS_SCHEDULE_SLOT_STATUS_PENDING",
-                        to_state: "CLASS_SCHEDULE_SLOT_STATUS_ACCEPTED",
-                        end_state: "CLASS_SCHEDULE_SLOT_STATUS_ACCEPTED",
-                        is_reversal: 0,
-                        update_time: currentEntity.update_time || "",
-                        mode: "V",
-                        entity: currentEntity,
-                        env: env
-                    };
-                    try {
-                        let res4 = await this.rpcCall('x35FD2_jsonPostTransition', payloadApi4);
-                        if (res4 && res4.data && typeof res4.data === 'object') {
-                            Object.assign(currentEntity, res4.data);
-                            if (res4.data.update_time) currentEntity.update_time = res4.data.update_time;
-                            this.log(`  │    └─ ✔️ [API 4 Xong] Cập nhật update_time cuối cùng: "${currentEntity.update_time}"`);
-                        } else {
-                            this.log(`  │    └─ ⚠️ [API 4] Phản hồi không có res.data, giữ nguyên update_time: "${currentEntity.update_time}"`);
-                        }
-                    } catch (e4) {
-                        this.log(`  │    └─ ⚠️ Ngoại lệ API 4: ${e4.message}`);
-                    }
-
-                    // Bước 3: Đóng Modal & làm mờ thẻ lớp
-                    let $finalModal = $('.w3-modal:visible, .ohke-popup-subform:visible').last();
-                    let closed = false;
-                    $finalModal.find('a, button, span, label, i').each(function() {
-                        let txt = $(this).text().trim().toLowerCase();
-                        if ((txt === 'đóng' || txt === 'close') && $(this).is(':visible')) {
-                            $(this)[0].click();
-                            closed = true;
-                            return false;
-                        }
-                    });
-                    if (!closed) {
-                        let $closeBtn = $finalModal.find('.close-btn, [onclick*="close"], [data-dismiss="modal"], i.fa-close, .w3-button, .close').first();
-                        if ($closeBtn.length && $finalModal.is(':visible')) this.forceClick($closeBtn);
-                        else $('.w3-modal').removeClass('w3-show').hide();
-                    }
-
-                    classItem.element.css('opacity', '0.4').attr('data-da-diem-danh', 'true');
-                    let duration = Math.round(performance.now() - startTime);
-                    this.log(`✅ [RESPONSE CHAINING V18 XONG] Đã điểm danh lớp [${classItem.classHourCode || masterKey}] sau ${duration}ms!`);
-                    return true;
-                } catch (err) {
-                    this.log(`❌ Lỗi Response Chaining V18 lớp ${masterKey}: ${err.message}`);
-                    return false;
-                }
-            }
-
-            /**
-             * Phương pháp Precision API Sniper V19 (Bắn tỉa API chính xác & Refresh update_time):
-             * 1. Lọc Sub-ID GV tuyệt đối chính xác qua hrm_activity_type_code / study_instructor_code
-             * 2. Thêm API Refresh (x35FD2_Viewer) trước khi Chốt sổ HS để lấy update_time thực tế mới nhất
-             */
-            async submitAttendancePrecisionSniper(classItem) {
-                const delay = (ms) => new Promise(res => setTimeout(res, ms));
-                let masterKey = classItem.id;
-                let entity = classItem.entity || {};
-                let env = entity.env || { tenant_id: this.tenantId, site_id: this.tenantId };
-                let classUpdateTime = entity.update_time || "";
-                let config = this.API_CONFIG || {
-                    teacherTargetState: "INSTRUCTOR_ATTENDANCE_STATUS_PRESENT",
-                    studentActionApi: "bttAction_x2447C_"
-                };
-
-                this.log(`⚡ [PRECISION SNIPER V19] Khởi chạy bắn tỉa chính xác cho lớp [${classItem.classHourCode || masterKey}]...`);
-                let startTime = performance.now();
-
-                try {
-                    // Bước 1: Kích hoạt UI mở Modal & Zero-Delay Polling chộp Sub-ID GV chính xác tuyệt đối
-                    this.forceClick(classItem.element);
-
-                    let teacherId = null;
-                    let teacherEntityData = null;
-                    let $classModal = null;
-                    let elapsed = 0;
-
-                    while (elapsed < 3500) {
-                        $classModal = $('.w3-modal:visible, .ohke-popup-subform:visible').last();
-                        if ($classModal.length && $classModal.width() > 0) {
-                            // Quét tất cả thẻ có data-entity để lọc chính xác Sub-ID GV
-                            $classModal.find('[data-entity]').each(function() {
-                                let rawEnt = $(this).attr('data-entity') || ($(this)[0].dataset && $(this)[0].dataset.entity);
-                                if (rawEnt) {
-                                    try {
-                                        let subEnt = (typeof rawEnt === 'string') ? JSON.parse(rawEnt) : rawEnt;
-                                        if (subEnt && subEnt.id && String(subEnt.id) !== String(masterKey)) {
-                                            // Kiểm tra trường đặc thù của Hồ sơ Giáo viên: hrm_activity_type_code HOẶC study_instructor_code HOẶC status của GV
-                                            if (subEnt.hrm_activity_type_code !== undefined || 
-                                                subEnt.study_instructor_code !== undefined || 
-                                                subEnt.instructor_sheet_id !== undefined || 
-                                                (subEnt.status && String(subEnt.status).includes('INSTRUCTOR_ATTENDANCE_STATUS'))) {
-                                                teacherId = subEnt.id;
-                                                teacherEntityData = subEnt;
-                                                return false; // Break each
-                                            }
-                                        }
-                                    } catch(e) {}
-                                }
-                            });
-
-                            // Nếu tìm thấy chính xác qua thuộc tính đặc thù thì break vòng lặp
-                            if (teacherId) break;
-
-                            // Fallback kiểm tra text nếu chưa ra từ thuộc tính đặc thù
-                            $classModal.find('[data-id], .list-item, tr, div').each(function() {
-                                let $el = $(this);
-                                let txt = $el.text().toLowerCase();
-                                if (txt.includes('chưa điểm danh giáo viên') || (txt.includes('giáo viên') && txt.includes('có mặt'))) {
-                                    let tid = $el.attr('data-id') || $el.data('id');
-                                    if (tid && String(tid) !== String(masterKey) && String(tid) !== '1990495') {
-                                        teacherId = tid;
-                                        return false;
-                                    }
-                                }
-                            });
-                            if (teacherId) break;
-                        }
-                        await delay(50);
-                        elapsed += 50;
-                    }
-
-                    if (!teacherId) {
-                        teacherId = entity.instructor_id || entity.instructor_sheet_id || (entity.instructor && entity.instructor.id) || masterKey;
-                    }
-
-                    // Khởi tạo các biến xâu chuỗi trạng thái
-                    let currentEntity = Object.assign({}, entity);
-                    let currentTeacherEntity = Object.assign({}, teacherEntityData || entity);
-
-                    this.log(`  ├─ 🎯 Chộp chính xác Sub-ID GV: ${teacherId} (update_time GV: "${currentTeacherEntity.update_time}", Lớp: "${currentEntity.update_time}")`);
-
-                    // Bước 2: Bắn tỉa 4 API + API Refresh theo đúng luồng V19
-                    // API 1: Tick GV Có mặt
-                    let payloadApi1 = {
-                        id: teacherId,
-                        field_name: "status",
-                        begin_state: currentTeacherEntity.status || "INSTRUCTOR_ATTENDANCE_STATUS_NO_ATTENDANCE",
-                        to_state: config.teacherTargetState,
-                        end_state: config.teacherTargetState,
-                        is_reversal: 0,
-                        update_time: currentTeacherEntity.update_time || currentEntity.update_time || "",
-                        mode: "V",
-                        entity: currentTeacherEntity,
-                        env: env
-                    };
-                    try {
-                        let res1 = await this.rpcCall('x24F76_jsonPostTransition', payloadApi1);
-                        if (res1 && res1.data && typeof res1.data === 'object') {
-                            Object.assign(currentTeacherEntity, res1.data);
-                            if (res1.data.update_time) {
-                                currentTeacherEntity.update_time = res1.data.update_time;
-                                currentEntity.update_time = res1.data.update_time;
-                            }
-                            this.log(`  │    ├─ ✔️ [API 1 Xong] Tick GV Có mặt (update_time: "${currentTeacherEntity.update_time}")`);
-                        } else {
-                            this.log(`  │    ├─ ℹ️ [API 1] Tick GV xong`);
-                        }
-                    } catch (e1) {
-                        this.log(`  │    ├─ ⚠️ Ngoại lệ API 1: ${e1.message}`);
-                    }
-
-                    // API 2: Chốt sổ GV sang ACCEPTED
-                    let payloadApi2 = {
-                        id: masterKey,
-                        field_name: "instructor_attendance_status",
-                        begin_state: currentEntity.instructor_attendance_status || "INSTRUCTOR_ATTENDANCE_SHEET_STATUS_PENDING",
-                        to_state: "INSTRUCTOR_ATTENDANCE_SHEET_STATUS_ACCEPTED",
-                        end_state: "INSTRUCTOR_ATTENDANCE_SHEET_STATUS_ACCEPTED",
-                        is_reversal: 0,
-                        update_time: currentEntity.update_time || classUpdateTime,
-                        mode: "V",
-                        entity: currentEntity,
-                        env: env
-                    };
-                    try {
-                        let res2 = await this.rpcCall('x35FD3_jsonPostTransition', payloadApi2);
-                        if (!res2 || (res2.type !== "success" && res2.status !== "success" && res2.code !== 200 && !res2.data)) {
-                            res2 = await this.rpcCall('x24F76_jsonPostTransition', payloadApi2);
-                        }
-                        if (res2 && res2.data && typeof res2.data === 'object') {
-                            Object.assign(currentEntity, res2.data);
-                            if (res2.data.update_time) currentEntity.update_time = res2.data.update_time;
-                            this.log(`  │    ├─ ✔️ [API 2 Xong] Chốt sổ GV (update_time: "${currentEntity.update_time}")`);
-                        } else {
-                            this.log(`  │    ├─ ℹ️ [API 2] Chốt sổ GV xong`);
-                        }
-                    } catch (e2) {
-                        this.log(`  │    ├─ ⚠️ Ngoại lệ API 2: ${e2.message}`);
-                    }
-
-                    // API 3: Copy HS theo tiết trước
-                    try {
-                        await this.rpcCall(config.studentActionApi, { id: masterKey });
-                        this.log(`  │    ├─ ✔️ [API 3 Xong] Copy điểm danh HS hoàn tất`);
-                    } catch (e3) {
-                        this.log(`  │    ├─ ⚠️ Ngoại lệ API 3: ${e3.message}`);
-                    }
-
-                    // API Refresh (Mới - V19): Gọi x35FD2_Viewer để lấy update_time tươi nhất sau các thay đổi ngầm
-                    this.log(`  │    ├─ 🔄 [API Refresh] Tải lại update_time mới nhất qua x35FD2_Viewer...`);
-                    try {
-                        let resRefresh = await this.rpcCall('x35FD2_Viewer', { id: masterKey, master_key: masterKey, mode: "V" });
-                        if (resRefresh) {
-                            if (resRefresh.data && typeof resRefresh.data === 'object') {
-                                Object.assign(currentEntity, resRefresh.data);
-                                if (resRefresh.data.update_time) currentEntity.update_time = resRefresh.data.update_time;
-                                else if (resRefresh.data.entity && resRefresh.data.entity.update_time) currentEntity.update_time = resRefresh.data.entity.update_time;
-                            } else if (resRefresh.update_time) {
-                                currentEntity.update_time = resRefresh.update_time;
-                            } else if (resRefresh.entity && resRefresh.entity.update_time) {
-                                currentEntity.update_time = resRefresh.entity.update_time;
-                            }
-                        }
-                        this.log(`  │    │    └─ ✔️ Cập nhật thành công update_time tươi nhất: "${currentEntity.update_time}"`);
-                    } catch (eRefresh) {
-                        this.log(`  │    │    └─ ⚠️ Lỗi khi gọi API Refresh: ${eRefresh.message}`);
-                    }
-
-                    // API 4: Chốt sổ HS sang ACCEPTED với update_time tươi nhất
-                    let payloadApi4 = {
-                        id: masterKey,
-                        field_name: "attendance_sheet_status",
-                        begin_state: currentEntity.attendance_sheet_status || "CLASS_SCHEDULE_SLOT_STATUS_PENDING",
-                        to_state: "CLASS_SCHEDULE_SLOT_STATUS_ACCEPTED",
-                        end_state: "CLASS_SCHEDULE_SLOT_STATUS_ACCEPTED",
-                        is_reversal: 0,
-                        update_time: currentEntity.update_time || classUpdateTime,
-                        mode: "V",
-                        entity: currentEntity,
-                        env: env
-                    };
-                    try {
-                        let res4 = await this.rpcCall('x35FD2_jsonPostTransition', payloadApi4);
-                        if (res4 && res4.data && typeof res4.data === 'object') {
-                            Object.assign(currentEntity, res4.data);
-                            if (res4.data.update_time) currentEntity.update_time = res4.data.update_time;
-                            this.log(`  │    └─ ✔️ [API 4 Xong] Chốt sổ HS thành công (update_time: "${currentEntity.update_time}")`);
-                        } else {
-                            this.log(`  │    └─ ℹ️ [API 4] Chốt sổ HS xong`);
-                        }
-                    } catch (e4) {
-                        this.log(`  │    └─ ⚠️ Ngoại lệ API 4: ${e4.message}`);
-                    }
-
-                    // Bước 3: Đóng Modal siêu tốc & làm mờ thẻ lớp
-                    let $finalModal = $('.w3-modal:visible, .ohke-popup-subform:visible').last();
-                    let closed = false;
-                    $finalModal.find('a, button, span, label, i').each(function() {
-                        let txt = $(this).text().trim().toLowerCase();
-                        if ((txt === 'đóng' || txt === 'close') && $(this).is(':visible')) {
-                            $(this)[0].click();
-                            closed = true;
-                            return false;
-                        }
-                    });
-                    if (!closed) {
-                        let $closeBtn = $finalModal.find('.close-btn, [onclick*="close"], [data-dismiss="modal"], i.fa-close, .w3-button, .close').first();
-                        if ($closeBtn.length && $finalModal.is(':visible')) this.forceClick($closeBtn);
-                        else $('.w3-modal').removeClass('w3-show').hide();
-                    }
-
-                    classItem.element.css('opacity', '0.4').attr('data-da-diem-danh', 'true');
-                    let duration = Math.round(performance.now() - startTime);
-                    this.log(`✅ [PRECISION SNIPER V19 XONG] Đã điểm danh lớp [${classItem.classHourCode || masterKey}] sau ${duration}ms!`);
-                    return true;
-                } catch (err) {
-                    this.log(`❌ Lỗi Precision Sniper V19 lớp ${masterKey}: ${err.message}`);
-                    return false;
-                }
-            }
-
-            /**
-             * Quy trình điểm danh chính sử dụng Precision Sniper V19 (Bọc lọc Sub-ID GV chính xác & Refresh update_time)
-             */
-            async submitAttendanceFlow(classItem) {
-                return await this.submitAttendancePrecisionSniper(classItem);
-            }
-
-            /**
-             * Quy trình tự động hóa điểm danh toàn diện
-             */
-            async run() {
-                this.log("🚀 Kích hoạt quy trình Auto Điểm Danh (Hybrid Turbo UI + Transition State)...");
-                let isReady = await this.ensureClassHubSPA();
-                if (!isReady) return;
-
-                await this.switchToPastTab();
-
-                let totalProcessed = 0;
-                while (true) {
-                    let pendingClasses = this.getPendingClasses();
-                    if (pendingClasses.length === 0) {
-                        let $moreBtn = $('.ohke-btn, a, button, span').filter((i, el) => $(el).text().trim() === 'Xem Thêm' && $(el).is(':visible')).first();
-                        if ($moreBtn.length) {
-                            this.log("⏳ Tải thêm danh sách lớp qua 'Xem Thêm' và chờ agent-loaded...");
-                            let $activeContainer = $('.tab-content > .tab-item:not(.w3-hide)').first();
-                            let loadPromise = this.waitForAgentLoaded($activeContainer);
-                            $moreBtn.click();
-                            await loadPromise;
-                            continue;
-                        }
-                        break;
-                    }
-
-                    this.log(`🔍 Phát hiện ${pendingClasses.length} lớp cần điểm danh trên trang hiện tại.`);
-                    for (let cls of pendingClasses) {
-                        if (cls.element.attr('data-da-diem-danh') === 'true') continue;
-
-                        this.log(`⚡ Đang thực thi điểm danh cho lớp [${cls.classHourCode || cls.id}]...`);
-                        let success = await this.submitAttendanceHybridUI(cls);
-                        if (success) {
-                            totalProcessed++;
-                        }
-                    }
-                }
-
-                this.log(`🎉 HOÀN TẤT ĐIỂM DANH! Tổng số lớp đã xử lý: ${totalProcessed} lớp.`);
-                alert(`🎉 HOÀN TẤT ĐIỂM DANH! Tổng số lớp đã điểm danh qua API: ${totalProcessed} lớp.`);
-            }
-        }
-
-        // Gắn logic vào nút #btn-auto-attendance của giao diện extension
-        document.getElementById('btn-auto-attendance').onclick = async () => {
-            const bot = new AttendanceAutomationPro(log);
-            await bot.run();
+            alert(`🎉 HOÀN TẤT ĐIỂM DANH! Tổng số lớp đã xử lý: ${tongSoLopDaXuLy} lớp.`);
         };
 
         const clickLoadMore = async () => {
