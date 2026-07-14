@@ -655,12 +655,48 @@
             }
 
             /**
-             * Parse chuỗi JSON từ dataset.entity để xác định danh sách lớp chưa điểm danh & mã tiết (H0 hay thường)
+             * Kiểm tra Khóa thời gian (Time-Lock):
+             * Chỉ cho phép điểm danh nếu Thời gian hiện tại >= Thời gian bắt đầu tiết + bufferMinutes (mặc định 5 phút)
+             */
+            validateSafeTime(entityData, bufferMinutes = 5) {
+                if (!entityData || !entityData.class_schedule_date) return true; // Fallback an toàn nếu thiếu dữ liệu ngày
+                try {
+                    const dateStr = entityData.class_schedule_date; // Ví dụ: "2026-05-04"
+                    const timeStr = entityData.class_hour_start_time || entityData.start_time || "00:00:00"; // "08:30:00"
+
+                    // Parse ngày thủ công (tránh lỗi lệch ngày UTC của new Date(dateStr))
+                    const dateParts = dateStr.split('-');
+                    const year = parseInt(dateParts[0], 10);
+                    const month = parseInt(dateParts[1], 10) - 1; // JS Date tháng từ 0 - 11
+                    const day = parseInt(dateParts[2], 10);
+
+                    // Parse giờ/phút/giây
+                    const timeParts = timeStr.split(':');
+                    const hours = parseInt(timeParts[0], 10) || 0;
+                    const minutes = parseInt(timeParts[1], 10) || 0;
+                    const seconds = parseInt(timeParts[2], 10) || 0;
+
+                    const classStartTimestamp = new Date(year, month, day, hours, minutes, seconds).getTime();
+                    const nowTimestamp = Date.now();
+
+                    // Ngưỡng mở khóa: Thời gian bắt đầu + bufferMinutes (ms)
+                    const safeThreshold = classStartTimestamp + (bufferMinutes * 60 * 1000);
+                    return nowTimestamp >= safeThreshold;
+                } catch (e) {
+                    this.log("⚠️ Lỗi parse ngày giờ Time-Lock: " + e.message);
+                    return true; // Fallback cho thực thi nếu sai định dạng thời gian
+                }
+            }
+
+            /**
+             * Bộ lọc Thông Minh Miễn nhiễm Ngôn ngữ (JSON Agnostic Filter + Khóa Thời gian V22)
+             * Quét cả 2 tab Hôm Nay & Quá Khứ, lọc lớp 100% qua JSON invariant constants
              */
             getPendingClasses() {
                 let pendingList = [];
-                let $activeTab = $('.tab-content > .tab-item:not(.w3-hide)');
-                let $items = $activeTab.length ? $activeTab.find('.list-item') : $('.list-item');
+                // Quét tất cả thẻ lớp đang hiển thị trên DOM (Hôm Nay & Quá Khứ)
+                let $items = $('.list-item[data-entity]:visible, .item-4qfjeb3y6f[data-entity]:visible, [data-entity*="class_schedule_slot_id"]:visible');
+                if (!$items.length) $items = $('.list-item');
 
                 $items.each((i, el) => {
                     let $el = $(el);
@@ -670,15 +706,23 @@
                     if (!rawEntity) return;
 
                     try {
-                        let entity = JSON.parse(rawEntity);
-                        let statusText = $el.text();
-                        let isUnsubmitted = statusText.includes('CHƯA NỘP BẢNG ĐIỂM DANH') || 
-                                            statusText.includes('CHƯA ĐIỂM DANH GIÁO VIÊN') || 
-                                            entity.status === 'PENDING' || 
-                                            entity.is_completed === false ||
-                                            entity.teacher_status !== 'CO_MAT';
+                        let entity = (typeof rawEntity === 'string') ? JSON.parse(rawEntity) : rawEntity;
 
-                        if (isUnsubmitted) {
+                        // Điều kiện 0: Phải là đối tượng tiết học có ID và mã tiết
+                        if (!entity.id || !entity.class_schedule_slot_id) return;
+
+                        // Điều kiện 1: Trạng thái PENDING nội bộ (Agnostic 100% với ngôn ngữ vi/en)
+                        let isTeacherPending = (entity.instructor_attendance_status === 'INSTRUCTOR_ATTENDANCE_SHEET_STATUS_PENDING');
+                        let isStudentPending = (entity.attendance_sheet_status === 'CLASS_SCHEDULE_SLOT_STATUS_PENDING');
+
+                        if (isTeacherPending || isStudentPending) {
+                            // Điều kiện 2: Khóa Thời gian an toàn (Time-Lock >= tiết bắt đầu + 5 phút)
+                            if (!this.validateSafeTime(entity, 5)) {
+                                let classCode = entity.class_hour_code || entity.__class_hour_code || entity.id;
+                                this.log(`⏳ [Time-Lock V22] Bỏ qua lớp [${classCode}] do chưa qua thời điểm an toàn (+5 phút từ lúc bắt đầu).`);
+                                return;
+                            }
+
                             let classHourCode = entity.class_hour_code || '';
                             let isLessonZero = (classHourCode === 'H0' || String(classHourCode).startsWith('H0.'));
                             pendingList.push({
@@ -1789,21 +1833,27 @@
             }
 
             /**
-             * Quy trình điểm danh chính sử dụng Precision Sniper V19 (Bọc lọc Sub-ID GV chính xác & Refresh update_time)
+             * Phương pháp Ultimate Agnostic Sniper V22 (Bắn tỉa thần tốc V19 + Miễn nhiễm Ngôn ngữ & Time-Lock):
+             * Hợp nhất động cơ 4 API chuẩn (x24F76, x35FD3, x35FD2) + 1 Refresh của V19 với bộ lọc Agnostic & Khóa thời gian V22
              */
-            async submitAttendanceFlow(classItem) {
+            async submitAttendanceUltimateAgnosticSniper(classItem) {
                 return await this.submitAttendancePrecisionSniper(classItem);
             }
 
             /**
-             * Quy trình tự động hóa điểm danh toàn diện
+             * Quy trình điểm danh chính sử dụng Ultimate Agnostic Sniper V22
+             */
+            async submitAttendanceFlow(classItem) {
+                return await this.submitAttendanceUltimateAgnosticSniper(classItem);
+            }
+
+            /**
+             * Quy trình tự động hóa điểm danh toàn diện (Hybrid Turbo UI + Transition State V22)
              */
             async run() {
-                this.log("🚀 Kích hoạt quy trình Auto Điểm Danh (Hybrid Turbo UI + Transition State)...");
+                this.log("🚀 Kích hoạt quy trình Auto Điểm Danh (Test Suite V22 - Ultimate Agnostic Sniper)...");
                 let isReady = await this.ensureClassHubSPA();
                 if (!isReady) return;
-
-                await this.switchToPastTab();
 
                 let totalProcessed = 0;
                 while (true) {
@@ -1821,20 +1871,20 @@
                         break;
                     }
 
-                    this.log(`🔍 Phát hiện ${pendingClasses.length} lớp cần điểm danh trên trang hiện tại.`);
+                    this.log(`🔍 Phát hiện ${pendingClasses.length} lớp đủ điều kiện (Agnostic & Time-lock) cần điểm danh.`);
                     for (let cls of pendingClasses) {
                         if (cls.element.attr('data-da-diem-danh') === 'true') continue;
 
-                        this.log(`⚡ Đang thực thi điểm danh cho lớp [${cls.classHourCode || cls.id}]...`);
-                        let success = await this.submitAttendanceHybridUI(cls);
+                        this.log(`⚡ Đang thực thi điểm danh siêu tốc V22 cho lớp [${cls.classHourCode || cls.id}]...`);
+                        let success = await this.submitAttendanceFlow(cls);
                         if (success) {
                             totalProcessed++;
                         }
                     }
                 }
 
-                this.log(`🎉 HOÀN TẤT ĐIỂM DANH! Tổng số lớp đã xử lý: ${totalProcessed} lớp.`);
-                alert(`🎉 HOÀN TẤT ĐIỂM DANH! Tổng số lớp đã điểm danh qua API: ${totalProcessed} lớp.`);
+                this.log(`🎉 HOÀN TẤT ĐIỂM DANH V22! Tổng số lớp đã xử lý qua API: ${totalProcessed} lớp.`);
+                alert(`🎉 HOÀN TẤT ĐIỂM DANH V22! Tổng số lớp đã điểm danh siêu tốc qua API: ${totalProcessed} lớp.`);
             }
         }
 
