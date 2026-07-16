@@ -22,7 +22,7 @@ export default function ProtectedRoute({ children, allowedRoles }: ProtectedRout
         router.push("/login");
       } else if (profile) {
         // Logged in and profile loaded
-        if (allowedRoles && allowedRoles.length > 0 && !allowedRoles.includes(profile.role)) {
+        if (allowedRoles && allowedRoles.length > 0 && !allowedRoles.includes(profile.role) && profile.role !== "SUPER_ADMIN") {
           // Does not have required role
           router.push("/unauthorized"); // Or dashboard
         } else {

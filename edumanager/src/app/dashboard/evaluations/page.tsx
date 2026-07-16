@@ -35,7 +35,7 @@ export default function EvaluationsPage() {
         
         // Nếu là giáo viên, chỉ lấy đánh giá của mình
         if (profile.role === "TEACHER") {
-          q = query(collection(db, "evaluations"), where("teacherId", "==", profile.uid));
+          q = query(collection(db, "evaluations"), where("teacherId", "==", profile.id));
         }
         
         // Sắp xếp theo ngày tạo mới nhất (Cần tạo index trên Firebase nếu dùng where kết hợp orderBy)
@@ -46,9 +46,12 @@ export default function EvaluationsPage() {
           evalsData.push({ id: doc.id, ...doc.data() } as Evaluation);
         });
 
-        // Nếu là TEACHER, lọc bằng code phòng trường hợp where bị lỗi index chưa tạo
+        // Filter bằng code phòng trường hợp where bị lỗi index chưa tạo
         if (profile.role === "TEACHER") {
-            evalsData = evalsData.filter(e => (e as any).teacherId === profile.uid);
+            evalsData = evalsData.filter(e => (e as any).teacherId === profile.id);
+        } else if (profile.role === "TTCM" || profile.role === "TPCM") {
+            // TTCM và TPCM chỉ thấy phiếu của giáo viên trong tổ mình, HOẶC phiếu đánh giá của chính bản thân họ (khi bị BGH phạt)
+            evalsData = evalsData.filter(e => (e as any).teacherDepartment === profile.department || (e as any).teacherId === profile.id);
         }
 
         // Sort by createdAt descending
@@ -65,7 +68,7 @@ export default function EvaluationsPage() {
     fetchEvaluations();
   }, [profile]);
 
-  const canCreate = profile?.role === "ADMIN" || profile?.role === "BGH" || profile?.role === "TTCM";
+  const canCreate = true; // Cho phép tất cả các role (bao gồm Giáo viên) được quyền tạo phiếu (sẽ kiểm soát loại phiếu ở màn tạo)
 
   const getStatusBadge = (status: string) => {
     switch (status) {

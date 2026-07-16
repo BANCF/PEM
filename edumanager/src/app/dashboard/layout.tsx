@@ -3,26 +3,41 @@
 import React from "react";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import { useAuth } from "@/contexts/AuthContext";
-import { LogOut, Home, FileText, Settings, Users, Menu, X, Bell, Building2 } from "lucide-react";
-import { auth } from "@/lib/firebase/client";
+import { LogOut, Home, FileText, Settings, Users, Menu, X, Bell, Building2, ShieldAlert } from "lucide-react";
+import { auth, db } from "@/lib/firebase/client";
 import { signOut } from "firebase/auth";
 import toast from "react-hot-toast";
 import { useRouter, usePathname } from "next/navigation";
 import Link from "next/link";
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import Notifications from "@/components/Notifications";
+import { doc, onSnapshot } from "firebase/firestore";
 
 export default function DashboardLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  const { profile } = useAuth();
+  const { profile, actualProfile, clearImpersonatedUid } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [isFrozen, setIsFrozen] = useState(false);
+  const [loadingConfig, setLoadingConfig] = useState(true);
+
+  useEffect(() => {
+    const unsub = onSnapshot(doc(db, "system_settings", "general"), (snapshot) => {
+      if (snapshot.exists()) {
+        setIsFrozen(snapshot.data().systemFrozen || false);
+      }
+      setLoadingConfig(false);
+    });
+    return () => unsub();
+  }, []);
 
   const handleLogout = async () => {
     try {
+      clearImpersonatedUid();
       await signOut(auth);
       toast.success("Đã đăng xuất");
       router.push("/login");
@@ -55,9 +70,24 @@ export default function DashboardLayout({
     );
   };
 
+  if (loadingConfig) return null;
+
+  if (isFrozen && actualProfile?.role !== "SUPER_ADMIN") {
+    return (
+      <div className="min-h-screen bg-slate-900 flex items-center justify-center p-4">
+        <div className="bg-slate-800 p-8 rounded-2xl border border-slate-700 text-center max-w-md">
+           <ShieldAlert className="w-16 h-16 text-red-500 mx-auto mb-4" />
+           <h1 className="text-2xl font-bold text-white mb-2">Hệ Thống Đang Bảo Trì</h1>
+           <p className="text-slate-400">Hệ thống đang được khóa tạm thời bởi Quản trị viên để thực hiện bảo trì hoặc tổng kết cuối kỳ. Vui lòng quay lại sau.</p>
+           <button onClick={handleLogout} className="mt-6 w-full bg-slate-700 hover:bg-slate-600 text-white font-medium py-2 px-4 rounded-lg">Đăng xuất</button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <ProtectedRoute>
-      <div className="min-h-screen bg-slate-50 flex">
+      <div className="h-screen bg-slate-50 flex overflow-hidden">
         
         {/* Mobile Sidebar Overlay */}
         {sidebarOpen && (
@@ -91,7 +121,7 @@ export default function DashboardLayout({
             <NavLink href="/dashboard" icon={Home}>Tổng quan KPI</NavLink>
             <NavLink href="/dashboard/evaluations" icon={FileText}>Phiếu Đánh giá</NavLink>
             
-            {(profile?.role === "ADMIN" || profile?.role === "BGH") && (
+            {(profile?.role === "ADMIN" || profile?.role === "BGH" || profile?.role === "SUPER_ADMIN") && (
               <>
                 <div className="pt-6 mb-2">
                   <p className="px-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">Cấu hình Hệ thống</p>
@@ -100,11 +130,17 @@ export default function DashboardLayout({
               </>
             )}
             
-            {profile?.role === "ADMIN" && (
+            {(profile?.role === "ADMIN" || profile?.role === "SUPER_ADMIN") && (
               <div className="pt-4 mt-4 border-t border-slate-800 space-y-2">
                 <p className="px-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">Admin Tools</p>
                 <NavLink href="/dashboard/departments" icon={Building2}>Tổ Bộ Môn</NavLink>
                 <NavLink href="/dashboard/users" icon={Users}>Quản lý Nhân sự</NavLink>
+                {actualProfile?.role === "SUPER_ADMIN" && (
+                  <>
+                    <NavLink href="/dashboard/settings" icon={ShieldAlert}>Hệ thống Tối cao</NavLink>
+                    <NavLink href="/dashboard/logs" icon={FileText}>Nhật ký Hệ thống</NavLink>
+                  </>
+                )}
               </div>
             )}
           </div>
@@ -124,6 +160,14 @@ export default function DashboardLayout({
                 </div>
               </div>
             </div>
+            {actualProfile && profile && actualProfile.id !== profile.id && (
+              <button
+                onClick={() => clearImpersonatedUid()}
+                className="w-full flex items-center justify-center space-x-2 bg-amber-500/20 text-amber-500 hover:bg-amber-500/30 p-2.5 rounded-xl transition-all font-medium text-sm mb-2"
+              >
+                <span>Thoát giả danh</span>
+              </button>
+            )}
             <button
               onClick={handleLogout}
               className="w-full flex items-center justify-center space-x-2 text-slate-400 hover:bg-red-500/10 hover:text-red-400 p-2.5 rounded-xl transition-all font-medium text-sm"
@@ -152,10 +196,7 @@ export default function DashboardLayout({
             </div>
             
             <div className="flex items-center space-x-4">
-              <button className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center text-slate-600 hover:bg-blue-50 hover:text-blue-600 transition relative">
-                <Bell size={20} />
-                <span className="absolute top-2 right-2 w-2.5 h-2.5 bg-red-500 rounded-full border-2 border-white"></span>
-              </button>
+              <Notifications />
             </div>
           </header>
 

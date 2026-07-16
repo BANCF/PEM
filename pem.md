@@ -4,7 +4,7 @@
 You are an Expert Full-Stack Developer. Your task is to build "EduManager" - a private school teacher management and evaluation system. 
 The system focuses on discipline (Penalties), rewards (Kudos), and automated KPI calculation.
 
-**Core Tech Stack (Suggested):** Next.js (React), Node.js/NestJS, PostgreSQL (Prisma ORM), node-cron (for background jobs), Nodemailer (for SMTP Email).
+**Core Tech Stack (Suggested):** Next.js (React), Firebase (Firestore & Auth), node-cron (for background jobs), Nodemailer (for SMTP Email).
 
 ---
 
@@ -17,62 +17,49 @@ Strictly implement 4 roles. UI and API responses MUST be filtered based on the r
 
 ---
 
-## 3. DATABASE SCHEMA (PostgreSQL / Prisma format)
+## 3. DATABASE SCHEMA (Firebase Firestore NoSQL format)
 
-```prisma
-model User {
-  id            String   @id @default(uuid())
-  email         String   @unique
-  passwordHash  String
-  fullName      String
-  role          Role     // ENUM: ADMIN, BGH, TTCM, TEACHER
-  departmentId  String?  // Nullable for ADMIN/BGH
-  evaluations   Evaluation[] @relation("TeacherEvals")
-}
+**Collection `users`**
+- `uid` (Document ID)
+- `email`: String
+- `fullName`: String
+- `role`: String // ENUM: ADMIN, BGH, TTCM, TEACHER
+- `departmentId`: String? // Nullable for ADMIN/BGH
 
-model Department {
-  id            String   @id @default(uuid())
-  name          String
-  managerId     String   // FK to User (Role: TTCM)
-}
+**Collection `departments`**
+- `id` (Document ID)
+- `name`: String
+- `managerId`: String // User ID (Role: TTCM)
 
-model Rule {
-  id            String   @id @default(uuid())
-  name          String
-  type          RuleType // ENUM: PENALTY, KUDOS
-  score         Int      // Negative for penalty, positive for kudos
-  description   String?
-}
+**Collection `rules`**
+- `id` (Document ID)
+- `name`: String
+- `type`: String // ENUM: PENALTY, KUDOS
+- `score`: Number // Negative for penalty, positive for kudos
+- `description`: String?
 
-model Evaluation {
-  id                String   @id @default(uuid())
-  teacherId         String   // FK to User
-  evaluatorId       String   // FK to User (BGH/TTCM)
-  ruleId            String   // FK to Rule
-  evidenceUrl       String?
-  status            EvalStatus // ENUM: PENDING, APPEALED, RESOLVED, REJECTED, AUTO_REJECTED
-  
-  // CRON JOB & DEADLINE TRACKING
-  createdAt         DateTime @default(now())
-  deadlineAt        DateTime // Must automatically be set to createdAt + 48 hours
-  isReminderSent    Boolean  @default(false)
-  
-  // ADMIN HIDDEN FEATURE (Soft Delete)
-  isDeleted         Boolean  @default(false) 
-}
+**Collection `evaluations`**
+- `id` (Document ID)
+- `teacherId`: String // User ID
+- `evaluatorId`: String // User ID (BGH/TTCM)
+- `ruleId`: String // Rule ID
+- `evidenceUrl`: String?
+- `status`: String // ENUM: PENDING, APPEALED, RESOLVED, REJECTED, AUTO_REJECTED
+- `createdAt`: Timestamp
+- `deadlineAt`: Timestamp // Must automatically be set to createdAt + 48 hours
+- `isReminderSent`: Boolean (default: false)
+- `isDeleted`: Boolean (default: false) // ADMIN HIDDEN FEATURE (Soft Delete)
 
-model Appeal {
-  id            String   @id @default(uuid())
-  evaluationId  String   @unique // FK to Evaluation
-  reason        String
-  evidenceUrl   String?
-  createdAt     DateTime @default(now())
-}
+**Collection `appeals`**
+- `id` (Document ID)
+- `evaluationId`: String // Evaluation ID
+- `reason`: String
+- `evidenceUrl`: String?
+- `createdAt`: Timestamp
 
-model AuditLog {
-  id            String   @id @default(uuid())
-  adminId       String   // FK to User (Admin who performed action)
-  action        String   // e.g., "FORCE_RESOLVE", "SOFT_DELETE"
-  targetEvalId  String?
-  timestamp     DateTime @default(now())
-}
+**Collection `auditLogs`**
+- `id` (Document ID)
+- `adminId`: String // User ID (Admin who performed action)
+- `action`: String // e.g., "FORCE_RESOLVE", "SOFT_DELETE"
+- `targetEvalId`: String?
+- `timestamp`: Timestamp

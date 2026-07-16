@@ -7,8 +7,10 @@ import { doc, getDoc, collection, query, where, getDocs, orderBy } from "firebas
 import { useAuth } from "@/contexts/AuthContext";
 import { ArrowLeft, Trophy, Loader2, TrendingUp, TrendingDown, Clock, CheckCircle, AlertTriangle, XCircle, FileText } from "lucide-react";
 import Link from "next/link";
+import { useParams } from "next/navigation";
 import { format } from "date-fns";
 import { vi } from "date-fns/locale";
+import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer } from "recharts";
 
 interface TeacherProfile {
   uid: string;
@@ -30,17 +32,21 @@ interface Evaluation {
   evidenceUrl?: string;
 }
 
-export default function TeacherKPIHistoryPage({ params }: { params: { id: string } }) {
+export default function TeacherKPIHistoryPage() {
   const { profile } = useAuth();
+  const params = useParams();
+  const teacherId = params.id as string;
   const [teacher, setTeacher] = useState<TeacherProfile | null>(null);
   const [evaluations, setEvaluations] = useState<Evaluation[]>([]);
   const [loading, setLoading] = useState(true);
+  const [chartMode, setChartMode] = useState<"WEEK" | "MONTH">("MONTH");
 
   useEffect(() => {
     const fetchData = async () => {
       try {
+        if (!teacherId) return;
         // 1. Lấy thông tin giáo viên
-        const userDoc = await getDoc(doc(db, "users", params.id));
+        const userDoc = await getDoc(doc(db, "users", teacherId));
         if (userDoc.exists()) {
           setTeacher({ uid: userDoc.id, ...userDoc.data() } as TeacherProfile);
         }
@@ -48,7 +54,7 @@ export default function TeacherKPIHistoryPage({ params }: { params: { id: string
         // 2. Lấy danh sách đánh giá của giáo viên này
         const q = query(
           collection(db, "evaluations"),
-          where("teacherId", "==", params.id)
+          where("teacherId", "==", teacherId)
         );
         const evalSnap = await getDocs(q);
         const evals: Evaluation[] = [];
@@ -66,7 +72,7 @@ export default function TeacherKPIHistoryPage({ params }: { params: { id: string
     };
 
     fetchData();
-  }, [params.id]);
+  }, [teacherId]);
 
   if (loading) {
     return (
@@ -103,6 +109,48 @@ export default function TeacherKPIHistoryPage({ params }: { params: { id: string
 
   const finalScore = baseScore + kudosScore + penaltyScore;
 
+  // Chuẩn bị dữ liệu cho biểu đồ (Chart Data)
+  const groupData: Record<string, { label: string; kudos: number; penalty: number; total: number }> = {};
+  
+  // Helper to get week number
+  const getWeekNumber = (d: Date) => {
+    const date = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+    const dayNum = date.getUTCDay() || 7;
+    date.setUTCDate(date.getUTCDate() + 4 - dayNum);
+    const yearStart = new Date(Date.UTC(date.getUTCFullYear(),0,1));
+    return Math.ceil((((date.getTime() - yearStart.getTime()) / 86400000) + 1)/7);
+  };
+
+  [...evaluations].reverse().forEach(ev => {
+    if (ev.status !== "REJECTED") {
+      const date = new Date(ev.createdAt);
+      let key = "";
+      if (chartMode === "MONTH") {
+        key = `T${date.getMonth() + 1}/${date.getFullYear()}`;
+      } else {
+        key = `Tuần ${getWeekNumber(date)}, ${date.getFullYear()}`;
+      }
+      
+      if (!groupData[key]) {
+        groupData[key] = { label: key, kudos: 0, penalty: 0, total: 0 };
+      }
+      if (ev.type === "KUDOS") groupData[key].kudos += ev.ruleScore;
+      if (ev.type === "PENALTY") groupData[key].penalty += ev.ruleScore;
+    }
+  });
+
+  let currentKPI = 100;
+  const chartData = Object.values(groupData).map(d => {
+    currentKPI += d.kudos + d.penalty;
+    return { ...d, total: currentKPI };
+  });
+
+  if (chartData.length === 0) {
+    const d = new Date();
+    const defaultKey = chartMode === "MONTH" ? `T${d.getMonth() + 1}/${d.getFullYear()}` : `Tuần ${getWeekNumber(d)}, ${d.getFullYear()}`;
+    chartData.push({ label: defaultKey, kudos: 0, penalty: 0, total: 100 });
+  }
+
   const getStatusBadge = (status: string) => {
     switch (status) {
       case "PENDING_APPEAL": return <span className="flex items-center px-2.5 py-1 bg-yellow-50 text-yellow-700 rounded-lg text-xs font-bold border border-yellow-200"><Clock size={12} className="mr-1"/> Chờ khiếu nại</span>;
@@ -115,7 +163,7 @@ export default function TeacherKPIHistoryPage({ params }: { params: { id: string
 
   return (
     <ProtectedRoute>
-      <div className="max-w-6xl mx-auto space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+      <div className="max-w-6xl mx-auto space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500 pb-10">
         
         {/* Header Navigation */}
         <div className="flex items-center justify-between">
@@ -171,6 +219,50 @@ export default function TeacherKPIHistoryPage({ params }: { params: { id: string
               <h3 className="text-slate-500 font-medium mb-1">Điểm Phạt</h3>
               <p className="text-5xl font-bold text-red-600">{penaltyScore}</p>
             </div>
+          </div>
+        </div>
+
+        {/* Biểu đồ phân tích (Analytics) */}
+        <div className="bg-white p-8 rounded-3xl shadow-sm border border-slate-200">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-6 space-y-4 sm:space-y-0">
+            <div className="flex items-center">
+              <TrendingUp className="mr-3 text-indigo-600" size={24} />
+              <h2 className="text-2xl font-bold text-slate-800">Phân tích hiệu suất (KPI Trend)</h2>
+            </div>
+            <div className="flex bg-slate-100 p-1 rounded-xl w-fit">
+              <button
+                onClick={() => setChartMode("WEEK")}
+                className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${chartMode === "WEEK" ? "bg-white text-indigo-600 shadow-sm" : "text-slate-500 hover:text-slate-700"}`}
+              >
+                Theo Tuần
+              </button>
+              <button
+                onClick={() => setChartMode("MONTH")}
+                className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${chartMode === "MONTH" ? "bg-white text-indigo-600 shadow-sm" : "text-slate-500 hover:text-slate-700"}`}
+              >
+                Theo Tháng
+              </button>
+            </div>
+          </div>
+          <div className="h-[300px] w-full">
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart data={chartData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
+                <defs>
+                  <linearGradient id="colorTotal" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3}/>
+                    <stop offset="95%" stopColor="#3b82f6" stopOpacity={0}/>
+                  </linearGradient>
+                </defs>
+                <XAxis dataKey="label" stroke="#94a3b8" />
+                <YAxis domain={['auto', 'auto']} stroke="#94a3b8" />
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
+                <RechartsTooltip 
+                  contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
+                  labelStyle={{ fontWeight: 'bold', color: '#1e293b', marginBottom: '4px' }}
+                />
+                <Area type="monotone" dataKey="total" name="Điểm KPI" stroke="#3b82f6" strokeWidth={3} fillOpacity={1} fill="url(#colorTotal)" />
+              </AreaChart>
+            </ResponsiveContainer>
           </div>
         </div>
 

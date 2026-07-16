@@ -5,7 +5,7 @@ import { onAuthStateChanged, User as FirebaseUser } from "firebase/auth";
 import { doc, getDoc } from "firebase/firestore";
 import { auth, db } from "@/lib/firebase/client";
 
-export type Role = "ADMIN" | "BGH" | "TTCM" | "TEACHER";
+export type Role = "ADMIN" | "BGH" | "TTCM" | "TPCM" | "TEACHER" | "SUPER_ADMIN";
 
 export interface UserProfile {
   id: string;
@@ -18,13 +18,19 @@ export interface UserProfile {
 interface AuthContextType {
   user: FirebaseUser | null;
   profile: UserProfile | null;
+  actualProfile: UserProfile | null; // For Super Admin impersonation tracking
   loading: boolean;
+  setImpersonatedUid: (uid: string) => void;
+  clearImpersonatedUid: () => void;
 }
 
 const AuthContext = createContext<AuthContextType>({
   user: null,
   profile: null,
+  actualProfile: null,
   loading: true,
+  setImpersonatedUid: () => {},
+  clearImpersonatedUid: () => {},
 });
 
 export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
@@ -32,26 +38,54 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
 
+  const [actualProfile, setActualProfile] = useState<UserProfile | null>(null);
+  const [impersonatedUid, setImpersonatedUidState] = useState<string | null>(null);
+
+  useEffect(() => {
+    // If we have an impersonatedUid, fetch that user's profile and use it as 'profile'
+    const fetchImpersonated = async () => {
+      if (impersonatedUid && actualProfile?.role === "SUPER_ADMIN") {
+        try {
+          const impDoc = await getDoc(doc(db, "users", impersonatedUid));
+          if (impDoc.exists()) {
+            setProfile({ id: impDoc.id, ...impDoc.data() } as UserProfile);
+          }
+        } catch (error) {
+          console.error("Error impersonating:", error);
+        }
+      } else {
+        setProfile(actualProfile);
+      }
+    };
+    fetchImpersonated();
+  }, [impersonatedUid, actualProfile]);
+
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
       setUser(currentUser);
       
       if (currentUser) {
         try {
-          // Fetch user role and profile from Firestore
           const userDoc = await getDoc(doc(db, "users", currentUser.uid));
           if (userDoc.exists()) {
-            setProfile({ id: currentUser.uid, ...userDoc.data() } as UserProfile);
+            const p = { id: currentUser.uid, ...userDoc.data() } as UserProfile;
+            setActualProfile(p);
+            if (!impersonatedUid) {
+              setProfile(p);
+            }
           } else {
-            console.error("User document not found in Firestore!");
+            setActualProfile(null);
             setProfile(null);
           }
         } catch (error) {
           console.error("Error fetching user profile:", error);
+          setActualProfile(null);
           setProfile(null);
         }
       } else {
+        setActualProfile(null);
         setProfile(null);
+        setImpersonatedUidState(null);
       }
       
       setLoading(false);
@@ -60,8 +94,18 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     return () => unsubscribe();
   }, []);
 
+  const setImpersonatedUid = (uid: string) => {
+    if (actualProfile?.role === "SUPER_ADMIN") {
+      setImpersonatedUidState(uid);
+    }
+  };
+
+  const clearImpersonatedUid = () => {
+    setImpersonatedUidState(null);
+  };
+
   return (
-    <AuthContext.Provider value={{ user, profile, loading }}>
+    <AuthContext.Provider value={{ user, profile, actualProfile, loading, setImpersonatedUid, clearImpersonatedUid }}>
       {children}
     </AuthContext.Provider>
   );

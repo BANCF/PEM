@@ -8,6 +8,7 @@ import { db } from "@/lib/firebase/client";
 import { useRouter } from "next/navigation";
 import toast from "react-hot-toast";
 import { Lock, Mail, Loader2 } from "lucide-react";
+import { logAuditAction } from "@/lib/firebase/audit";
 
 const ALLOWED_DOMAIN = "@pas.edu.vn"; // Thay đổi domain trường của bạn ở đây nếu cần
 
@@ -77,6 +78,8 @@ export default function LoginPage() {
         toast.success("Đăng nhập thành công!");
       }
 
+      await logAuditAction(user.uid, user.email || "", "LOGIN", "Đăng nhập hệ thống (Google)");
+
       router.push("/dashboard");
     } catch (error: any) {
       console.error("Google login error:", error);
@@ -88,38 +91,8 @@ export default function LoginPage() {
     }
   };
 
-  const handleSetupAdmin = async () => {
-    try {
-      setLoading(true);
-      const { createUserWithEmailAndPassword } = await import("firebase/auth");
-      
-      const userCredential = await createUserWithEmailAndPassword(auth, "admin@school.com", "AdminPassword123!");
-      
-      await setDoc(doc(db, "users", userCredential.user.uid), {
-        email: "admin@school.com",
-        fullName: "Hệ thống Admin",
-        role: "ADMIN",
-        createdAt: new Date().toISOString(),
-      });
-      
-      toast.success("Khởi tạo Admin thành công! Mật khẩu: AdminPassword123!");
-    } catch (error: any) {
-      console.error("Setup error:", error);
-      if (error.code === 'auth/email-already-in-use') {
-        toast.success("Tài khoản Admin đã tồn tại! Vui lòng đăng nhập.");
-      } else {
-        toast.error("Lỗi: " + error.message);
-      }
-    } finally {
-      setLoading(false);
-    }
-  };
-
   return (
     <div className="min-h-screen bg-neutral-50 flex items-center justify-center p-4 relative">
-      <button onClick={handleSetupAdmin} className="absolute bottom-4 right-4 text-xs text-gray-400 hover:text-blue-600 underline">
-        Fix: Khởi tạo Admin
-      </button>
 
       <div className="max-w-4xl w-full bg-white rounded-2xl shadow-xl overflow-hidden flex flex-col md:flex-row">
         
@@ -180,7 +153,7 @@ export default function LoginPage() {
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-colors"
-                    placeholder="admin@school.com"
+                    placeholder="Email của bạn"
                   />
                 </div>
               </div>
