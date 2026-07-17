@@ -388,7 +388,7 @@ export default function EvaluationDetailPage() {
                   <textarea
                     value={reason}
                     onChange={(e) => setReason(e.target.value)}
-                    className="w-full p-3 border border-orange-200 rounded-lg focus:ring-2 focus:ring-orange-500 outline-none"
+                    className="w-full p-3 border border-orange-200 rounded-lg focus:ring-2 focus:ring-orange-500 outline-none text-gray-900 bg-white placeholder:text-gray-400"
                     placeholder="Nhập lý do khiếu nại chi tiết..."
                     required
                     rows={3}
