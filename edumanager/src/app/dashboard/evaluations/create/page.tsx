@@ -14,6 +14,7 @@ import Link from "next/link";
 interface Rule {
   id: string;
   name: string;
+  category: string;
   type: "PENALTY" | "KUDOS";
   score: number;
 }
@@ -77,11 +78,11 @@ export default function CreateEvaluationPage() {
 
         if (profile.role === "TEACHER") {
           rulesList = [
-            { id: "PEER_KUDOS_1", name: "Đánh giá Đồng cấp (+1đ)", type: "KUDOS", score: 1 },
-            { id: "PEER_KUDOS_2", name: "Đánh giá Đồng cấp (+2đ)", type: "KUDOS", score: 2 },
-            { id: "PEER_KUDOS_3", name: "Đánh giá Đồng cấp (+3đ)", type: "KUDOS", score: 3 },
-            { id: "PEER_KUDOS_4", name: "Đánh giá Đồng cấp (+4đ)", type: "KUDOS", score: 4 },
-            { id: "PEER_KUDOS_5", name: "Đánh giá Đồng cấp (+5đ)", type: "KUDOS", score: 5 },
+            { id: "PEER_KUDOS_1", name: "Đánh giá Đồng cấp (+1đ)", category: "Phần I", type: "KUDOS", score: 1 },
+            { id: "PEER_KUDOS_2", name: "Đánh giá Đồng cấp (+2đ)", category: "Phần I", type: "KUDOS", score: 2 },
+            { id: "PEER_KUDOS_3", name: "Đánh giá Đồng cấp (+3đ)", category: "Phần I", type: "KUDOS", score: 3 },
+            { id: "PEER_KUDOS_4", name: "Đánh giá Đồng cấp (+4đ)", category: "Phần I", type: "KUDOS", score: 4 },
+            { id: "PEER_KUDOS_5", name: "Đánh giá Đồng cấp (+5đ)", category: "Phần I", type: "KUDOS", score: 5 },
           ];
         }
 
@@ -270,12 +271,29 @@ export default function CreateEvaluationPage() {
                     required
                   >
                     <option value="" disabled>-- Chọn Quy định --</option>
-                    {rules.map(r => (
-                      <option key={r.id} value={r.id}>
-                        {r.type === "KUDOS" ? "📈 Thưởng: " : "📉 Phạt: "} 
-                        {r.name} (Điểm: {r.score > 0 ? `+${r.score}` : r.score})
-                      </option>
-                    ))}
+                    {(() => {
+                      const CATEGORIES = ["Phần I", "Phần II", "Phần III", "Phần IV", "Phần V", "Chưa phân loại"];
+                      const groupedRules = rules.reduce((acc, rule) => {
+                        const cat = rule.category || "Chưa phân loại";
+                        if (!acc[cat]) acc[cat] = [];
+                        acc[cat].push(rule);
+                        return acc;
+                      }, {} as Record<string, Rule[]>);
+
+                      return CATEGORIES.map((cat) => {
+                        if (!groupedRules[cat] || groupedRules[cat].length === 0) return null;
+                        return (
+                          <optgroup key={cat} label={cat}>
+                            {groupedRules[cat].map(r => (
+                              <option key={r.id} value={r.id}>
+                                {r.type === "KUDOS" ? "📈 Thưởng: " : "📉 Phạt: "} 
+                                {r.name} (Điểm: {r.score > 0 ? `+${r.score}` : r.score})
+                              </option>
+                            ))}
+                          </optgroup>
+                        );
+                      });
+                    })()}
                   </select>
                 </div>
 

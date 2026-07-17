@@ -10,6 +10,7 @@ import { Plus, Trash2, Edit2, Loader2 } from "lucide-react";
 interface Rule {
   id: string;
   name: string;
+  category: string;
   type: "PENALTY" | "KUDOS";
   score: number;
   description: string;
@@ -23,6 +24,7 @@ export default function RulesManagementPage() {
   // Form state
   const [formData, setFormData] = useState({
     name: "",
+    category: "Phần I",
     type: "KUDOS" as "PENALTY" | "KUDOS",
     score: 0,
     description: "",
@@ -65,13 +67,14 @@ export default function RulesManagementPage() {
 
       await addDoc(collection(db, "rules"), {
         name: formData.name,
+        category: formData.category,
         type: formData.type,
         score: finalScore,
         description: formData.description,
       });
 
       toast.success("Thêm quy định thành công!");
-      setFormData({ name: "", type: "KUDOS", score: 0, description: "" });
+      setFormData({ name: "", category: "Phần I", type: "KUDOS", score: 0, description: "" });
       fetchRules();
     } catch (error) {
       console.error("Error adding rule:", error);
@@ -123,7 +126,21 @@ export default function RulesManagementPage() {
                 />
               </div>
               
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div>
+                  <label className="block text-sm font-semibold text-slate-700 mb-1.5">Nhóm (Phần)</label>
+                  <select
+                    value={formData.category}
+                    onChange={(e) => setFormData({...formData, category: e.target.value})}
+                    className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all text-sm"
+                  >
+                    <option value="Phần I">Phần I</option>
+                    <option value="Phần II">Phần II</option>
+                    <option value="Phần III">Phần III</option>
+                    <option value="Phần IV">Phần IV</option>
+                    <option value="Phần V">Phần V</option>
+                  </select>
+                </div>
                 <div>
                   <label className="block text-sm font-semibold text-slate-700 mb-1.5">Loại</label>
                   <select
@@ -191,29 +208,51 @@ export default function RulesManagementPage() {
                       </tr>
                     </thead>
                     <tbody>
-                      {rules.map((rule) => (
-                        <tr key={rule.id} className="border-b border-slate-50 hover:bg-slate-50/50 transition-colors">
-                          <td className="p-4">
-                            <p className="font-bold text-slate-800">{rule.name}</p>
-                            <p className="text-xs text-slate-500 truncate max-w-xs">{rule.description}</p>
-                          </td>
-                          <td className="p-4 text-center">
-                            <span className={`inline-block px-2.5 py-1 text-xs rounded-lg font-bold border ${
-                              rule.type === "KUDOS" ? "bg-green-50 text-green-700 border-green-200" : "bg-red-50 text-red-700 border-red-200"
-                            }`}>
-                              {rule.type}
-                            </span>
-                          </td>
-                          <td className={`p-4 text-center font-black text-lg ${rule.score > 0 ? "text-green-500" : "text-red-500"}`}>
-                            {rule.score > 0 ? `+${rule.score}` : rule.score}
-                          </td>
-                          <td className="p-4 text-right">
-                            <button onClick={() => handleDelete(rule.id)} className="text-slate-400 hover:text-red-600 hover:bg-red-50 p-2 rounded-lg transition-colors">
-                              <Trash2 size={18} />
-                            </button>
-                          </td>
-                        </tr>
-                      ))}
+                      {(() => {
+                        const CATEGORIES = ["Phần I", "Phần II", "Phần III", "Phần IV", "Phần V", "Chưa phân loại"];
+                        const groupedRules = rules.reduce((acc, rule) => {
+                          const cat = rule.category || "Chưa phân loại";
+                          if (!acc[cat]) acc[cat] = [];
+                          acc[cat].push(rule);
+                          return acc;
+                        }, {} as Record<string, Rule[]>);
+
+                        return CATEGORIES.map((cat) => {
+                          if (!groupedRules[cat] || groupedRules[cat].length === 0) return null;
+                          return (
+                            <React.Fragment key={cat}>
+                              <tr className="bg-slate-100 border-b border-slate-200">
+                                <td colSpan={4} className="p-3 font-bold text-slate-700 uppercase tracking-wider text-sm">
+                                  {cat}
+                                </td>
+                              </tr>
+                              {groupedRules[cat].map((rule) => (
+                                <tr key={rule.id} className="border-b border-slate-50 hover:bg-slate-50/50 transition-colors">
+                                  <td className="p-4">
+                                    <p className="font-bold text-slate-800">{rule.name}</p>
+                                    <p className="text-xs text-slate-500 truncate max-w-xs">{rule.description}</p>
+                                  </td>
+                                  <td className="p-4 text-center">
+                                    <span className={`inline-block px-2.5 py-1 text-xs rounded-lg font-bold border ${
+                                      rule.type === "KUDOS" ? "bg-green-50 text-green-700 border-green-200" : "bg-red-50 text-red-700 border-red-200"
+                                    }`}>
+                                      {rule.type}
+                                    </span>
+                                  </td>
+                                  <td className={`p-4 text-center font-black text-lg ${rule.score > 0 ? "text-green-500" : "text-red-500"}`}>
+                                    {rule.score > 0 ? `+${rule.score}` : rule.score}
+                                  </td>
+                                  <td className="p-4 text-right">
+                                    <button onClick={() => handleDelete(rule.id)} className="text-slate-400 hover:text-red-600 hover:bg-red-50 p-2 rounded-lg transition-colors">
+                                      <Trash2 size={18} />
+                                    </button>
+                                  </td>
+                                </tr>
+                              ))}
+                            </React.Fragment>
+                          );
+                        });
+                      })()}
                     </tbody>
                   </table>
                 </div>

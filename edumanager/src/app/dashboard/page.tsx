@@ -49,10 +49,10 @@ export default function DashboardPage() {
             fullName: data.fullName,
             email: data.email,
             department: data.department || "Chưa phân tổ",
-            baseScore: 100,
+            baseScore: 1000,
             kudosScore: 0,
             penaltyScore: 0,
-            finalScore: 100,
+            finalScore: 1000,
             evalCount: 0
           };
         });
@@ -133,7 +133,7 @@ export default function DashboardPage() {
   };
 
   const totalTeachers = teachersData.length;
-  const avgScore = totalTeachers > 0 ? Math.round(teachersData.reduce((acc, curr) => acc + curr.finalScore, 0) / totalTeachers) : 100;
+  const avgScore = totalTeachers > 0 ? Math.round(teachersData.reduce((acc, curr) => acc + curr.finalScore, 0) / totalTeachers) : 1000;
 
   // Calculate Department KPIs for Pie Chart
   const departmentKPIs = teachersData.reduce((acc, curr) => {
@@ -170,7 +170,7 @@ export default function DashboardPage() {
   }
 
   const isTeacher = profile?.role === "TEACHER";
-  const myData = isTeacher ? (teachersData.find(t => t.uid === profile.id) || { finalScore: 100, kudosScore: 0, penaltyScore: 0, evalCount: 0 }) : null;
+  const myData = isTeacher ? (teachersData.find(t => t.uid === profile.id) || { finalScore: 1000, kudosScore: 0, penaltyScore: 0, evalCount: 0 }) : null;
 
   return (
     <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500 pb-10">
@@ -428,7 +428,7 @@ export default function DashboardPage() {
                       <div className="flex items-center flex-wrap gap-2">
                         <p className="font-bold text-slate-800 group-hover:text-blue-600 transition-colors text-base">{t.fullName}</p>
                         {t.uid === profile?.id && <span className="text-[10px] font-bold text-blue-500 bg-blue-50 px-2 py-0.5 rounded-full border border-blue-200 uppercase">Bạn</span>}
-                        {t.finalScore >= 105 && <span className="text-[10px] font-bold text-yellow-600 bg-yellow-100 px-2 py-0.5 rounded-full border border-yellow-200 uppercase flex items-center" title="Ngôi sao Kỷ luật"><Award size={10} className="mr-1"/> Kỷ luật</span>}
+                        {t.finalScore >= 1005 && <span className="text-[10px] font-bold text-yellow-600 bg-yellow-100 px-2 py-0.5 rounded-full border border-yellow-200 uppercase flex items-center" title="Ngôi sao Kỷ luật"><Award size={10} className="mr-1"/> Kỷ luật</span>}
                         {t.kudosScore >= 10 && <span className="text-[10px] font-bold text-emerald-600 bg-emerald-100 px-2 py-0.5 rounded-full border border-emerald-200 uppercase flex items-center" title="Cống hiến xuất sắc"><TrendingUp size={10} className="mr-1"/> Cống hiến</span>}
                       </div>
                       <p className="text-sm text-slate-500 mt-0.5">{t.email}</p>
@@ -443,8 +443,8 @@ export default function DashboardPage() {
                     <td className="p-5 text-center font-bold text-rose-500">{t.penaltyScore < 0 ? t.penaltyScore : 0}</td>
                     <td className="p-5 text-right">
                       <span className={`inline-block px-4 py-1.5 rounded-2xl font-black text-lg shadow-sm border ${
-                        t.finalScore >= 100 ? "bg-emerald-50 text-emerald-700 border-emerald-200" : 
-                        t.finalScore >= 80 ? "bg-yellow-50 text-yellow-700 border-yellow-200" :
+                        t.finalScore >= 980 ? "bg-emerald-50 text-emerald-700 border-emerald-200" : 
+                        t.finalScore >= 950 ? "bg-yellow-50 text-yellow-700 border-yellow-200" :
                         "bg-rose-50 text-rose-700 border-rose-200"
                       }`}>
                         {t.finalScore}

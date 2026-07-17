@@ -96,7 +96,7 @@ export default function TeacherKPIHistoryPage() {
   }
 
   // Tính điểm
-  let baseScore = 100;
+  let baseScore = 1000;
   let kudosScore = 0;
   let penaltyScore = 0;
 
@@ -139,7 +139,7 @@ export default function TeacherKPIHistoryPage() {
     }
   });
 
-  let currentKPI = 100;
+  let currentKPI = 1000;
   const chartData = Object.values(groupData).map(d => {
     currentKPI += d.kudos + d.penalty;
     return { ...d, total: currentKPI };
@@ -148,7 +148,7 @@ export default function TeacherKPIHistoryPage() {
   if (chartData.length === 0) {
     const d = new Date();
     const defaultKey = chartMode === "MONTH" ? `T${d.getMonth() + 1}/${d.getFullYear()}` : `Tuần ${getWeekNumber(d)}, ${d.getFullYear()}`;
-    chartData.push({ label: defaultKey, kudos: 0, penalty: 0, total: 100 });
+    chartData.push({ label: defaultKey, kudos: 0, penalty: 0, total: 1000 });
   }
 
   const getStatusBadge = (status: string) => {
@@ -201,7 +201,7 @@ export default function TeacherKPIHistoryPage() {
                 <Trophy size={32} />
               </div>
               <h3 className="text-slate-500 font-medium mb-1">Điểm KPI Tổng</h3>
-              <p className={`text-6xl font-black ${finalScore >= 100 ? "text-slate-800" : "text-red-600"}`}>
+              <p className={`text-6xl font-black ${finalScore >= 950 ? "text-slate-800" : "text-red-600"}`}>
                 {finalScore}
               </p>
             </div>
