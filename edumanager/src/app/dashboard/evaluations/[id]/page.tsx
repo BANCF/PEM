@@ -91,6 +91,50 @@ export default function EvaluationDetailPage() {
         status: "APPEALED"
       });
 
+      // 3. Gửi thông báo cho người lập phiếu
+      if (evaluation.createdBy) {
+        await addDoc(collection(db, "notifications"), {
+          userId: evaluation.createdBy,
+          title: "🚨 Khiếu nại mới từ Giáo viên",
+          message: `Giáo viên ${evaluation.teacherName} vừa gửi khiếu nại về phiếu đánh giá: ${evaluation.ruleName}.`,
+          read: false,
+          link: `/dashboard/evaluations/${evalId}`,
+          createdAt: new Date().toISOString()
+        });
+
+        // Tìm email của người lập phiếu để gửi email
+        try {
+          const creatorDoc = await getDoc(doc(db, "users", evaluation.createdBy));
+          if (creatorDoc.exists()) {
+            const creatorEmail = creatorDoc.data().email;
+            if (creatorEmail) {
+              await fetch('/api/emails', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  to: creatorEmail,
+                  subject: `[PEM] Khiếu nại mới từ ${evaluation.teacherName}`,
+                  html: `
+                    <div style="font-family: Arial, sans-serif; padding: 20px; color: #333;">
+                      <h2 style="color: #ea580c;">Thông báo Khiếu nại</h2>
+                      <p>Xin chào <strong>${evaluation.createdByName}</strong>,</p>
+                      <p>Giáo viên <strong>${evaluation.teacherName}</strong> vừa gửi khiếu nại về phiếu đánh giá mà bạn đã lập.</p>
+                      <div style="background: #f8fafc; padding: 15px; border-radius: 8px; margin: 15px 0; border-left: 4px solid #ea580c;">
+                        <p><strong>Quy định:</strong> ${evaluation.ruleName}</p>
+                        <p><strong>Lý do khiếu nại:</strong> ${reason}</p>
+                      </div>
+                      <p>Vui lòng đăng nhập vào hệ thống PEM để xem chi tiết và xử lý (Hủy phạt / Giữ nguyên).</p>
+                    </div>
+                  `
+                })
+              });
+            }
+          }
+        } catch (e) {
+          console.warn("Lỗi gửi email cho người lập phiếu:", e);
+        }
+      }
+
       toast.success("Đã gửi khiếu nại thành công! Chờ BGH/TTCM giải quyết.");
       fetchData();
     } catch (error: any) {

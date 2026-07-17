@@ -68,7 +68,7 @@ export default function EvaluationsPage() {
     fetchEvaluations();
   }, [profile]);
 
-  const canCreate = true; // Cho phép tất cả các role (bao gồm Giáo viên) được quyền tạo phiếu (sẽ kiểm soát loại phiếu ở màn tạo)
+  const canCreate = profile?.role !== "TEACHER"; // Ẩn quyền tạo phiếu của giáo viên
 
   const getStatusBadge = (status: string) => {
     switch (status) {
