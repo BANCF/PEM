@@ -1,0 +1,12 @@
+Tài khoản Admin Hệ Thống Gốc (Root Admin)
+------------------------------------------
+Email: admin@school.com
+Mật khẩu: password123
+
+Lưu ý: 
+1. Hệ thống đã được lập trình để luôn cấp quyền cao nhất và không cho phép xóa/hạ quyền của email này.
+2. Bạn có thể đăng nhập tài khoản này bằng phương thức:
+   - Đăng nhập bằng Google (nếu bạn có tài khoản Google là admin@school.com)
+   - Đăng nhập bằng Email/Mật khẩu với thông tin ở trên.
+
+Nếu bạn muốn đổi mật khẩu khác, hãy vào Firebase Console -> Authentication -> Users để cập nhật lại.

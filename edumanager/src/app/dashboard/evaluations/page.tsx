@@ -31,7 +31,7 @@ export default function EvaluationsPage() {
     const fetchEvaluations = async () => {
       if (!profile) return;
       try {
-        let q = collection(db, "evaluations");
+        let q: any = collection(db, "evaluations");
         
         // Nếu là giáo viên, chỉ lấy đánh giá của mình
         if (profile.role === "TEACHER") {
@@ -43,7 +43,7 @@ export default function EvaluationsPage() {
         const querySnapshot = await getDocs(q);
         let evalsData: Evaluation[] = [];
         querySnapshot.forEach((doc) => {
-          evalsData.push({ id: doc.id, ...doc.data() } as Evaluation);
+          evalsData.push({ id: doc.id, ...(doc.data() as any) } as Evaluation);
         });
 
         // Filter bằng code phòng trường hợp where bị lỗi index chưa tạo

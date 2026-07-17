@@ -1,0 +1,20 @@
+{
+  "/_global-error/page": "app/_global-error/page.js",
+  "/_not-found/page": "app/_not-found/page.js",
+  "/api/cron/route": "app/api/cron/route.js",
+  "/api/emails/route": "app/api/emails/route.js",
+  "/api/users/[id]/route": "app/api/users/[id]/route.js",
+  "/dashboard/departments/page": "app/dashboard/departments/page.js",
+  "/dashboard/evaluations/[id]/page": "app/dashboard/evaluations/[id]/page.js",
+  "/dashboard/evaluations/create/page": "app/dashboard/evaluations/create/page.js",
+  "/dashboard/evaluations/page": "app/dashboard/evaluations/page.js",
+  "/dashboard/logs/page": "app/dashboard/logs/page.js",
+  "/dashboard/page": "app/dashboard/page.js",
+  "/dashboard/rules/page": "app/dashboard/rules/page.js",
+  "/dashboard/settings/page": "app/dashboard/settings/page.js",
+  "/dashboard/teachers/[id]/page": "app/dashboard/teachers/[id]/page.js",
+  "/dashboard/users/page": "app/dashboard/users/page.js",
+  "/favicon.ico/route": "app/favicon.ico/route.js",
+  "/login/page": "app/login/page.js",
+  "/page": "app/page.js"
+}

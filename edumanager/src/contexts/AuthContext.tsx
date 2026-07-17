@@ -13,6 +13,7 @@ export interface UserProfile {
   fullName: string;
   role: Role;
   departmentId?: string;
+  department?: string;
 }
 
 interface AuthContextType {
@@ -61,37 +62,43 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   }, [impersonatedUid, actualProfile]);
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
+    let unsubscribeSnapshot: (() => void) | null = null;
+
+    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
       setUser(currentUser);
       
+      if (unsubscribeSnapshot) {
+        unsubscribeSnapshot();
+        unsubscribeSnapshot = null;
+      }
+      
       if (currentUser) {
-        try {
-          const userDoc = await getDoc(doc(db, "users", currentUser.uid));
+        unsubscribeSnapshot = onSnapshot(doc(db, "users", currentUser.uid), (userDoc) => {
           if (userDoc.exists()) {
             const p = { id: currentUser.uid, ...userDoc.data() } as UserProfile;
             setActualProfile(p);
-            if (!impersonatedUid) {
-              setProfile(p);
-            }
           } else {
             setActualProfile(null);
-            setProfile(null);
           }
-        } catch (error) {
-          console.error("Error fetching user profile:", error);
+          setLoading(false);
+        }, (error) => {
+          console.error("Error watching user profile:", error);
           setActualProfile(null);
-          setProfile(null);
-        }
+          setLoading(false);
+        });
       } else {
         setActualProfile(null);
-        setProfile(null);
         setImpersonatedUidState(null);
+        setLoading(false);
       }
-      
-      setLoading(false);
     });
 
-    return () => unsubscribe();
+    return () => {
+      unsubscribe();
+      if (unsubscribeSnapshot) {
+        unsubscribeSnapshot();
+      }
+    };
   }, []);
 
   const setImpersonatedUid = (uid: string) => {

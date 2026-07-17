@@ -33,7 +33,7 @@ export default function EvaluationDetailPage() {
       const docRef = doc(db, "evaluations", evalId);
       const docSnap = await getDoc(docRef);
       if (docSnap.exists()) {
-        const evalData = { id: docSnap.id, ...docSnap.data() };
+        const evalData = { id: docSnap.id, ...docSnap.data() } as any;
         setEvaluation(evalData);
 
         // Nếu trạng thái là APPEALED hoặc cao hơn, thử tìm khiếu nại

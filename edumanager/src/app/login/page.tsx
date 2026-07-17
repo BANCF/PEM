@@ -3,7 +3,7 @@
 import React, { useState } from "react";
 import { signInWithEmailAndPassword, GoogleAuthProvider, signInWithPopup, signOut } from "firebase/auth";
 import { auth } from "@/lib/firebase/client";
-import { doc, getDoc, setDoc } from "firebase/firestore";
+import { doc, getDoc, setDoc, collection, getDocs } from "firebase/firestore";
 import { db } from "@/lib/firebase/client";
 import { useRouter } from "next/navigation";
 import toast from "react-hot-toast";
@@ -16,6 +16,10 @@ export default function LoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
+  const [isNewUser, setIsNewUser] = useState(false);
+  const [pendingUser, setPendingUser] = useState<any>(null);
+  const [departments, setDepartments] = useState<string[]>([]);
+  const [selectedDepartment, setSelectedDepartment] = useState("");
   const router = useRouter();
 
   const handleLogin = async (e: React.FormEvent) => {
@@ -66,14 +70,20 @@ export default function LoginPage() {
       const userSnap = await getDoc(userRef);
 
       if (!userSnap.exists()) {
-        // Lần đầu đăng nhập -> Tạo profile với Role mặc định là TEACHER
-        await setDoc(userRef, {
-          email: user.email,
-          fullName: user.displayName || "Giáo viên",
-          role: "TEACHER",
-          createdAt: new Date().toISOString(),
-        });
-        toast.success("Tạo tài khoản thành công!");
+        // Lần đầu đăng nhập -> Yêu cầu chọn tổ bộ môn
+        setPendingUser(user);
+        
+        // Lấy danh sách tổ bộ môn
+        const depsSnap = await getDocs(collection(db, "departments"));
+        const depsData: string[] = [];
+        depsSnap.forEach(d => depsData.push(d.data().name));
+        
+        setDepartments(depsData);
+        if (depsData.length > 0) setSelectedDepartment(depsData[0]);
+        
+        setIsNewUser(true);
+        setLoading(false);
+        return; // Dừng lại ở đây, chờ user chọn tổ bộ môn
       } else {
         toast.success("Đăng nhập thành công!");
       }
@@ -86,6 +96,29 @@ export default function LoginPage() {
       if (error.code !== "auth/popup-closed-by-user") {
         toast.error("Lỗi đăng nhập Google.");
       }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleCompleteSignup = async () => {
+    if (!pendingUser || !selectedDepartment) return;
+    setLoading(true);
+    try {
+      const userRef = doc(db, "users", pendingUser.uid);
+      await setDoc(userRef, {
+        email: pendingUser.email,
+        fullName: pendingUser.displayName || "Giáo viên",
+        role: "TEACHER",
+        department: selectedDepartment,
+        createdAt: new Date().toISOString(),
+      });
+      toast.success("Tạo tài khoản thành công!");
+      await logAuditAction(pendingUser.uid, pendingUser.email || "", "LOGIN", "Đăng ký tài khoản (Google)");
+      router.push("/dashboard");
+    } catch (error) {
+      console.error("Signup error:", error);
+      toast.error("Lỗi khi tạo tài khoản.");
     } finally {
       setLoading(false);
     }
@@ -113,10 +146,56 @@ export default function LoginPage() {
         {/* Right Side: Login Form */}
         <div className="w-full md:w-1/2 p-10 bg-white flex flex-col justify-center">
           <div className="max-w-sm mx-auto w-full">
-            <div className="text-center mb-8">
-              <h2 className="text-3xl font-bold text-gray-900">Đăng Nhập</h2>
-              <p className="text-gray-500 mt-2">Vui lòng đăng nhập vào tài khoản của bạn</p>
-            </div>
+            {isNewUser ? (
+              <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
+                <div className="text-center mb-8">
+                  <h2 className="text-3xl font-bold text-gray-900">Chào mừng!</h2>
+                  <p className="text-gray-500 mt-2">Vui lòng chọn Tổ bộ môn của bạn để hoàn tất đăng ký</p>
+                </div>
+                
+                <div className="space-y-6">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Tổ bộ môn</label>
+                    <select
+                      value={selectedDepartment}
+                      onChange={(e) => setSelectedDepartment(e.target.value)}
+                      className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-colors appearance-none"
+                    >
+                      {departments.map(dep => (
+                        <option key={dep} value={dep}>{dep}</option>
+                      ))}
+                    </select>
+                  </div>
+                  
+                  <button
+                    onClick={handleCompleteSignup}
+                    disabled={loading || !selectedDepartment}
+                    className="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-3 px-4 rounded-lg transition-colors flex items-center justify-center shadow-md disabled:bg-blue-400 disabled:cursor-not-allowed"
+                  >
+                    {loading ? (
+                      <Loader2 className="animate-spin mr-2" size={20} />
+                    ) : null}
+                    Hoàn Tất Đăng Ký
+                  </button>
+                  <button
+                    onClick={() => {
+                      signOut(auth);
+                      setIsNewUser(false);
+                      setPendingUser(null);
+                    }}
+                    disabled={loading}
+                    className="w-full bg-white border border-gray-300 hover:bg-gray-50 text-gray-700 font-medium py-2.5 px-4 rounded-lg transition-colors flex items-center justify-center disabled:opacity-50"
+                  >
+                    Quay lại
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <>
+                <div className="text-center mb-8">
+                  <h2 className="text-3xl font-bold text-gray-900">Đăng Nhập</h2>
+                  <p className="text-gray-500 mt-2">Vui lòng đăng nhập vào tài khoản của bạn</p>
+                </div>
 
             <button
               onClick={handleGoogleLogin}
@@ -189,6 +268,8 @@ export default function LoginPage() {
                 )}
               </button>
             </form>
+            </>
+            )}
           </div>
         </div>
       </div>
