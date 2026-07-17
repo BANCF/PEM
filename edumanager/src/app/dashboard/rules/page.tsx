@@ -20,6 +20,7 @@ export default function RulesManagementPage() {
   const [rules, setRules] = useState<Rule[]>([]);
   const [loading, setLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
 
   // Form state
   const [formData, setFormData] = useState({
@@ -65,15 +66,27 @@ export default function RulesManagementPage() {
         finalScore = -finalScore;
       }
 
-      await addDoc(collection(db, "rules"), {
-        name: formData.name,
-        category: formData.category,
-        type: formData.type,
-        score: finalScore,
-        description: formData.description,
-      });
+      if (editingId) {
+        await updateDoc(doc(db, "rules", editingId), {
+          name: formData.name,
+          category: formData.category,
+          type: formData.type,
+          score: finalScore,
+          description: formData.description,
+        });
+        toast.success("Cập nhật quy định thành công!");
+        setEditingId(null);
+      } else {
+        await addDoc(collection(db, "rules"), {
+          name: formData.name,
+          category: formData.category,
+          type: formData.type,
+          score: finalScore,
+          description: formData.description,
+        });
+        toast.success("Thêm quy định thành công!");
+      }
 
-      toast.success("Thêm quy định thành công!");
       setFormData({ name: "", category: "Phần I", type: "KUDOS", score: 0, description: "" });
       fetchRules();
     } catch (error) {
@@ -97,6 +110,18 @@ export default function RulesManagementPage() {
     }
   };
 
+  const handleEdit = (rule: Rule) => {
+    setEditingId(rule.id);
+    setFormData({
+      name: rule.name,
+      category: rule.category || "Phần I",
+      type: rule.type,
+      score: Math.abs(rule.score),
+      description: rule.description || "",
+    });
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+
   return (
     <ProtectedRoute allowedRoles={["ADMIN", "BGH"]}>
       <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
@@ -109,8 +134,8 @@ export default function RulesManagementPage() {
           {/* Form */}
           <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 h-fit">
             <h2 className="text-xl font-bold mb-6 flex items-center text-slate-800">
-              <Plus className="mr-2 text-blue-600" />
-              Thêm Quy định mới
+              {editingId ? <Edit2 className="mr-2 text-blue-600" /> : <Plus className="mr-2 text-blue-600" />}
+              {editingId ? "Cập nhật Quy định" : "Thêm Quy định mới"}
             </h2>
             
             <form onSubmit={handleSubmit} className="space-y-5">
@@ -175,13 +200,27 @@ export default function RulesManagementPage() {
                 ></textarea>
               </div>
 
-              <button
-                type="submit"
-                disabled={isSubmitting}
-                className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2.5 rounded-xl transition flex justify-center items-center shadow-md"
-              >
-                {isSubmitting ? <Loader2 className="animate-spin mr-2" size={20} /> : "Lưu Quy định"}
-              </button>
+              <div className="flex gap-3">
+                <button
+                  type="submit"
+                  disabled={isSubmitting}
+                  className="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-bold py-2.5 rounded-xl transition flex justify-center items-center shadow-md"
+                >
+                  {isSubmitting ? <Loader2 className="animate-spin mr-2" size={20} /> : (editingId ? "Cập nhật" : "Lưu Quy định")}
+                </button>
+                {editingId && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEditingId(null);
+                      setFormData({ name: "", category: "Phần I", type: "KUDOS", score: 0, description: "" });
+                    }}
+                    className="flex-1 bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold py-2.5 rounded-xl transition"
+                  >
+                    Hủy
+                  </button>
+                )}
+              </div>
             </form>
           </div>
 
@@ -243,9 +282,14 @@ export default function RulesManagementPage() {
                                     {rule.score > 0 ? `+${rule.score}` : rule.score}
                                   </td>
                                   <td className="p-4 text-right">
-                                    <button onClick={() => handleDelete(rule.id)} className="text-slate-400 hover:text-red-600 hover:bg-red-50 p-2 rounded-lg transition-colors">
-                                      <Trash2 size={18} />
-                                    </button>
+                                    <div className="flex justify-end space-x-2">
+                                      <button onClick={() => handleEdit(rule)} className="text-slate-400 hover:text-blue-600 hover:bg-blue-50 p-2 rounded-lg transition-colors" title="Sửa quy định">
+                                        <Edit2 size={18} />
+                                      </button>
+                                      <button onClick={() => handleDelete(rule.id)} className="text-slate-400 hover:text-red-600 hover:bg-red-50 p-2 rounded-lg transition-colors" title="Xóa quy định">
+                                        <Trash2 size={18} />
+                                      </button>
+                                    </div>
                                   </td>
                                 </tr>
                               ))}
