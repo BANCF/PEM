@@ -104,8 +104,16 @@ export default function UsersManagementPage() {
         method: "DELETE",
       });
       if (!res.ok) {
-        const data = await res.json();
-        throw new Error(data.error || "Delete failed");
+        let errorMessage = "Delete failed";
+        try {
+          const data = await res.json();
+          errorMessage = data.error || errorMessage;
+        } catch (e) {
+          const text = await res.text();
+          console.error("Non-JSON error response:", text);
+          errorMessage = `Server error (${res.status}). Vui lòng kiểm tra lại cấu hình server.`;
+        }
+        throw new Error(errorMessage);
       }
       
       toast.success("Đã xóa nhân sự và toàn bộ dữ liệu liên quan.");

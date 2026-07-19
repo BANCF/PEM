@@ -31,7 +31,7 @@ export async function GET(request: Request) {
     const batch = adminDb.batch();
     let count = 0;
 
-    snapshot.forEach(doc => {
+    snapshot.forEach((doc: any) => {
       const data = doc.data();
       const createdAt = new Date(data.createdAt);
       
