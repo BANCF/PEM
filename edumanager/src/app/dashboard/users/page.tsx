@@ -106,7 +106,8 @@ export default function UsersManagementPage() {
       if (!res.ok) {
         let errorMessage = "Delete failed";
         try {
-          const data = await res.json();
+          const clone = res.clone();
+          const data = await clone.json();
           errorMessage = data.error || errorMessage;
         } catch (e) {
           const text = await res.text();
