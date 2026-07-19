@@ -162,7 +162,7 @@ export default function ClassDetailsPage({ params }: { params: Promise<{ id: str
             {isAdminOrBGH && (
               <div className="flex gap-3 mb-4 justify-end">
                 <button
-                  onClick={() => toast.info("Tính năng Import Excel đang phát triển!")}
+                  onClick={() => toast("Tính năng Import Excel đang phát triển!")}
                   className="flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg font-medium transition-colors"
                 >
                   <FileSpreadsheet size={18} />
