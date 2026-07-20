@@ -44,6 +44,20 @@ export const gradeService = {
     })) as GradeData[];
   },
 
+  async getAllSemesterGrades(classId: string, subject: string, academicYear: string): Promise<GradeData[]> {
+    const q = query(
+      collection(db, COLLECTION_NAME),
+      where("classId", "==", classId),
+      where("subject", "==", subject),
+      where("academicYear", "==", academicYear)
+    );
+    const snapshot = await getDocs(q);
+    return snapshot.docs.map((doc) => ({
+      id: doc.id,
+      ...doc.data(),
+    })) as GradeData[];
+  },
+
   async saveGradesBatch(grades: GradeData[]): Promise<void> {
     const batch = writeBatch(db);
     const colRef = collection(db, COLLECTION_NAME);

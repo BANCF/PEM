@@ -1,0 +1,102 @@
+Private Sub Worksheet_Change(ByVal Target As Range)
+    Dim tênHS As String
+    Dim wsMau As Worksheet
+    Dim wsHocSinh As Worksheet
+    Dim cell As Range
+    Dim diem As Variant
+    Dim i As Integer
+
+    ' Ki?m tra n?u thay d?i x?y ra trong c?t B (B3 d?n B100) ho?c trong vùng di?m (C3:L100, M3:V100, W3:W100)
+    If Not Intersect(Target, Me.Range("B3:B100, C3:L100, M3:V100, W3:W100")) Is Nothing Then
+        
+        Application.EnableEvents = False  ' T?t s? ki?n d? tránh vòng l?p vô h?n
+
+        ' L?p qua t?ng ô thay d?i
+        For Each cell In Target
+            
+            ' T?o sheet h?c sinh m?i n?u thay d?i n?m trong c?t B
+            If Not Intersect(cell, Me.Range("B3:B100")) Is Nothing Then
+                If cell.Value <> "" Then
+                    tênHS = cell.Value
+                    
+                    ' Ki?m tra xem sheet h?c sinh dã t?n t?i chua
+                    On Error Resume Next
+                    Set wsHocSinh = ThisWorkbook.Sheets(tênHS)
+                    On Error GoTo 0
+                    
+                    ' N?u sheet chua t?n t?i, sao chép t? sheet m?u và d?i tên
+                    If wsHocSinh Is Nothing Then
+                        Set wsMau = ThisWorkbook.Sheets("MauGK") ' Tên sheet m?u
+                        wsMau.Copy After:=ThisWorkbook.Sheets(ThisWorkbook.Sheets.Count)
+                        Set wsHocSinh = ThisWorkbook.Sheets(ThisWorkbook.Sheets.Count)
+                        wsHocSinh.Name = tênHS
+                        wsHocSinh.Cells(4, 2).Value = tênHS ' Ðien tên hoc sinh vào ô B4
+                    End If
+                    
+                    ' Reset wsH?cSinh d? x? lý tên ti?p theo
+                    Set wsHocSinh = Nothing
+                End If
+            End If
+
+            ' Chuy?n di?m t? C3:L100 vào C8:C17 c?a sheet h?c sinh
+            If Not Intersect(cell, Me.Range("C3:L100")) Is Nothing Then
+                tênHS = Me.Cells(cell.Row, 2).Value  ' L?y tên h?c sinh t? c?t B
+                Set wsHocSinh = ThisWorkbook.Sheets(tênHS)
+                
+                If Not wsHocSinh Is Nothing Then
+                    For i = 3 To 12
+                        diem = Me.Cells(cell.Row, i).Value
+                        wsHocSinh.Cells(i + 5, 3).Value = diem  ' Ðiem vào C8:C17
+                    Next i
+                End If
+            End If
+
+            ' Chuy?n di?m t? M3:V100 vào D8:D17 c?a sheet h?c sinh
+            If Not Intersect(cell, Me.Range("M3:V100")) Is Nothing Then
+                tênHS = Me.Cells(cell.Row, 2).Value
+                Set wsHocSinh = ThisWorkbook.Sheets(tênHS)
+                
+                If Not wsHocSinh Is Nothing Then
+                    For i = 13 To 22
+                        diem = Me.Cells(cell.Row, i).Value
+                        wsHocSinh.Cells(i - 5, 4).Value = diem  ' Ðiem vào D8:D17
+                    Next i
+                End If
+            End If
+
+            ' Chuy?n giá tr? t? W3:W100 vào A20 c?a sheet h?c sinh
+            If Not Intersect(cell, Me.Range("W3:W100")) Is Nothing Then
+                tênHS = Me.Cells(cell.Row, 2).Value
+                Set wsHocSinh = ThisWorkbook.Sheets(tênHS)
+    
+                
+                If Not wsHocSinh Is Nothing Then
+                    wsHocSinh.Cells(20, 1).Value = cell.Value  ' Giá tr? vào ô A20
+                End If
+            End If
+
+            ' Chuy?n giá tr? t? X3:X100 vào A21 trong sheet h?c sinh
+            If Not Intersect(cell, Me.Range("X3:X100")) Is Nothing Then
+                tênHS = Me.Cells(cell.Row, 2).Value
+                Set wsHocSinh = ThisWorkbook.Sheets(tênHS)
+                
+                If Not wsHocSinh Is Nothing Then
+                    wsHocSinh.Cells(21, 1).Value = cell.Value  ' Giá tr? vào ô A21
+                End If
+            End If
+
+            ' Chuy?n giá tr? t? Y3:Y100 vào A22 trong sheet h?c sinh
+            If Not Intersect(cell, Me.Range("Y3:Y100")) Is Nothing Then
+                tênHS = Me.Cells(cell.Row, 2).Value
+                Set wsHocSinh = ThisWorkbook.Sheets(tênHS)
+                
+                If Not wsHocSinh Is Nothing Then
+                    wsHocSinh.Cells(22, 1).Value = cell.Value  ' Giá tr? vào ô A22
+                End If
+            End If
+        Next cell
+
+        Application.EnableEvents = True  ' B?t l?i s? ki?n
+    End If
+End Sub
+
