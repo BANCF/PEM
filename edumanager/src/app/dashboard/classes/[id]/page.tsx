@@ -36,7 +36,7 @@ export default function ClassDetailsPage({ params }: { params: Promise<{ id: str
   const [editingStudent, setEditingStudent] = useState<StudentData | null>(null);
 
   const isAdminOrBGH = profile?.role === "ADMIN" || profile?.role === "SUPER_ADMIN" || profile?.role === "BGH";
-  const isGVCN = profile?.role === "TEACHER" && assignments.some(a => a.teacherId === profile?.id && (a.role === "GVCN" || a.role === "PCN"));
+  const isGVCN = assignments.some(a => a.teacherId === profile?.id && (a.role === "GVCN" || a.role === "PCN"));
   const canManageStudents = isAdminOrBGH || isGVCN;
 
   const fetchAllData = async () => {
