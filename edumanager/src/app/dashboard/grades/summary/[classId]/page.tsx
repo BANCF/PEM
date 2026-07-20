@@ -326,21 +326,21 @@ export default function HomeroomGradeSummaryPage({ params }: { params: Promise<{
                         <div className="p-4 grid grid-cols-1 md:grid-cols-3 gap-4">
                           <div className="md:col-span-2 space-y-2">
                             <div className="grid grid-cols-4 gap-2 text-center">
-                              <div className="bg-slate-50 p-2 rounded border border-slate-100">
-                                <p className="text-xs text-slate-500 mb-1">Thường xuyên</p>
-                                <p className="font-bold">{[activeG?.tx1, activeG?.tx2, activeG?.tx3, activeG?.tx4].filter(x => x != null).join(" • ") || "-"}</p>
+                              <div className="bg-slate-50 p-2 rounded border border-slate-200">
+                                <p className="text-xs text-slate-500 mb-1 font-semibold">Thường xuyên</p>
+                                <p className="font-black text-slate-800">{[activeG?.tx1, activeG?.tx2, activeG?.tx3, activeG?.tx4].filter(x => x != null).join(" • ") || "-"}</p>
                               </div>
-                              <div className="bg-amber-50 p-2 rounded border border-amber-100">
-                                <p className="text-xs text-amber-600 mb-1">Giữa kỳ</p>
-                                <p className="font-bold">{activeG?.gk ?? "-"}</p>
+                              <div className="bg-amber-50 p-2 rounded border border-amber-200">
+                                <p className="text-xs text-amber-600 mb-1 font-semibold">Giữa kỳ</p>
+                                <p className="font-black text-amber-700">{activeG?.gk ?? "-"}</p>
                               </div>
-                              <div className="bg-emerald-50 p-2 rounded border border-emerald-100">
-                                <p className="text-xs text-emerald-600 mb-1">Cuối kỳ</p>
-                                <p className="font-bold">{activeG?.ck ?? "-"}</p>
+                              <div className="bg-emerald-50 p-2 rounded border border-emerald-200">
+                                <p className="text-xs text-emerald-600 mb-1 font-semibold">Cuối kỳ</p>
+                                <p className="font-black text-emerald-700">{activeG?.ck ?? "-"}</p>
                               </div>
-                              <div className="bg-blue-50 p-2 rounded border border-blue-100">
-                                <p className="text-xs text-blue-600 mb-1">ĐTB ({viewMode === 1 ? 'HK1' : 'HK2'})</p>
-                                <p className="font-bold text-lg">{activeG?.average ?? "-"}</p>
+                              <div className="bg-blue-50 p-2 rounded border border-blue-200">
+                                <p className="text-xs text-blue-600 mb-1 font-semibold">ĐTB ({viewMode === 1 ? 'HK1' : 'HK2'})</p>
+                                <p className="font-black text-lg text-blue-700">{activeG?.average ?? "-"}</p>
                               </div>
                             </div>
                           </div>
