@@ -38,7 +38,25 @@ export const studentService = {
     })) as StudentData[];
     
     // Sort in memory to avoid requiring a composite index in Firestore
-    return students.sort((a, b) => a.fullName.localeCompare(b.fullName));
+    return students.sort((a, b) => {
+      const getParts = (name: string) => {
+        const p = name.trim().split(' ');
+        const firstName = p.pop() || '';
+        const lastName = p.join(' ');
+        return { firstName, lastName };
+      };
+
+      const partsA = getParts(a.fullName);
+      const partsB = getParts(b.fullName);
+
+      const fnCompare = partsA.firstName.localeCompare(partsB.firstName, 'vi');
+      if (fnCompare !== 0) return fnCompare;
+
+      const lnCompare = partsA.lastName.localeCompare(partsB.lastName, 'vi');
+      if (lnCompare !== 0) return lnCompare;
+
+      return (a.studentCode || '').localeCompare(b.studentCode || '');
+    });
   },
 
   async getStudentById(id: string): Promise<StudentData | null> {
