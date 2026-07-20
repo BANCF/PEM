@@ -12,6 +12,7 @@ import Link from "next/link";
 import { useState, useEffect } from "react";
 import Notifications from "@/components/Notifications";
 import { doc, onSnapshot } from "firebase/firestore";
+import { BookOpen } from "lucide-react";
 
 export default function DashboardLayout({
   children,
@@ -120,6 +121,7 @@ export default function DashboardLayout({
             <p className="px-3 text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Quản lý chung</p>
             <NavLink href="/dashboard" icon={Home}>Tổng quan KPI</NavLink>
             <NavLink href="/dashboard/classes" icon={GraduationCap}>Quản lý Lớp học</NavLink>
+            <NavLink href="/dashboard/grades" icon={BookOpen}>Sổ điểm</NavLink>
             <NavLink href="/dashboard/evaluations" icon={FileText}>Phiếu Đánh giá</NavLink>
             
             {(profile?.role === "ADMIN" || profile?.role === "BGH" || profile?.role === "SUPER_ADMIN") && (
