@@ -197,8 +197,8 @@ export default function GradeInputPage({ params }: { params: Promise<{ classId: 
               tx2: parseVal(row[6]),
               tx3: parseVal(row[7]),
               tx4: parseVal(row[8]),
-              gk: parseVal(row[10]),
-              ck: parseVal(row[11]),
+              gk: parseVal(row[9]),
+              ck: parseVal(row[10]),
             };
             updatedG.average = computeAverage(updatedG);
             
