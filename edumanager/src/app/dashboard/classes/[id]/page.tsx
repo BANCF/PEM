@@ -159,7 +159,7 @@ export default function ClassDetailsPage({ params }: { params: Promise<{ id: str
             await studentService.updateStudent(existingStudent.id!, { fullName, dob });
             updatedCount++;
           } else {
-            await studentService.addStudent({
+            await studentService.createStudent({
               classId,
               studentCode,
               fullName,
