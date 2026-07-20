@@ -23,6 +23,7 @@ export interface GradeData {
   gk?: number | null;
   ck?: number | null;
   average?: number | null;
+  comment?: string;
   updatedAt?: any;
 }
 
@@ -49,6 +50,19 @@ export const gradeService = {
       collection(db, COLLECTION_NAME),
       where("classId", "==", classId),
       where("subject", "==", subject),
+      where("academicYear", "==", academicYear)
+    );
+    const snapshot = await getDocs(q);
+    return snapshot.docs.map((doc) => ({
+      id: doc.id,
+      ...doc.data(),
+    })) as GradeData[];
+  },
+
+  async getAllGradesForClass(classId: string, academicYear: string): Promise<GradeData[]> {
+    const q = query(
+      collection(db, COLLECTION_NAME),
+      where("classId", "==", classId),
       where("academicYear", "==", academicYear)
     );
     const snapshot = await getDocs(q);

@@ -64,8 +64,8 @@ export default function GradeInputPage({ params }: { params: Promise<{ classId: 
     
     stds.forEach(std => {
       gradeMap[std.id!] = {
-        1: { studentId: std.id!, classId: cid, subject: subj, academicYear: ay, semester: 1, tx1: null, tx2: null, tx3: null, tx4: null, gk: null, ck: null, average: null },
-        2: { studentId: std.id!, classId: cid, subject: subj, academicYear: ay, semester: 2, tx1: null, tx2: null, tx3: null, tx4: null, gk: null, ck: null, average: null }
+        1: { studentId: std.id!, classId: cid, subject: subj, academicYear: ay, semester: 1, tx1: null, tx2: null, tx3: null, tx4: null, gk: null, ck: null, average: null, comment: "" },
+        2: { studentId: std.id!, classId: cid, subject: subj, academicYear: ay, semester: 2, tx1: null, tx2: null, tx3: null, tx4: null, gk: null, ck: null, average: null, comment: "" }
       };
     });
 
@@ -108,6 +108,19 @@ export default function GradeInputPage({ params }: { params: Promise<{ classId: 
     setGrades(prev => {
       const updated = { ...prev[studentId][semester], [field]: numVal };
       updated.average = computeAverage(updated);
+      return { 
+        ...prev, 
+        [studentId]: {
+          ...prev[studentId],
+          [semester]: updated
+        } 
+      };
+    });
+  };
+
+  const handleCommentChange = (studentId: string, value: string) => {
+    setGrades(prev => {
+      const updated = { ...prev[studentId][semester], comment: value };
       return { 
         ...prev, 
         [studentId]: {
@@ -374,7 +387,8 @@ export default function GradeInputPage({ params }: { params: Promise<{ classId: 
                   <th className="p-3 text-center border-r border-slate-700 w-20">Cuối kỳ (CK)</th>
                   <th className="p-3 text-center border-r border-slate-700 w-20">HK 1</th>
                   <th className="p-3 text-center border-r border-slate-700 w-20">HK 2</th>
-                  <th className="p-3 text-center w-24 bg-slate-900">Cả năm</th>
+                  <th className="p-3 text-center border-r border-slate-700 w-24 bg-slate-900">Cả năm</th>
+                  <th className="p-3 text-center min-w-[200px] bg-slate-900">Nhận xét của GVBM</th>
                 </tr>
                 <tr className="bg-slate-700 text-slate-300 text-xs font-semibold">
                   <th className="p-2 text-center border-r border-slate-600"></th>
@@ -389,13 +403,14 @@ export default function GradeInputPage({ params }: { params: Promise<{ classId: 
                   <th className="p-2 text-center border-r border-slate-600">Hệ số 3</th>
                   <th className="p-2 text-center border-r border-slate-600">ĐTBmhk1</th>
                   <th className="p-2 text-center border-r border-slate-600">ĐTBmhk2</th>
-                  <th className="p-2 text-center bg-slate-800">ĐTBmcn</th>
+                  <th className="p-2 text-center border-r border-slate-600 bg-slate-800">ĐTBmcn</th>
+                  <th className="p-2 text-center bg-slate-800 font-normal italic">Hiển thị cho GVCN & PHHS</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {students.length === 0 ? (
                   <tr>
-                    <td colSpan={11} className="p-8 text-center text-slate-500">Lớp chưa có học sinh nào.</td>
+                    <td colSpan={12} className="p-8 text-center text-slate-500">Lớp chưa có học sinh nào.</td>
                   </tr>
                 ) : (
                   students.map((student, index) => {
@@ -427,7 +442,7 @@ export default function GradeInputPage({ params }: { params: Promise<{ classId: 
                               min="0" max="10" step="0.1"
                               value={g[field as keyof GradeData] ?? ""}
                               onChange={(e) => handleGradeChange(student.id!, field as keyof GradeData, e.target.value)}
-                              className="w-full text-center p-1.5 border border-slate-200 rounded text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none font-medium"
+                              className="w-full text-center p-1.5 border border-slate-200 rounded text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none font-bold text-slate-900 bg-white"
                             />
                           </td>
                         ))}
@@ -439,7 +454,7 @@ export default function GradeInputPage({ params }: { params: Promise<{ classId: 
                             min="0" max="10" step="0.1"
                             value={g.gk ?? ""}
                             onChange={(e) => handleGradeChange(student.id!, "gk", e.target.value)}
-                            className="w-full text-center p-1.5 border border-amber-200 rounded text-sm focus:border-amber-500 focus:ring-1 focus:ring-amber-500 outline-none bg-amber-50/50 font-medium"
+                            className="w-full text-center p-1.5 border border-amber-200 rounded text-sm focus:border-amber-500 focus:ring-1 focus:ring-amber-500 outline-none font-bold text-slate-900 bg-white"
                           />
                         </td>
 
@@ -450,7 +465,7 @@ export default function GradeInputPage({ params }: { params: Promise<{ classId: 
                             min="0" max="10" step="0.1"
                             value={g.ck ?? ""}
                             onChange={(e) => handleGradeChange(student.id!, "ck", e.target.value)}
-                            className="w-full text-center p-1.5 border border-emerald-200 rounded text-sm focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 outline-none bg-emerald-50/50 font-medium"
+                            className="w-full text-center p-1.5 border border-emerald-200 rounded text-sm focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 outline-none font-bold text-slate-900 bg-white"
                           />
                         </td>
 
@@ -469,7 +484,7 @@ export default function GradeInputPage({ params }: { params: Promise<{ classId: 
                         </td>
 
                         {/* Cả năm */}
-                        <td className="p-3 text-center bg-blue-50/50">
+                        <td className="p-3 text-center border-r border-slate-100 bg-blue-50/50">
                           <span className={`inline-block px-3 py-1 rounded font-bold text-sm ${
                             cnAvg == null ? "text-slate-400" :
                             cnAvg >= 8.0 ? "text-blue-700 bg-blue-100" :
@@ -479,6 +494,17 @@ export default function GradeInputPage({ params }: { params: Promise<{ classId: 
                           }`}>
                             {cnAvg ?? "-"}
                           </span>
+                        </td>
+                        
+                        {/* Comment */}
+                        <td className="p-2 text-center bg-slate-50/50">
+                          <input
+                            type="text"
+                            placeholder="Nhập đánh giá, nhận xét..."
+                            value={g.comment ?? ""}
+                            onChange={(e) => handleCommentChange(student.id!, e.target.value)}
+                            className="w-full p-1.5 border border-slate-200 rounded text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none text-slate-800 placeholder-slate-400"
+                          />
                         </td>
                       </tr>
                     );
