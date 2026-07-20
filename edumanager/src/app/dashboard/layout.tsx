@@ -88,7 +88,7 @@ export default function DashboardLayout({
 
   return (
     <ProtectedRoute>
-      <div className="h-screen bg-slate-50 flex overflow-hidden">
+      <div className="h-screen bg-slate-50 flex overflow-hidden print:h-auto print:bg-white print:overflow-visible">
         
         {/* Mobile Sidebar Overlay */}
         {sidebarOpen && (
@@ -99,7 +99,7 @@ export default function DashboardLayout({
         )}
 
         {/* Sidebar - Premium Dark Navy */}
-        <div className={`fixed inset-y-0 left-0 z-50 w-72 bg-[#0F172A] border-r border-slate-800 flex flex-col transition-transform duration-300 lg:static lg:translate-x-0 ${
+        <div className={`fixed inset-y-0 left-0 z-50 w-72 bg-[#0F172A] border-r border-slate-800 flex flex-col transition-transform duration-300 lg:static lg:translate-x-0 print:hidden ${
           sidebarOpen ? "translate-x-0" : "-translate-x-full"
         }`}>
           {/* Logo Area */}
@@ -182,10 +182,10 @@ export default function DashboardLayout({
         </div>
 
         {/* Main Content Area */}
-        <div className="flex-1 flex flex-col min-w-0 overflow-hidden bg-[#F8FAFC]">
+        <div className="flex-1 flex flex-col min-w-0 overflow-hidden bg-[#F8FAFC] print:overflow-visible print:bg-white">
           
           {/* Top Header */}
-          <header className="h-20 bg-white/80 backdrop-blur-md border-b border-slate-200 sticky top-0 z-30 flex items-center justify-between px-6 lg:px-10">
+          <header className="h-20 bg-white/80 backdrop-blur-md border-b border-slate-200 sticky top-0 z-30 flex items-center justify-between px-6 lg:px-10 print:hidden">
             <div className="flex items-center">
               <button 
                 className="mr-4 lg:hidden text-slate-600 hover:text-blue-600 transition"
@@ -204,8 +204,8 @@ export default function DashboardLayout({
           </header>
 
           {/* Page Content */}
-          <main className="flex-1 overflow-y-auto p-6 lg:p-10">
-            <div className="max-w-7xl mx-auto w-full">
+          <main className="flex-1 overflow-y-auto p-6 lg:p-10 print:p-0 print:overflow-visible">
+            <div className="max-w-7xl mx-auto w-full print:max-w-none">
               {children}
             </div>
           </main>

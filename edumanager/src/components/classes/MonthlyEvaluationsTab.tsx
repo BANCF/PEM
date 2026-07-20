@@ -1,11 +1,12 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { StudentData } from "@/lib/services/student.service";
 import { ClassData } from "@/lib/services/class.service";
 import { ClassAssignmentData } from "@/lib/services/assignment.service";
 import { MonthlyEvaluationData, monthlyEvaluationService } from "@/lib/services/monthly-evaluation.service";
-import { Loader2, Save, Printer } from "lucide-react";
+import { Loader2, Save, Printer, Download, Upload } from "lucide-react";
+import * as XLSX from "xlsx";
 import toast from "react-hot-toast";
 
 interface Props {
@@ -20,6 +21,7 @@ export default function MonthlyEvaluationsTab({ classData, students, assignments
   const [evaluations, setEvaluations] = useState<Record<string, MonthlyEvaluationData>>({});
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Check roles
   const isAdminOrBGH = profile?.role === "ADMIN" || profile?.role === "SUPER_ADMIN" || profile?.role === "BGH";
@@ -112,9 +114,111 @@ export default function MonthlyEvaluationsTab({ classData, students, assignments
     }
   };
 
-  const handlePrint = () => {
-    const url = `/dashboard/print/monthly-evaluation?classId=${classData.id}&month=${month}`;
-    window.open(url, '_blank');
+  const handlePrint = async () => {
+    setSaving(true);
+    try {
+      const dataToSave = Object.values(evaluations);
+      await monthlyEvaluationService.saveEvaluationsBatch(dataToSave);
+      toast.success("Đã tự động lưu trước khi xuất PDF!");
+      
+      const url = `/dashboard/print/monthly-evaluation?classId=${classData.id}&month=${month}`;
+      window.open(url, '_blank');
+    } catch (error) {
+      console.error(error);
+      toast.error("Lỗi khi lưu đánh giá.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleExportExcel = () => {
+    const dataToExport = students.map((student, index) => {
+      const ev = evaluations[student.id!] || {};
+      const row: any = {
+        "STT": index + 1,
+        "ID (Không sửa)": student.id,
+        "Họ và tên": student.fullName,
+      };
+
+      if (showMath) {
+        row["Điểm Toán"] = ev.mathScore ?? "";
+        row["Nhận xét Toán"] = ev.mathComment || "";
+      }
+      if (showLit) {
+        row["Điểm Văn"] = ev.literatureScore ?? "";
+        row["Nhận xét Văn"] = ev.literatureComment || "";
+      }
+      if (showEng) {
+        row["Điểm Anh"] = ev.englishScore ?? "";
+        row["Nhận xét Anh"] = ev.englishComment || "";
+      }
+
+      return row;
+    });
+
+    const ws = XLSX.utils.json_to_sheet(dataToExport);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "DanhSach");
+    
+    const colWidths = [{ wch: 5 }, { wch: 25 }, { wch: 25 }, { wch: 10 }, { wch: 30 }, { wch: 10 }, { wch: 30 }, { wch: 10 }, { wch: 30 }];
+    ws["!cols"] = colWidths;
+
+    XLSX.writeFile(wb, `NhanXetThang${month}_Lop${classData.name}.xlsx`);
+  };
+
+  const handleImportExcel = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (evt) => {
+      try {
+        const bstr = evt.target?.result;
+        const wb = XLSX.read(bstr, { type: "binary" });
+        const wsname = wb.SheetNames[0];
+        const ws = wb.Sheets[wsname];
+        const data = XLSX.utils.sheet_to_json(ws);
+
+        let updateCount = 0;
+        const newEvaluations = { ...evaluations };
+
+        data.forEach((row: any) => {
+          const id = row["ID (Không sửa)"];
+          if (id && newEvaluations[id]) {
+            let updated = false;
+            
+            if (canEditMath && "Điểm Toán" in row) {
+               newEvaluations[id].mathScore = row["Điểm Toán"] !== "" ? Number(row["Điểm Toán"]) : null;
+               newEvaluations[id].mathComment = row["Nhận xét Toán"] || "";
+               updated = true;
+            }
+            if (canEditLit && "Điểm Văn" in row) {
+               newEvaluations[id].literatureScore = row["Điểm Văn"] !== "" ? Number(row["Điểm Văn"]) : null;
+               newEvaluations[id].literatureComment = row["Nhận xét Văn"] || "";
+               updated = true;
+            }
+            if (canEditEng && "Điểm Anh" in row) {
+               newEvaluations[id].englishScore = row["Điểm Anh"] !== "" ? Number(row["Điểm Anh"]) : null;
+               newEvaluations[id].englishComment = row["Nhận xét Anh"] || "";
+               updated = true;
+            }
+            
+            if (updated) updateCount++;
+          }
+        });
+
+        setEvaluations(newEvaluations);
+        toast.success(`Đã trích xuất dữ liệu cho ${updateCount} học sinh. Vui lòng bấm Lưu đánh giá để hoàn tất!`);
+      } catch (error) {
+        console.error(error);
+        toast.error("Lỗi khi đọc file Excel. Vui lòng kiểm tra lại định dạng.");
+      }
+      
+      if (fileInputRef.current) {
+        fileInputRef.current.value = "";
+      }
+    };
+    reader.readAsBinaryString(file);
   };
 
   if (!showMath && !showLit && !showEng && !canViewAll) {
@@ -142,6 +246,32 @@ export default function MonthlyEvaluationsTab({ classData, students, assignments
         </div>
 
         <div className="flex gap-2">
+          <input 
+            type="file" 
+            accept=".xlsx, .xls" 
+            ref={fileInputRef} 
+            onChange={handleImportExcel} 
+            className="hidden" 
+          />
+          
+          <button
+            onClick={handleExportExcel}
+            disabled={loading}
+            className="flex items-center gap-2 bg-slate-600 hover:bg-slate-700 text-white px-4 py-2 rounded-lg font-medium transition-colors disabled:opacity-50"
+          >
+            <Download size={18} />
+            Tải mẫu Excel
+          </button>
+          
+          <button
+            onClick={() => fileInputRef.current?.click()}
+            disabled={loading}
+            className="flex items-center gap-2 bg-amber-600 hover:bg-amber-700 text-white px-4 py-2 rounded-lg font-medium transition-colors disabled:opacity-50"
+          >
+            <Upload size={18} />
+            Nhập Excel
+          </button>
+
           <button
             onClick={handleSave}
             disabled={saving || loading}
@@ -226,6 +356,14 @@ export default function MonthlyEvaluationsTab({ classData, students, assignments
                           <td className="p-2 text-center border-r border-slate-200 bg-blue-50/10">
                             <input
                               type="number"
+                              name={`mathScore-${index}`}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') {
+                                  e.preventDefault();
+                                  const next = document.querySelector(`[name="mathScore-${index + 1}"]`) as HTMLElement;
+                                  if (next) next.focus();
+                                }
+                              }}
                               min="0" max="10" step="0.1"
                               disabled={!canEditMath}
                               value={ev.mathScore ?? ""}
@@ -236,6 +374,14 @@ export default function MonthlyEvaluationsTab({ classData, students, assignments
                           <td className="p-2 border-r border-slate-200 bg-blue-50/10">
                             <input
                               type="text"
+                              name={`mathComment-${index}`}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') {
+                                  e.preventDefault();
+                                  const next = document.querySelector(`[name="mathComment-${index + 1}"]`) as HTMLElement;
+                                  if (next) next.focus();
+                                }
+                              }}
                               disabled={!canEditMath}
                               value={ev.mathComment}
                               onChange={(e) => handleUpdate(student.id!, "mathComment", e.target.value)}
@@ -252,6 +398,14 @@ export default function MonthlyEvaluationsTab({ classData, students, assignments
                           <td className="p-2 text-center border-r border-slate-200 bg-orange-50/10">
                             <input
                               type="number"
+                              name={`litScore-${index}`}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') {
+                                  e.preventDefault();
+                                  const next = document.querySelector(`[name="litScore-${index + 1}"]`) as HTMLElement;
+                                  if (next) next.focus();
+                                }
+                              }}
                               min="0" max="10" step="0.1"
                               disabled={!canEditLit}
                               value={ev.literatureScore ?? ""}
@@ -262,6 +416,14 @@ export default function MonthlyEvaluationsTab({ classData, students, assignments
                           <td className="p-2 border-r border-slate-200 bg-orange-50/10">
                             <input
                               type="text"
+                              name={`litComment-${index}`}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') {
+                                  e.preventDefault();
+                                  const next = document.querySelector(`[name="litComment-${index + 1}"]`) as HTMLElement;
+                                  if (next) next.focus();
+                                }
+                              }}
                               disabled={!canEditLit}
                               value={ev.literatureComment}
                               onChange={(e) => handleUpdate(student.id!, "literatureComment", e.target.value)}
@@ -278,6 +440,14 @@ export default function MonthlyEvaluationsTab({ classData, students, assignments
                           <td className="p-2 text-center border-r border-slate-200 bg-emerald-50/10">
                             <input
                               type="number"
+                              name={`engScore-${index}`}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') {
+                                  e.preventDefault();
+                                  const next = document.querySelector(`[name="engScore-${index + 1}"]`) as HTMLElement;
+                                  if (next) next.focus();
+                                }
+                              }}
                               min="0" max="10" step="0.1"
                               disabled={!canEditEng}
                               value={ev.englishScore ?? ""}
@@ -288,6 +458,14 @@ export default function MonthlyEvaluationsTab({ classData, students, assignments
                           <td className="p-2 border-r border-slate-200 bg-emerald-50/10">
                             <input
                               type="text"
+                              name={`engComment-${index}`}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') {
+                                  e.preventDefault();
+                                  const next = document.querySelector(`[name="engComment-${index + 1}"]`) as HTMLElement;
+                                  if (next) next.focus();
+                                }
+                              }}
                               disabled={!canEditEng}
                               value={ev.englishComment}
                               onChange={(e) => handleUpdate(student.id!, "englishComment", e.target.value)}

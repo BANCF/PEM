@@ -137,7 +137,7 @@ export default function PrintMonthlyEvaluation() {
   }
 
   return (
-    <div className="bg-slate-200 min-h-screen py-10 print:bg-white print:py-0 flex flex-col items-center">
+    <div className="bg-slate-200 min-h-screen py-10 print:bg-white print:py-0 print:block flex flex-col items-center">
       
       {/* Hide controls when printing */}
       <div className="mb-4 print:hidden flex gap-4">
@@ -156,16 +156,20 @@ export default function PrintMonthlyEvaluation() {
       </div>
 
       <style dangerouslySetInnerHTML={{__html: `
+        @import url('https://fonts.googleapis.com/css2?family=Tinos:ital,wght@0,400;0,700;1,400;1,700&display=swap');
         @page { size: A4 portrait; margin: 0; }
         @media print {
           body { -webkit-print-color-adjust: exact; }
-          .page-break { page-break-after: always; }
+          .page-break { page-break-after: always; break-after: page; }
           /* Reset root styles that might cause unwanted margins */
           html, body { background: white; margin: 0; padding: 0; }
         }
+        .font-tinos {
+          font-family: 'Tinos', 'Times New Roman', serif;
+        }
       `}} />
 
-      <div className="w-[210mm] shadow-2xl print:shadow-none bg-white text-black font-serif">
+      <div className="w-[210mm] shadow-2xl print:shadow-none bg-white text-black font-tinos print:mx-0 mx-auto">
         {students.map((student, index) => {
           const ev = evaluations[student.id!] || {};
           const rank = rankings[student.id!] || students.length;
@@ -178,93 +182,90 @@ export default function PrintMonthlyEvaluation() {
             >
               
               {/* HEADER TABLE */}
-              <div className="flex mb-10">
-                <div className="w-1/2"></div>
-                <div className="w-1/2 text-center">
-                  <p className="font-bold text-[16px] uppercase">{"TRƯỜNG TIỂU HỌC - TRUNG HỌC CƠ SỞ PASCAL".normalize('NFC')}</p>
-                  <p className="font-bold text-[15px] uppercase">{"PASCAL PRIMARY AND SECONDARY SCHOOL".normalize('NFC')}</p>
+              <div className="flex mb-10 items-center">
+                <div className="w-1/5 flex justify-center pl-4">
+                  <img src="/logo-pascal-01.png" alt="Pascal Logo" className="w-24 h-auto" />
+                </div>
+                <div className="w-4/5 text-center">
+                  <p className="font-bold text-[19px] uppercase text-[#e31837] whitespace-nowrap">TRƯỜNG TIỂU HỌC - TRUNG HỌC CƠ SỞ PASCAL</p>
+                  <p className="font-bold text-[17px] uppercase text-[#00205b] mt-1">PASCAL PRIMARY AND SECONDARY SCHOOL</p>
                 </div>
               </div>
 
               {/* TITLE */}
               <div className="text-center mb-10">
-                <h1 className="text-2xl font-bold uppercase mb-2">{"KẾT QUẢ HỌC TẬP THÁNG ".normalize('NFC')}{month}</h1>
-                <h2 className="text-lg font-bold">{"NĂM HỌC ".normalize('NFC')}{classData.academicYear}</h2>
+                <h1 className="text-[26px] font-bold uppercase mb-2">KẾT QUẢ HỌC TẬP THÁNG {month}</h1>
+                <h2 className="text-[20px] font-bold uppercase">NĂM HỌC {classData.academicYear}</h2>
               </div>
 
-              {/* STUDENT INFO */}
-              <div className="mb-8 text-[16px] leading-loose">
-                <div className="flex">
-                  <span className="w-40 font-bold whitespace-nowrap">{"Họ và tên học sinh:".normalize('NFC')}</span>
-                  <span className="font-bold ml-2 uppercase flex-1">{student.fullName.normalize('NFC')}</span>
-                  <span className="ml-auto w-16 font-bold">{"Lớp:".normalize('NFC')}</span>
-                  <span className="font-bold w-24">{classData.name.normalize('NFC')}</span>
+              {/* STUDENT INFO (Above Table) */}
+              <div className="flex justify-between text-[18px] mb-4">
+                <div>
+                  <span className="font-bold">Họ và tên học sinh:</span>
+                  <span className="ml-4 uppercase font-bold">{student.fullName}</span>
+                </div>
+                <div className="mr-8">
+                  <span className="font-bold">Lớp:</span>
+                  <span className="ml-4 font-bold">{classData.name}</span>
+                </div>
+              </div>
+
+              {/* SCORES TABLE WITH WATERMARK */}
+              <div className="relative mb-8">
+                {/* Watermark */}
+                <div className="absolute inset-0 flex justify-center items-center pointer-events-none opacity-[0.1] z-0">
+                  <img src="/logo-pascal-01.png" alt="Watermark" className="w-[300px] h-auto" />
                 </div>
                 
-                <div className="flex mt-2">
-                  <span className="w-40 font-bold whitespace-nowrap">{"Xếp hạng:".normalize('NFC')}</span>
-                  <span className="font-bold ml-2">{rank} / {students.length}</span>
-                </div>
-
-                <div className="mt-4">
-                  <p className="mb-2">{"Điểm trung bình các môn lớp ".normalize('NFC')}{classData.name.normalize('NFC')}</p>
-                  <div className="flex gap-16">
-                    <div>
-                      <span className="">{"Môn Toán:".normalize('NFC')}</span> 
-                      <span className="ml-2 font-bold">{classAverages.math}</span>
-                    </div>
-                    <div>
-                      <span className="">{"Môn Văn:".normalize('NFC')}</span> 
-                      <span className="ml-2 font-bold">{classAverages.lit}</span>
-                    </div>
-                    <div>
-                      <span className="">{"Môn Anh:".normalize('NFC')}</span> 
-                      <span className="ml-2 font-bold">{classAverages.eng}</span>
-                    </div>
-                  </div>
-                </div>
+                <table className="w-full border-collapse border border-black relative z-10 bg-transparent">
+                  <thead>
+                    <tr>
+                      <th className="border border-black p-3 text-center w-32 font-bold text-[18px]">Môn</th>
+                      <th className="border border-black p-3 text-center w-24 font-bold text-[18px]">Điểm</th>
+                      <th className="border border-black p-3 text-center font-bold text-[18px]">Nhận xét</th>
+                    </tr>
+                  </thead>
+                  <tbody className="text-[18px]">
+                    <tr>
+                      <td className="border border-black p-4 text-center align-middle h-[70px]">Toán</td>
+                      <td className="border border-black p-4 text-center font-bold text-xl">{ev.mathScore ?? ""}</td>
+                      <td className="border border-black p-4 align-middle">{ev.mathComment || ""}</td>
+                    </tr>
+                    <tr>
+                      <td className="border border-black p-4 text-center align-middle h-[70px]">Văn</td>
+                      <td className="border border-black p-4 text-center font-bold text-xl">{ev.literatureScore ?? ""}</td>
+                      <td className="border border-black p-4 align-middle">{ev.literatureComment || ""}</td>
+                    </tr>
+                    <tr>
+                      <td className="border border-black p-4 text-center align-middle h-[70px]">Anh</td>
+                      <td className="border border-black p-4 text-center font-bold text-xl">{ev.englishScore ?? ""}</td>
+                      <td className="border border-black p-4 align-middle">{ev.englishComment || ""}</td>
+                    </tr>
+                  </tbody>
+                </table>
               </div>
 
-              {/* SCORES TABLE */}
-              <table className="w-full border-collapse border border-black mb-12">
-                <thead>
-                  <tr>
-                    <th className="border border-black p-3 text-center w-32 font-bold text-[16px]">{"Môn".normalize('NFC')}</th>
-                    <th className="border border-black p-3 text-center w-24 font-bold text-[16px]">{"Điểm".normalize('NFC')}</th>
-                    <th className="border border-black p-3 text-center font-bold text-[16px]">{"Nhận xét".normalize('NFC')}</th>
-                  </tr>
-                </thead>
-                <tbody className="text-[16px]">
-                  <tr>
-                    <td className="border border-black p-3 font-bold text-center h-16 align-middle">{"Toán".normalize('NFC')}</td>
-                    <td className="border border-black p-3 text-center font-bold text-lg">{ev.mathScore ?? ""}</td>
-                    <td className="border border-black p-3 align-middle">{(ev.mathComment || "").normalize('NFC')}</td>
-                  </tr>
-                  <tr>
-                    <td className="border border-black p-3 font-bold text-center h-16 align-middle">{"Văn".normalize('NFC')}</td>
-                    <td className="border border-black p-3 text-center font-bold text-lg">{ev.literatureScore ?? ""}</td>
-                    <td className="border border-black p-3 align-middle">{(ev.literatureComment || "").normalize('NFC')}</td>
-                  </tr>
-                  <tr>
-                    <td className="border border-black p-3 font-bold text-center h-16 align-middle">{"Anh".normalize('NFC')}</td>
-                    <td className="border border-black p-3 text-center font-bold text-lg">{ev.englishScore ?? ""}</td>
-                    <td className="border border-black p-3 align-middle">{(ev.englishComment || "").normalize('NFC')}</td>
-                  </tr>
-                </tbody>
-              </table>
+              {/* AVERAGES AND RANKING (Below Table) */}
+              <div className="text-[18px] leading-relaxed">
+                <div className="flex mb-2">
+                  <span className="font-bold mr-2">Xếp hạng:</span>
+                  <span className="font-bold">{rank} / {students.length}</span>
+                </div>
+                <div className="font-bold mb-2">Điểm trung bình các môn lớp {classData.name}</div>
+                <div className="ml-6 space-y-1">
+                  <div>- Môn Toán: {classAverages.math}</div>
+                  <div>- Môn Văn: {classAverages.lit}</div>
+                  <div>- Môn Anh: {classAverages.eng}</div>
+                </div>
+              </div>
 
               {/* SIGNATURE */}
-              <div className="flex justify-end pr-10 mt-20">
+              <div className="flex justify-end pr-10 mt-12">
                 <div className="text-center">
-                  <p className="italic text-[15px] mb-2">{"Hà Nội, ngày ".normalize('NFC')}{new Date().getDate()}{" tháng ".normalize('NFC')}{new Date().getMonth() + 1}{" năm ".normalize('NFC')}{new Date().getFullYear()}</p>
-                  <p className="font-bold text-[16px] mb-24">{"Giáo viên chủ nhiệm".normalize('NFC')}</p>
-                  <p className="font-bold text-[16px] uppercase">{teacherName.normalize('NFC')}</p>
+                  <p className="italic text-[18px] mb-2">Hà Nội, ngày {new Date().getDate()} tháng {new Date().getMonth() + 1} năm {new Date().getFullYear()}</p>
+                  <p className="font-bold text-[18px] mb-24">Giáo viên chủ nhiệm</p>
+                  <p className="font-bold text-[18px] uppercase">{teacherName}</p>
                 </div>
-              </div>
-              
-              {/* Footer text */}
-              <div className="absolute bottom-10 left-0 right-0 text-center">
-                <p className="text-sm text-slate-400 italic">Phiếu đánh giá kết quả học tập tháng {month}</p>
               </div>
             </div>
           );
