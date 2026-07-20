@@ -223,24 +223,24 @@ export default function MonthlyEvaluationsTab({ classData, students, assignments
                       {/* TOÁN */}
                       {showMath && (
                         <>
-                          <td className="p-2 text-center border-r border-slate-100 bg-blue-50/20">
+                          <td className="p-2 text-center border-r border-slate-200 bg-blue-50/10">
                             <input
                               type="number"
                               min="0" max="10" step="0.1"
                               disabled={!canEditMath}
                               value={ev.mathScore ?? ""}
                               onChange={(e) => handleUpdate(student.id!, "mathScore", e.target.value ? parseFloat(e.target.value) : null)}
-                              className="w-full text-center p-1.5 border border-slate-200 rounded text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none disabled:bg-slate-100 disabled:text-slate-500 font-semibold"
+                              className="w-full text-center p-2 border border-slate-300 rounded-md text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none disabled:bg-slate-100 disabled:text-slate-500 font-semibold text-slate-900 bg-white placeholder-slate-400 shadow-sm"
                             />
                           </td>
-                          <td className="p-2 border-r border-slate-100 bg-blue-50/20">
+                          <td className="p-2 border-r border-slate-200 bg-blue-50/10">
                             <input
                               type="text"
                               disabled={!canEditMath}
                               value={ev.mathComment}
                               onChange={(e) => handleUpdate(student.id!, "mathComment", e.target.value)}
-                              placeholder="Nhận xét Toán..."
-                              className="w-full p-1.5 border border-slate-200 rounded text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none disabled:bg-slate-100 disabled:text-slate-500"
+                              placeholder="Nhập nhận xét Toán..."
+                              className="w-full p-2 border border-slate-300 rounded-md text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none disabled:bg-slate-100 disabled:text-slate-500 text-slate-900 bg-white placeholder-slate-400 shadow-sm"
                             />
                           </td>
                         </>
@@ -249,24 +249,24 @@ export default function MonthlyEvaluationsTab({ classData, students, assignments
                       {/* VĂN */}
                       {showLit && (
                         <>
-                          <td className="p-2 text-center border-r border-slate-100 bg-orange-50/20">
+                          <td className="p-2 text-center border-r border-slate-200 bg-orange-50/10">
                             <input
                               type="number"
                               min="0" max="10" step="0.1"
                               disabled={!canEditLit}
                               value={ev.literatureScore ?? ""}
                               onChange={(e) => handleUpdate(student.id!, "literatureScore", e.target.value ? parseFloat(e.target.value) : null)}
-                              className="w-full text-center p-1.5 border border-slate-200 rounded text-sm focus:border-orange-500 focus:ring-1 focus:ring-orange-500 outline-none disabled:bg-slate-100 disabled:text-slate-500 font-semibold"
+                              className="w-full text-center p-2 border border-slate-300 rounded-md text-sm focus:border-orange-500 focus:ring-1 focus:ring-orange-500 outline-none disabled:bg-slate-100 disabled:text-slate-500 font-semibold text-slate-900 bg-white placeholder-slate-400 shadow-sm"
                             />
                           </td>
-                          <td className="p-2 border-r border-slate-100 bg-orange-50/20">
+                          <td className="p-2 border-r border-slate-200 bg-orange-50/10">
                             <input
                               type="text"
                               disabled={!canEditLit}
                               value={ev.literatureComment}
                               onChange={(e) => handleUpdate(student.id!, "literatureComment", e.target.value)}
-                              placeholder="Nhận xét Văn..."
-                              className="w-full p-1.5 border border-slate-200 rounded text-sm focus:border-orange-500 focus:ring-1 focus:ring-orange-500 outline-none disabled:bg-slate-100 disabled:text-slate-500"
+                              placeholder="Nhập nhận xét Văn..."
+                              className="w-full p-2 border border-slate-300 rounded-md text-sm focus:border-orange-500 focus:ring-1 focus:ring-orange-500 outline-none disabled:bg-slate-100 disabled:text-slate-500 text-slate-900 bg-white placeholder-slate-400 shadow-sm"
                             />
                           </td>
                         </>
@@ -275,24 +275,24 @@ export default function MonthlyEvaluationsTab({ classData, students, assignments
                       {/* ANH */}
                       {showEng && (
                         <>
-                          <td className="p-2 text-center border-r border-slate-100 bg-emerald-50/20">
+                          <td className="p-2 text-center border-r border-slate-200 bg-emerald-50/10">
                             <input
                               type="number"
                               min="0" max="10" step="0.1"
                               disabled={!canEditEng}
                               value={ev.englishScore ?? ""}
                               onChange={(e) => handleUpdate(student.id!, "englishScore", e.target.value ? parseFloat(e.target.value) : null)}
-                              className="w-full text-center p-1.5 border border-slate-200 rounded text-sm focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 outline-none disabled:bg-slate-100 disabled:text-slate-500 font-semibold"
+                              className="w-full text-center p-2 border border-slate-300 rounded-md text-sm focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 outline-none disabled:bg-slate-100 disabled:text-slate-500 font-semibold text-slate-900 bg-white placeholder-slate-400 shadow-sm"
                             />
                           </td>
-                          <td className="p-2 border-r border-slate-100 bg-emerald-50/20">
+                          <td className="p-2 border-r border-slate-200 bg-emerald-50/10">
                             <input
                               type="text"
                               disabled={!canEditEng}
                               value={ev.englishComment}
                               onChange={(e) => handleUpdate(student.id!, "englishComment", e.target.value)}
-                              placeholder="Nhận xét Anh..."
-                              className="w-full p-1.5 border border-slate-200 rounded text-sm focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 outline-none disabled:bg-slate-100 disabled:text-slate-500"
+                              placeholder="Nhập nhận xét Anh..."
+                              className="w-full p-2 border border-slate-300 rounded-md text-sm focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 outline-none disabled:bg-slate-100 disabled:text-slate-500 text-slate-900 bg-white placeholder-slate-400 shadow-sm"
                             />
                           </td>
                         </>

@@ -13,6 +13,7 @@ import { Loader2 } from "lucide-react";
 // Format: First Last Middle -> Last Middle First
 // Example: Bằng Phạm Văn -> Phạm Văn Bằng
 function formatVietnameseName(fullName: string) {
+  if (!fullName) return "";
   const parts = fullName.trim().split(" ");
   if (parts.length > 1) {
     const firstName = parts.shift();
@@ -101,7 +102,8 @@ export default function PrintMonthlyEvaluation() {
         if (gvcnAssign) {
           const tDoc = await getDoc(doc(db, "users", gvcnAssign.teacherId));
           if (tDoc.exists()) {
-            setTeacherName(tDoc.data().fullName || "");
+            // Apply name formatting to teacher!
+            setTeacherName(formatVietnameseName(tDoc.data().fullName || ""));
           }
         }
 
@@ -163,7 +165,7 @@ export default function PrintMonthlyEvaluation() {
         }
       `}} />
 
-      <div className="w-[210mm] shadow-2xl print:shadow-none bg-white">
+      <div className="w-[210mm] shadow-2xl print:shadow-none bg-white text-black font-serif">
         {students.map((student, index) => {
           const ev = evaluations[student.id!] || {};
           const rank = rankings[student.id!] || students.length;
@@ -180,12 +182,10 @@ export default function PrintMonthlyEvaluation() {
                 <tbody>
                   <tr>
                     <td className="w-1/2 text-center align-top pt-2">
-                      <p className="font-bold text-[15px] uppercase leading-relaxed">UBND QUẬN BẮC TỪ LIÊM</p>
-                      <p className="font-bold text-[16px] uppercase text-red-600 underline underline-offset-4 decoration-2">TRƯỜNG TH - THCS PASCAL</p>
                     </td>
                     <td className="w-1/2 text-center align-top">
-                      <p className="font-bold text-[15px] uppercase leading-relaxed">CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM</p>
-                      <p className="font-bold text-[16px] underline underline-offset-4 decoration-2">Độc lập - Tự do - Hạnh phúc</p>
+                      <p className="font-bold text-[16px] uppercase">TRƯỜNG TIỂU HỌC - TRUNG HỌC CƠ SỞ PASCAL</p>
+                      <p className="font-bold text-[15px] uppercase">PASCAL PRIMARY AND SECONDARY SCHOOL</p>
                     </td>
                   </tr>
                 </tbody>
@@ -193,38 +193,38 @@ export default function PrintMonthlyEvaluation() {
 
               {/* TITLE */}
               <div className="text-center mb-10">
-                <h1 className="text-2xl font-bold uppercase text-slate-900 mb-2">KẾT QUẢ HỌC TẬP THÁNG {month}</h1>
-                <h2 className="text-lg font-bold text-slate-800">NĂM HỌC {classData.academicYear}</h2>
+                <h1 className="text-2xl font-bold uppercase mb-2">KẾT QUẢ HỌC TẬP THÁNG {month}</h1>
+                <h2 className="text-lg font-bold">NĂM HỌC {classData.academicYear}</h2>
               </div>
 
               {/* STUDENT INFO */}
               <div className="mb-8 text-[16px] leading-loose">
                 <div className="flex">
-                  <span className="w-32 font-bold">Họ và tên học sinh:</span>
-                  <span className="font-semibold ml-2 uppercase text-blue-900">{formatVietnameseName(student.fullName)}</span>
+                  <span className="w-40 font-bold whitespace-nowrap">Họ và tên học sinh:</span>
+                  <span className="font-bold ml-2 uppercase flex-1">{student.fullName}</span>
                   <span className="ml-auto w-16 font-bold">Lớp:</span>
-                  <span className="font-semibold text-blue-900 w-24">{classData.name}</span>
+                  <span className="font-bold w-24">{classData.name}</span>
                 </div>
                 
                 <div className="flex mt-2">
-                  <span className="w-32 font-bold">Xếp hạng:</span>
-                  <span className="font-bold text-red-600 ml-2">{rank} / {students.length}</span>
+                  <span className="w-40 font-bold whitespace-nowrap">Xếp hạng:</span>
+                  <span className="font-bold ml-2">{rank} / {students.length}</span>
                 </div>
 
-                <div className="mt-6 border border-slate-300 p-4 rounded-lg bg-slate-50">
-                  <p className="font-bold text-slate-800 mb-3 uppercase text-sm border-b border-slate-200 pb-2">Điểm trung bình các môn lớp {classData.name}</p>
-                  <div className="grid grid-cols-3 gap-4">
+                <div className="mt-4">
+                  <p className="mb-2">Điểm trung bình các môn lớp {classData.name}</p>
+                  <div className="flex gap-16">
                     <div>
-                      <span className="font-semibold">Môn Toán:</span> 
-                      <span className="ml-2 font-bold text-blue-700">{classAverages.math}</span>
+                      <span className="">Môn Toán:</span> 
+                      <span className="ml-2 font-bold">{classAverages.math}</span>
                     </div>
                     <div>
-                      <span className="font-semibold">Môn Văn:</span> 
-                      <span className="ml-2 font-bold text-orange-700">{classAverages.lit}</span>
+                      <span className="">Môn Văn:</span> 
+                      <span className="ml-2 font-bold">{classAverages.lit}</span>
                     </div>
                     <div>
-                      <span className="font-semibold">Môn Anh:</span> 
-                      <span className="ml-2 font-bold text-emerald-700">{classAverages.eng}</span>
+                      <span className="">Môn Anh:</span> 
+                      <span className="ml-2 font-bold">{classAverages.eng}</span>
                     </div>
                   </div>
                 </div>
@@ -233,7 +233,7 @@ export default function PrintMonthlyEvaluation() {
               {/* SCORES TABLE */}
               <table className="w-full border-collapse border border-black mb-12">
                 <thead>
-                  <tr className="bg-gray-100">
+                  <tr>
                     <th className="border border-black p-3 text-center w-32 font-bold text-[16px]">Môn</th>
                     <th className="border border-black p-3 text-center w-24 font-bold text-[16px]">Điểm</th>
                     <th className="border border-black p-3 text-center font-bold text-[16px]">Nhận xét</th>
@@ -241,19 +241,19 @@ export default function PrintMonthlyEvaluation() {
                 </thead>
                 <tbody className="text-[16px]">
                   <tr>
-                    <td className="border border-black p-3 font-semibold text-center h-16 align-middle">Toán</td>
+                    <td className="border border-black p-3 font-bold text-center h-16 align-middle">Toán</td>
                     <td className="border border-black p-3 text-center font-bold text-lg">{ev.mathScore ?? ""}</td>
-                    <td className="border border-black p-3 italic align-middle">{ev.mathComment || ""}</td>
+                    <td className="border border-black p-3 align-middle">{ev.mathComment || ""}</td>
                   </tr>
                   <tr>
-                    <td className="border border-black p-3 font-semibold text-center h-16 align-middle">Văn</td>
+                    <td className="border border-black p-3 font-bold text-center h-16 align-middle">Văn</td>
                     <td className="border border-black p-3 text-center font-bold text-lg">{ev.literatureScore ?? ""}</td>
-                    <td className="border border-black p-3 italic align-middle">{ev.literatureComment || ""}</td>
+                    <td className="border border-black p-3 align-middle">{ev.literatureComment || ""}</td>
                   </tr>
                   <tr>
-                    <td className="border border-black p-3 font-semibold text-center h-16 align-middle">Anh</td>
+                    <td className="border border-black p-3 font-bold text-center h-16 align-middle">Anh</td>
                     <td className="border border-black p-3 text-center font-bold text-lg">{ev.englishScore ?? ""}</td>
-                    <td className="border border-black p-3 italic align-middle">{ev.englishComment || ""}</td>
+                    <td className="border border-black p-3 align-middle">{ev.englishComment || ""}</td>
                   </tr>
                 </tbody>
               </table>
