@@ -38,6 +38,7 @@ export default function RulesManagementPage() {
       querySnapshot.forEach((doc) => {
         rulesData.push({ id: doc.id, ...doc.data() } as Rule);
       });
+      rulesData.sort((a, b) => a.name.localeCompare(b.name));
       setRules(rulesData);
     } catch (error) {
       console.error("Error fetching rules:", error);

@@ -86,8 +86,13 @@ export default function DashboardPage() {
           }
         });
 
-        // Convert to array and sort by finalScore
-        const leaderboard = Object.values(teachers).sort((a, b) => b.finalScore - a.finalScore);
+        // Convert to array and sort by finalScore (desc), then fullName (asc)
+        const leaderboard = Object.values(teachers).sort((a, b) => {
+          if (b.finalScore !== a.finalScore) {
+            return b.finalScore - a.finalScore;
+          }
+          return a.fullName.localeCompare(b.fullName);
+        });
         setTeachersData(leaderboard);
 
       } catch (error) {
@@ -155,7 +160,12 @@ export default function DashboardPage() {
       ...d,
       avgScore: Math.round(d.totalScore / d.count)
     }))
-    .sort((a, b) => b.avgScore - a.avgScore);
+    .sort((a, b) => {
+      if (b.avgScore !== a.avgScore) {
+        return b.avgScore - a.avgScore;
+      }
+      return a.department.localeCompare(b.department);
+    });
 
   const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#14b8a6', '#f97316'];
 

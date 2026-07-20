@@ -8,9 +8,9 @@ import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { useAuth } from "@/contexts/AuthContext";
 import { useRouter } from "next/navigation";
 import toast from "react-hot-toast";
-import { Loader2, Upload, ArrowLeft } from "lucide-react";
+import { Loader2, Upload, ArrowLeft, Search } from "lucide-react";
 import Link from "next/link";
-
+import Select from "react-select";
 interface Rule {
   id: string;
   name: string;
@@ -70,6 +70,7 @@ export default function CreateEvaluationPage() {
         const teacherSnap = await getDocs(teacherQuery);
         const teachersList: Teacher[] = [];
         teacherSnap.forEach(doc => teachersList.push({ id: doc.id, uid: doc.id, ...doc.data() } as Teacher));
+        teachersList.sort((a, b) => a.fullName.localeCompare(b.fullName));
         
         // Fetch rules
         const rulesSnap = await getDocs(collection(db, "rules"));
@@ -85,6 +86,8 @@ export default function CreateEvaluationPage() {
             { id: "PEER_KUDOS_5", name: "Đánh giá Đồng cấp (+5đ)", category: "Phần I", type: "KUDOS", score: 5 },
           ];
         }
+
+        rulesList.sort((a, b) => a.name.localeCompare(b.name));
 
         setTeachers(teachersList);
         setRules(rulesList);
@@ -248,30 +251,30 @@ export default function CreateEvaluationPage() {
                 {/* Chọn Giáo viên */}
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-2">1. Chọn Giáo viên</label>
-                  <select
-                    value={selectedTeacherId}
-                    onChange={(e) => setSelectedTeacherId(e.target.value)}
-                    className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition"
+                  <Select
+                    options={teachers.map(t => ({ value: t.id, label: `${t.fullName} (${t.email}) - ${t.role}` }))}
+                    value={teachers.map(t => ({ value: t.id, label: `${t.fullName} (${t.email}) - ${t.role}` })).find(opt => opt.value === selectedTeacherId) || null}
+                    onChange={(selectedOption) => setSelectedTeacherId(selectedOption?.value || "")}
+                    placeholder="-- Chọn người nhận đánh giá --"
+                    isSearchable
+                    className="text-sm"
+                    styles={{
+                      control: (base) => ({
+                        ...base,
+                        padding: '4px',
+                        borderRadius: '0.5rem',
+                        borderColor: '#d1d5db',
+                      })
+                    }}
                     required
-                  >
-                    <option value="" disabled>-- Chọn người nhận đánh giá --</option>
-                    {teachers.map(t => (
-                      <option key={t.id} value={t.id}>{t.fullName} ({t.email}) - {t.role}</option>
-                    ))}
-                  </select>
+                  />
                 </div>
 
                 {/* Chọn Quy định */}
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-2">2. Quy định áp dụng (Thưởng / Phạt)</label>
-                  <select
-                    value={selectedRuleId}
-                    onChange={(e) => setSelectedRuleId(e.target.value)}
-                    className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition"
-                    required
-                  >
-                    <option value="" disabled>-- Chọn Quy định --</option>
-                    {(() => {
+                  <Select
+                    options={(() => {
                       const CATEGORIES = ["Phần I", "Phần II", "Phần III", "Phần IV", "Phần V", "Chưa phân loại"];
                       const groupedRules = rules.reduce((acc, rule) => {
                         const cat = rule.category || "Chưa phân loại";
@@ -282,19 +285,35 @@ export default function CreateEvaluationPage() {
 
                       return CATEGORIES.map((cat) => {
                         if (!groupedRules[cat] || groupedRules[cat].length === 0) return null;
-                        return (
-                          <optgroup key={cat} label={cat}>
-                            {groupedRules[cat].map(r => (
-                              <option key={r.id} value={r.id}>
-                                {r.type === "KUDOS" ? "📈 Thưởng: " : "📉 Phạt: "} 
-                                {r.name} (Điểm: {r.score > 0 ? `+${r.score}` : r.score})
-                              </option>
-                            ))}
-                          </optgroup>
-                        );
-                      });
+                        return {
+                          label: cat,
+                          options: groupedRules[cat].map(r => ({
+                            value: r.id,
+                            label: `${r.type === "KUDOS" ? "📈 Thưởng: " : "📉 Phạt: "} ${r.name} (Điểm: ${r.score > 0 ? '+' : ''}${r.score})`
+                          }))
+                        };
+                      }).filter(Boolean) as any;
                     })()}
-                  </select>
+                    value={
+                      rules.map(r => ({
+                            value: r.id,
+                            label: `${r.type === "KUDOS" ? "📈 Thưởng: " : "📉 Phạt: "} ${r.name} (Điểm: ${r.score > 0 ? '+' : ''}${r.score})`
+                      })).find(opt => opt.value === selectedRuleId) || null
+                    }
+                    onChange={(selectedOption) => setSelectedRuleId(selectedOption?.value || "")}
+                    placeholder="-- Chọn Quy định --"
+                    isSearchable
+                    className="text-sm"
+                    styles={{
+                      control: (base) => ({
+                        ...base,
+                        padding: '4px',
+                        borderRadius: '0.5rem',
+                        borderColor: '#d1d5db',
+                      })
+                    }}
+                    required
+                  />
                 </div>
 
                 {/* Tải lên minh chứng */}
@@ -325,7 +344,7 @@ export default function CreateEvaluationPage() {
                   <textarea
                     value={note}
                     onChange={(e) => setNote(e.target.value)}
-                    className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition min-h-[120px]"
+                    className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition min-h-[120px] text-slate-900 bg-white"
                     placeholder="Mô tả chi tiết sự việc..."
                     required
                   ></textarea>
