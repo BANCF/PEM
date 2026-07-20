@@ -178,52 +178,47 @@ export default function PrintMonthlyEvaluation() {
             >
               
               {/* HEADER TABLE */}
-              <table className="w-full border-collapse mb-10">
-                <tbody>
-                  <tr>
-                    <td className="w-1/2 text-center align-top pt-2">
-                    </td>
-                    <td className="w-1/2 text-center align-top">
-                      <p className="font-bold text-[16px] uppercase">TRƯỜNG TIỂU HỌC - TRUNG HỌC CƠ SỞ PASCAL</p>
-                      <p className="font-bold text-[15px] uppercase">PASCAL PRIMARY AND SECONDARY SCHOOL</p>
-                    </td>
-                  </tr>
-                </tbody>
-              </table>
+              <div className="flex mb-10">
+                <div className="w-1/2"></div>
+                <div className="w-1/2 text-center">
+                  <p className="font-bold text-[16px] uppercase">{"TRƯỜNG TIỂU HỌC - TRUNG HỌC CƠ SỞ PASCAL".normalize('NFC')}</p>
+                  <p className="font-bold text-[15px] uppercase">{"PASCAL PRIMARY AND SECONDARY SCHOOL".normalize('NFC')}</p>
+                </div>
+              </div>
 
               {/* TITLE */}
               <div className="text-center mb-10">
-                <h1 className="text-2xl font-bold uppercase mb-2">KẾT QUẢ HỌC TẬP THÁNG {month}</h1>
-                <h2 className="text-lg font-bold">NĂM HỌC {classData.academicYear}</h2>
+                <h1 className="text-2xl font-bold uppercase mb-2">{"KẾT QUẢ HỌC TẬP THÁNG ".normalize('NFC')}{month}</h1>
+                <h2 className="text-lg font-bold">{"NĂM HỌC ".normalize('NFC')}{classData.academicYear}</h2>
               </div>
 
               {/* STUDENT INFO */}
               <div className="mb-8 text-[16px] leading-loose">
                 <div className="flex">
-                  <span className="w-40 font-bold whitespace-nowrap">Họ và tên học sinh:</span>
-                  <span className="font-bold ml-2 uppercase flex-1">{student.fullName}</span>
-                  <span className="ml-auto w-16 font-bold">Lớp:</span>
-                  <span className="font-bold w-24">{classData.name}</span>
+                  <span className="w-40 font-bold whitespace-nowrap">{"Họ và tên học sinh:".normalize('NFC')}</span>
+                  <span className="font-bold ml-2 uppercase flex-1">{student.fullName.normalize('NFC')}</span>
+                  <span className="ml-auto w-16 font-bold">{"Lớp:".normalize('NFC')}</span>
+                  <span className="font-bold w-24">{classData.name.normalize('NFC')}</span>
                 </div>
                 
                 <div className="flex mt-2">
-                  <span className="w-40 font-bold whitespace-nowrap">Xếp hạng:</span>
+                  <span className="w-40 font-bold whitespace-nowrap">{"Xếp hạng:".normalize('NFC')}</span>
                   <span className="font-bold ml-2">{rank} / {students.length}</span>
                 </div>
 
                 <div className="mt-4">
-                  <p className="mb-2">Điểm trung bình các môn lớp {classData.name}</p>
+                  <p className="mb-2">{"Điểm trung bình các môn lớp ".normalize('NFC')}{classData.name.normalize('NFC')}</p>
                   <div className="flex gap-16">
                     <div>
-                      <span className="">Môn Toán:</span> 
+                      <span className="">{"Môn Toán:".normalize('NFC')}</span> 
                       <span className="ml-2 font-bold">{classAverages.math}</span>
                     </div>
                     <div>
-                      <span className="">Môn Văn:</span> 
+                      <span className="">{"Môn Văn:".normalize('NFC')}</span> 
                       <span className="ml-2 font-bold">{classAverages.lit}</span>
                     </div>
                     <div>
-                      <span className="">Môn Anh:</span> 
+                      <span className="">{"Môn Anh:".normalize('NFC')}</span> 
                       <span className="ml-2 font-bold">{classAverages.eng}</span>
                     </div>
                   </div>
@@ -234,26 +229,26 @@ export default function PrintMonthlyEvaluation() {
               <table className="w-full border-collapse border border-black mb-12">
                 <thead>
                   <tr>
-                    <th className="border border-black p-3 text-center w-32 font-bold text-[16px]">Môn</th>
-                    <th className="border border-black p-3 text-center w-24 font-bold text-[16px]">Điểm</th>
-                    <th className="border border-black p-3 text-center font-bold text-[16px]">Nhận xét</th>
+                    <th className="border border-black p-3 text-center w-32 font-bold text-[16px]">{"Môn".normalize('NFC')}</th>
+                    <th className="border border-black p-3 text-center w-24 font-bold text-[16px]">{"Điểm".normalize('NFC')}</th>
+                    <th className="border border-black p-3 text-center font-bold text-[16px]">{"Nhận xét".normalize('NFC')}</th>
                   </tr>
                 </thead>
                 <tbody className="text-[16px]">
                   <tr>
-                    <td className="border border-black p-3 font-bold text-center h-16 align-middle">Toán</td>
+                    <td className="border border-black p-3 font-bold text-center h-16 align-middle">{"Toán".normalize('NFC')}</td>
                     <td className="border border-black p-3 text-center font-bold text-lg">{ev.mathScore ?? ""}</td>
-                    <td className="border border-black p-3 align-middle">{ev.mathComment || ""}</td>
+                    <td className="border border-black p-3 align-middle">{(ev.mathComment || "").normalize('NFC')}</td>
                   </tr>
                   <tr>
-                    <td className="border border-black p-3 font-bold text-center h-16 align-middle">Văn</td>
+                    <td className="border border-black p-3 font-bold text-center h-16 align-middle">{"Văn".normalize('NFC')}</td>
                     <td className="border border-black p-3 text-center font-bold text-lg">{ev.literatureScore ?? ""}</td>
-                    <td className="border border-black p-3 align-middle">{ev.literatureComment || ""}</td>
+                    <td className="border border-black p-3 align-middle">{(ev.literatureComment || "").normalize('NFC')}</td>
                   </tr>
                   <tr>
-                    <td className="border border-black p-3 font-bold text-center h-16 align-middle">Anh</td>
+                    <td className="border border-black p-3 font-bold text-center h-16 align-middle">{"Anh".normalize('NFC')}</td>
                     <td className="border border-black p-3 text-center font-bold text-lg">{ev.englishScore ?? ""}</td>
-                    <td className="border border-black p-3 align-middle">{ev.englishComment || ""}</td>
+                    <td className="border border-black p-3 align-middle">{(ev.englishComment || "").normalize('NFC')}</td>
                   </tr>
                 </tbody>
               </table>
@@ -261,9 +256,9 @@ export default function PrintMonthlyEvaluation() {
               {/* SIGNATURE */}
               <div className="flex justify-end pr-10 mt-20">
                 <div className="text-center">
-                  <p className="italic text-[15px] mb-2">Hà Nội, ngày {new Date().getDate()} tháng {new Date().getMonth() + 1} năm {new Date().getFullYear()}</p>
-                  <p className="font-bold text-[16px] mb-24">Giáo viên chủ nhiệm</p>
-                  <p className="font-bold text-[16px] uppercase">{teacherName}</p>
+                  <p className="italic text-[15px] mb-2">{"Hà Nội, ngày ".normalize('NFC')}{new Date().getDate()}{" tháng ".normalize('NFC')}{new Date().getMonth() + 1}{" năm ".normalize('NFC')}{new Date().getFullYear()}</p>
+                  <p className="font-bold text-[16px] mb-24">{"Giáo viên chủ nhiệm".normalize('NFC')}</p>
+                  <p className="font-bold text-[16px] uppercase">{teacherName.normalize('NFC')}</p>
                 </div>
               </div>
               
