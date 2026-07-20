@@ -8,6 +8,7 @@ import { StudentData, studentService } from "@/lib/services/student.service";
 import { ClassAssignmentData, assignmentService } from "@/lib/services/assignment.service";
 import StudentModal from "@/components/students/StudentModal";
 import AssignmentModal from "@/components/classes/AssignmentModal";
+import MonthlyEvaluationsTab from "@/components/classes/MonthlyEvaluationsTab";
 import { doc, getDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase/client";
 import { useRouter } from "next/navigation";
@@ -29,7 +30,7 @@ export default function ClassDetailsPage({ params }: { params: Promise<{ id: str
   const [teacherNames, setTeacherNames] = useState<Record<string, string>>({});
   
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<"students" | "assignments">("students");
+  const [activeTab, setActiveTab] = useState<"students" | "assignments" | "evaluations">("students");
   
   const [isStudentModalOpen, setIsStudentModalOpen] = useState(false);
   const [isAssignmentModalOpen, setIsAssignmentModalOpen] = useState(false);
@@ -223,6 +224,16 @@ export default function ClassDetailsPage({ params }: { params: Promise<{ id: str
           >
             Phân công Giảng dạy
           </button>
+          <button
+            onClick={() => setActiveTab("evaluations")}
+            className={`px-6 py-3 font-medium text-sm transition-colors border-b-2 ${
+              activeTab === "evaluations" 
+                ? "border-blue-600 text-blue-600" 
+                : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
+            }`}
+          >
+            Đánh giá hằng tháng
+          </button>
         </div>
 
         {/* Content: Học sinh */}
@@ -376,6 +387,16 @@ export default function ClassDetailsPage({ params }: { params: Promise<{ id: str
               </table>
             </div>
           </div>
+        )}
+
+        {/* Content: Đánh giá hằng tháng */}
+        {activeTab === "evaluations" && (
+          <MonthlyEvaluationsTab
+            classData={classData}
+            students={students}
+            assignments={assignments}
+            profile={profile}
+          />
         )}
       </div>
 
