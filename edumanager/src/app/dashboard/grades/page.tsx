@@ -13,6 +13,7 @@ interface AssignmentWithClass {
   id: string;
   classId: string;
   className: string;
+  grade: string;
   subject: string;
   academicYear: string;
 }
@@ -30,9 +31,9 @@ export default function GradesIndexPage() {
 
         // Fetch all classes for mapping
         const classSnap = await getDocs(collection(db, "classes"));
-        const classMap: Record<string, string> = {};
+        const classMap: Record<string, any> = {};
         classSnap.forEach(doc => {
-          classMap[doc.id] = doc.data().name;
+          classMap[doc.id] = doc.data();
         });
 
         let q;
@@ -56,10 +57,12 @@ export default function GradesIndexPage() {
 
         snapshot.forEach(doc => {
           const assignData = doc.data();
+          const clsInfo = classMap[assignData.classId] || {};
           const mappedData = {
             id: doc.id,
             classId: assignData.classId,
-            className: classMap[assignData.classId] || "Không xác định",
+            className: clsInfo.name || "Không xác định",
+            grade: clsInfo.grade || "Khác",
             subject: assignData.subject || "",
             academicYear: assignData.academicYear || "2023-2024",
           };
@@ -133,7 +136,7 @@ export default function GradesIndexPage() {
                             </span>
                             <Users className="text-blue-400 group-hover:text-blue-600 transition-colors" size={20} />
                           </div>
-                          <h2 className="text-2xl font-black text-slate-800 mb-1 group-hover:text-blue-700 transition-colors">
+                          <h2 className="text-2xl font-bold text-slate-800 mb-1 group-hover:text-blue-700 transition-colors">
                             Lớp {assign.className}
                           </h2>
                           <p className="text-blue-600 font-medium">Giáo viên chủ nhiệm</p>
@@ -163,31 +166,48 @@ export default function GradesIndexPage() {
                   <p className="text-slate-500">Bạn chưa được phân công làm Giáo viên bộ môn (GVBM) cho lớp nào.</p>
                 </div>
               ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                  {assignments.map(assign => (
-                    <Link 
-                      href={`/dashboard/grades/${assign.classId}?subject=${encodeURIComponent(assign.subject)}&academicYear=${encodeURIComponent(assign.academicYear)}`} 
-                      key={assign.id}
-                      className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 hover:shadow-md hover:border-emerald-300 transition-all group flex flex-col justify-between"
-                    >
-                      <div>
-                        <div className="flex items-center justify-between mb-4">
-                          <span className="bg-emerald-50 text-emerald-700 text-xs font-bold px-3 py-1 rounded-full border border-emerald-100">
-                            Năm học: {assign.academicYear}
-                          </span>
-                          <BookOpen className="text-slate-400 group-hover:text-emerald-500 transition-colors" size={20} />
-                        </div>
-                        <h2 className="text-2xl font-black text-slate-800 mb-1 group-hover:text-emerald-600 transition-colors">
-                          Lớp {assign.className}
-                        </h2>
-                        <p className="text-slate-500 font-medium">Môn: {assign.subject}</p>
+                <div className="space-y-8">
+                  {Object.entries(
+                    assignments.reduce((acc, assign) => {
+                      const g = assign.grade;
+                      if (!acc[g]) acc[g] = [];
+                      acc[g].push(assign);
+                      return acc;
+                    }, {} as Record<string, AssignmentWithClass[]>)
+                  ).sort(([gA], [gB]) => gA.localeCompare(gB)).map(([grade, groupAssignments]) => (
+                    <div key={grade} className="bg-white/50 p-4 rounded-xl border border-slate-100 shadow-sm">
+                      <h3 className="font-bold text-lg text-slate-700 mb-4 flex items-center gap-2">
+                        <span className="w-2 h-2 bg-emerald-500 rounded-full"></span>
+                        Khối {grade}
+                      </h3>
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                        {groupAssignments.map(assign => (
+                          <Link 
+                            href={`/dashboard/grades/${assign.classId}?subject=${encodeURIComponent(assign.subject)}&academicYear=${encodeURIComponent(assign.academicYear)}`} 
+                            key={assign.id}
+                            className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 hover:shadow-md hover:border-emerald-300 transition-all group flex flex-col justify-between"
+                          >
+                            <div>
+                              <div className="flex items-center justify-between mb-4">
+                                <span className="bg-emerald-50 text-emerald-700 text-xs font-bold px-3 py-1 rounded-full border border-emerald-100">
+                                  Năm học: {assign.academicYear}
+                                </span>
+                                <BookOpen className="text-slate-400 group-hover:text-emerald-500 transition-colors" size={20} />
+                              </div>
+                              <h2 className="text-2xl font-bold text-slate-800 mb-1 group-hover:text-emerald-600 transition-colors">
+                                Lớp {assign.className}
+                              </h2>
+                              <p className="text-slate-500 font-medium">Môn: {assign.subject}</p>
+                            </div>
+                            
+                            <div className="mt-6 flex items-center text-emerald-600 font-semibold text-sm">
+                              <span>Nhập điểm</span>
+                              <ChevronRight size={16} className="ml-1 group-hover:translate-x-1 transition-transform" />
+                            </div>
+                          </Link>
+                        ))}
                       </div>
-                      
-                      <div className="mt-6 flex items-center text-emerald-600 font-semibold text-sm">
-                        <span>Nhập điểm</span>
-                        <ChevronRight size={16} className="ml-1 group-hover:translate-x-1 transition-transform" />
-                      </div>
-                    </Link>
+                    </div>
                   ))}
                 </div>
               )}

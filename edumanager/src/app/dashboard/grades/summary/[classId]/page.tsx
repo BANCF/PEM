@@ -266,7 +266,7 @@ export default function HomeroomGradeSummaryPage({ params }: { params: Promise<{
 
                         {/* Overall Average */}
                         <td className="p-3 text-center bg-slate-50 group-hover:bg-blue-100 transition-colors">
-                          <span className={`inline-block px-3 py-1 rounded font-black text-sm ${
+                          <span className={`inline-block px-3 py-1 rounded font-bold text-sm ${
                             overallAvg == null ? "text-slate-400" :
                             overallAvg >= 8.0 ? "text-blue-700" :
                             overallAvg >= 6.5 ? "text-emerald-700" :
@@ -328,19 +328,19 @@ export default function HomeroomGradeSummaryPage({ params }: { params: Promise<{
                             <div className="grid grid-cols-4 gap-2 text-center">
                               <div className="bg-slate-50 p-2 rounded border border-slate-200">
                                 <p className="text-xs text-slate-500 mb-1 font-semibold">Thường xuyên</p>
-                                <p className="font-black text-slate-800">{[activeG?.tx1, activeG?.tx2, activeG?.tx3, activeG?.tx4].filter(x => x != null).join(" • ") || "-"}</p>
+                                <p className="font-bold text-slate-800">{[activeG?.tx1, activeG?.tx2, activeG?.tx3, activeG?.tx4].filter(x => x != null).join(" • ") || "-"}</p>
                               </div>
                               <div className="bg-amber-50 p-2 rounded border border-amber-200">
                                 <p className="text-xs text-amber-600 mb-1 font-semibold">Giữa kỳ</p>
-                                <p className="font-black text-amber-700">{activeG?.gk ?? "-"}</p>
+                                <p className="font-bold text-amber-700">{activeG?.gk ?? "-"}</p>
                               </div>
                               <div className="bg-emerald-50 p-2 rounded border border-emerald-200">
                                 <p className="text-xs text-emerald-600 mb-1 font-semibold">Cuối kỳ</p>
-                                <p className="font-black text-emerald-700">{activeG?.ck ?? "-"}</p>
+                                <p className="font-bold text-emerald-700">{activeG?.ck ?? "-"}</p>
                               </div>
                               <div className="bg-blue-50 p-2 rounded border border-blue-200">
                                 <p className="text-xs text-blue-600 mb-1 font-semibold">ĐTB ({viewMode === 1 ? 'HK1' : 'HK2'})</p>
-                                <p className="font-black text-lg text-blue-700">{activeG?.average ?? "-"}</p>
+                                <p className="font-bold text-lg text-blue-700">{activeG?.average ?? "-"}</p>
                               </div>
                             </div>
                           </div>

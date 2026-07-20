@@ -12,7 +12,8 @@ import { doc, getDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase/client";
 import { useRouter } from "next/navigation";
 import toast from "react-hot-toast";
-import { Loader2, ArrowLeft, Plus, Trash2, UserPlus, FileSpreadsheet } from "lucide-react";
+import { Loader2, ArrowLeft, Plus, Trash2, UserPlus, Download, Upload } from "lucide-react";
+import * as XLSX from "xlsx";
 
 export default function ClassDetailsPage({ params }: { params: Promise<{ id: string }> }) {
   const resolvedParams = use(params);
@@ -113,6 +114,72 @@ export default function ClassDetailsPage({ params }: { params: Promise<{ id: str
     );
   }
 
+  const handleDownloadTemplate = () => {
+    const wsData: string[][] = [
+      ["STT", "Mã định danh", "Họ và Tên", "Ngày sinh"],
+      ["1", "HS001", "Nguyễn Văn A", "01/01/2012"],
+      ["2", "HS002", "Trần Thị B", "15/05/2012"]
+    ];
+    const ws = XLSX.utils.aoa_to_sheet(wsData);
+    ws['!cols'] = [{ wch: 5 }, { wch: 15 }, { wch: 25 }, { wch: 15 }];
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "DanhSachHocSinh");
+    XLSX.writeFile(wb, `Mau_Danh_Sach_Hoc_Sinh_Lop_${classData?.name}.xlsx`);
+  };
+
+  const handleExcelImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setLoading(true);
+    const reader = new FileReader();
+    reader.onload = async (evt) => {
+      try {
+        const bstr = evt.target?.result;
+        const wb = XLSX.read(bstr, { type: "binary" });
+        const wsname = wb.SheetNames[0];
+        const ws = wb.Sheets[wsname];
+        const data = XLSX.utils.sheet_to_json<any[]>(ws, { header: 1 });
+
+        let addedCount = 0;
+        let updatedCount = 0;
+
+        for (let i = 1; i < data.length; i++) {
+          const row = data[i];
+          if (!row || row.length < 3) continue;
+
+          const studentCode = row[1]?.toString().trim();
+          const fullName = row[2]?.toString().trim();
+          const dob = row[3]?.toString().trim() || "";
+
+          if (!studentCode || !fullName) continue;
+
+          const existingStudent = students.find(s => s.studentCode === studentCode);
+          if (existingStudent) {
+            await studentService.updateStudent(existingStudent.id!, { fullName, dob });
+            updatedCount++;
+          } else {
+            await studentService.addStudent({
+              classId,
+              studentCode,
+              fullName,
+              dob,
+            });
+            addedCount++;
+          }
+        }
+        toast.success(`Đã thêm mới ${addedCount}, cập nhật ${updatedCount} học sinh!`);
+        fetchAllData();
+      } catch (err) {
+        console.error(err);
+        toast.error("File Excel không hợp lệ.");
+        setLoading(false);
+      }
+    };
+    reader.readAsBinaryString(file);
+    e.target.value = ""; 
+  };
+
   if (!classData) return null;
 
   return (
@@ -162,12 +229,25 @@ export default function ClassDetailsPage({ params }: { params: Promise<{ id: str
             {isAdminOrBGH && (
               <div className="flex gap-3 mb-4 justify-end">
                 <button
-                  onClick={() => toast("Tính năng Import Excel đang phát triển!")}
-                  className="flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg font-medium transition-colors"
+                  onClick={handleDownloadTemplate}
+                  className="flex items-center gap-2 bg-slate-100 hover:bg-slate-200 text-slate-700 px-4 py-2 rounded-lg font-medium transition-colors border border-slate-300"
                 >
-                  <FileSpreadsheet size={18} />
-                  <span>Import Excel</span>
+                  <Download size={18} />
+                  <span className="hidden sm:inline">Tải file mẫu</span>
                 </button>
+                <div className="relative">
+                  <input
+                    type="file"
+                    accept=".xlsx, .xls"
+                    onChange={handleExcelImport}
+                    className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                    title="Nhập danh sách từ Excel"
+                  />
+                  <button className="flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg font-medium transition-colors">
+                    <Upload size={18} />
+                    <span className="hidden sm:inline">Import Excel</span>
+                  </button>
+                </div>
                 <button
                   onClick={() => {
                     setEditingStudent(null);

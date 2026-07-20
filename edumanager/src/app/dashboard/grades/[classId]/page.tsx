@@ -221,6 +221,60 @@ export default function GradeInputPage({ params }: { params: Promise<{ classId: 
     e.target.value = ""; 
   };
 
+  const handleDownloadTemplate = () => {
+    const wsData: (string | number)[][] = [
+      ["UBND  PHƯỜNG NGHĨA ĐÔ"],
+      ["TRƯỜNG TH - THCS PASCAL"],
+      ["BẢNG ĐIỂM HỌC KỲ"],
+      [`Năm học: ${academicYear} - Học kỳ: ${semester === 1 ? 'I' : 'II'}`],
+      [`Môn học: ${subject} - GV: ${profile?.fullName || ''}`],
+      [],
+      ["STT", "Mã định danh Bộ GD&ĐT", "Họ và tên", "Ngày sinh", "Giới tính", "ĐĐGtx", "", "", "", "ĐĐGgk", "ĐĐGck", "ĐTBmhk1", "ĐTBmhk2", "ĐTBmcn"]
+    ];
+
+    students.forEach((std, index) => {
+      const row = [
+        index + 1,
+        std.studentCode || "",
+        std.fullName,
+        std.dob || "",
+        "", // Giới tính
+        "", "", "", "", // TX
+        "", // GK
+        "", // CK
+        "", // HK1
+        "", // HK2
+        ""  // CN
+      ];
+      wsData.push(row);
+    });
+
+    const ws = XLSX.utils.aoa_to_sheet(wsData);
+    
+    // Merge cells cho ĐĐGtx (Row 6, Col 5 to 8)
+    if (!ws['!merges']) ws['!merges'] = [];
+    ws['!merges'].push({ s: { r: 6, c: 5 }, e: { r: 6, c: 8 } });
+    
+    // Tùy chỉnh độ rộng cột
+    ws['!cols'] = [
+      { wch: 5 },  // STT
+      { wch: 18 }, // Mã
+      { wch: 25 }, // Tên
+      { wch: 12 }, // Ngày sinh
+      { wch: 10 }, // Giới tính
+      { wch: 6 }, { wch: 6 }, { wch: 6 }, { wch: 6 }, // TX
+      { wch: 8 },  // GK
+      { wch: 8 },  // CK
+      { wch: 10 }, // HK1
+      { wch: 10 }, // HK2
+      { wch: 10 }  // CN
+    ];
+
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, `Mau_Nhap_Diem`);
+    XLSX.writeFile(wb, `Mau_Nhap_Diem_${classData?.name}_${subject}_HK${semester}.xlsx`);
+  };
+
   const handleExportExcel = () => {
     const wsData: (string | number)[][] = [
       ["UBND  PHƯỜNG NGHĨA ĐÔ"],
@@ -331,12 +385,21 @@ export default function GradeInputPage({ params }: { params: Promise<{ classId: 
             </div>
             
             <button
-              onClick={handleExportExcel}
+              onClick={handleDownloadTemplate}
               className="flex items-center gap-2 bg-slate-100 text-slate-700 hover:bg-slate-200 border border-slate-300 px-4 py-2 rounded-lg font-bold transition-colors"
-              title="Xuất file Excel theo mẫu"
+              title="Tải mẫu nhập điểm (trống)"
             >
               <Download size={18} />
-              <span className="hidden sm:inline">Xuất Excel</span>
+              <span className="hidden sm:inline">Tải Mẫu Nhập Điểm</span>
+            </button>
+
+            <button
+              onClick={handleExportExcel}
+              className="flex items-center gap-2 bg-blue-50 text-blue-700 hover:bg-blue-100 border border-blue-200 px-4 py-2 rounded-lg font-bold transition-colors"
+              title="Xuất điểm hiện tại ra Excel"
+            >
+              <Download size={18} />
+              <span className="hidden sm:inline">Xuất Điểm</span>
             </button>
 
             <div className="relative">
