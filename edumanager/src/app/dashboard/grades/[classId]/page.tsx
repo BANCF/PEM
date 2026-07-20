@@ -209,7 +209,7 @@ export default function GradeInputPage({ params }: { params: Promise<{ classId: 
   };
 
   const handleExportExcel = () => {
-    const wsData = [
+    const wsData: (string | number)[][] = [
       ["UBND  PHƯỜNG NGHĨA ĐÔ"],
       ["TRƯỜNG TH - THCS PASCAL"],
       ["BẢNG ĐIỂM HỌC KỲ"],
