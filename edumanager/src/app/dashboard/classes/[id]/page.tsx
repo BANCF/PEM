@@ -36,6 +36,8 @@ export default function ClassDetailsPage({ params }: { params: Promise<{ id: str
   const [editingStudent, setEditingStudent] = useState<StudentData | null>(null);
 
   const isAdminOrBGH = profile?.role === "ADMIN" || profile?.role === "SUPER_ADMIN" || profile?.role === "BGH";
+  const isGVCN = profile?.role === "TEACHER" && assignments.some(a => a.teacherId === profile?.id && (a.role === "GVCN" || a.role === "PCN"));
+  const canManageStudents = isAdminOrBGH || isGVCN;
 
   const fetchAllData = async () => {
     try {
@@ -226,7 +228,7 @@ export default function ClassDetailsPage({ params }: { params: Promise<{ id: str
         {/* Content: Học sinh */}
         {activeTab === "students" && (
           <div>
-            {isAdminOrBGH && (
+            {canManageStudents && (
               <div className="flex gap-3 mb-4 justify-end">
                 <button
                   onClick={handleDownloadTemplate}
@@ -269,7 +271,7 @@ export default function ClassDetailsPage({ params }: { params: Promise<{ id: str
                     <th className="p-4 font-semibold text-gray-600">Mã Học sinh</th>
                     <th className="p-4 font-semibold text-gray-600">Họ và Tên</th>
                     <th className="p-4 font-semibold text-gray-600">Ngày sinh</th>
-                    {isAdminOrBGH && <th className="p-4 font-semibold text-gray-600 text-right">Thao tác</th>}
+                    {canManageStudents && <th className="p-4 font-semibold text-gray-600 text-right">Thao tác</th>}
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
@@ -286,7 +288,7 @@ export default function ClassDetailsPage({ params }: { params: Promise<{ id: str
                         <td className="p-4 font-mono text-gray-600">{student.studentCode}</td>
                         <td className="p-4 font-medium text-gray-800">{student.fullName}</td>
                         <td className="p-4 text-gray-600">{student.dob || "-"}</td>
-                        {isAdminOrBGH && (
+                        {canManageStudents && (
                           <td className="p-4 text-right">
                             <button
                               onClick={() => student.id && handleDeleteStudent(student.id, student.fullName)}
