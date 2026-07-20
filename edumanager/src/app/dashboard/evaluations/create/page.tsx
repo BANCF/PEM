@@ -264,6 +264,15 @@ export default function CreateEvaluationPage() {
                         padding: '4px',
                         borderRadius: '0.5rem',
                         borderColor: '#d1d5db',
+                      }),
+                      option: (base, state) => ({
+                        ...base,
+                        color: state.isSelected ? '#fff' : '#1e293b',
+                        backgroundColor: state.isSelected ? '#2563eb' : state.isFocused ? '#eff6ff' : 'transparent',
+                      }),
+                      singleValue: (base) => ({
+                        ...base,
+                        color: '#1e293b',
                       })
                     }}
                     required
@@ -310,6 +319,15 @@ export default function CreateEvaluationPage() {
                         padding: '4px',
                         borderRadius: '0.5rem',
                         borderColor: '#d1d5db',
+                      }),
+                      option: (base, state) => ({
+                        ...base,
+                        color: state.isSelected ? '#fff' : '#1e293b',
+                        backgroundColor: state.isSelected ? '#2563eb' : state.isFocused ? '#eff6ff' : 'transparent',
+                      }),
+                      singleValue: (base) => ({
+                        ...base,
+                        color: '#1e293b',
                       })
                     }}
                     required
