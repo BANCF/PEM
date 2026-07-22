@@ -1,4 +1,16 @@
-(async function () {
+const rpcCallHeadlessV33 = async (endpoint, payload) => {
+    let fullUrl = normalizeEndpointV33(endpoint);
+    // log(`[POST FETCH] -> ${fullUrl}`);
+    try {
+        let res = await fetch(fullUrl, {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload || {})
+        });
+        return await res.json();
+    } catch (err) { return { status: "error", error: err.message }; }
+}; (async function () {
     const delay = ms => new Promise(res => setTimeout(res, ms));
 
     // ==========================================
@@ -38,13 +50,6 @@
     // ==========================================
     // 1. TẢI THƯ VIỆN & XÓA GIAO DIỆN CŨ
     // ==========================================
-    // if (typeof XLSX === 'undefined') {
-    //     let script = document.createElement('script');
-    //     script.src = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
-    //     document.head.appendChild(script);
-    //     await new Promise(r => script.onload = r);
-    // }
-
     if (document.getElementById('ohke-hub-tools')) {
         document.getElementById('ohke-hub-tools').remove();
     }
@@ -86,7 +91,526 @@
     };
 
     // ==========================================
-    // 3. GIAO DIỆN CHÍNH (MAIN APP V22)
+    // MODULE V33: THE PATIENT HUNTER (DUAL-SYSTEM INTEGRATION)
+    // ==========================================
+    let watcherIntervalV33 = null;
+    let isWatcherRunningV33 = false;
+    let isProcessingV33 = false;
+    let totalProcessedV33 = 0;
+    let globalSeenIdsV33 = new Set();
+
+    let tenantId = '61892';
+    let matchTenant = window.location.pathname.match(/^\/(\d+)\//);
+    if (matchTenant && matchTenant[1]) tenantId = matchTenant[1];
+    else if (window.Ohke && window.Ohke.session && window.Ohke.session.tenant_id) tenantId = window.Ohke.session.tenant_id;
+
+    const API_CONFIG_V33 = {
+        teacherTargetState: "INSTRUCTOR_ATTENDANCE_STATUS_PRESENT",
+        studentActionApi: "bttAction_x2447C_"
+    };
+
+    const normalizeEndpointV33 = (endpoint) => {
+        if (!endpoint) return "";
+        if (endpoint.startsWith('http://') || endpoint.startsWith('https://')) return endpoint;
+        let clean = endpoint.replace(/^\/+/, '');
+        let baseUrl = window.location.origin;
+        if (clean.startsWith('appstart/')) return `${baseUrl}/${tenantId}/${clean}`;
+        if (clean.startsWith(`${tenantId}/`)) return `${baseUrl}/${clean}`;
+        return `${baseUrl}/${tenantId}/appstart/classhub/${clean}`;
+    };
+
+    const rpcCallHeadlessV33 = async (endpoint, payload) => {
+        let fullUrl = normalizeEndpointV33(endpoint);
+        // log(`[POST FETCH] -> ${fullUrl}`);
+        try {
+            let res = await fetch(fullUrl, {
+                method: 'POST',
+                credentials: 'same-origin', // Bắt buộc để Ohke nhận diện session
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload || {})
+            });
+            return await res.json();
+        } catch (err) { return { status: "error", error: err.message }; }
+    };
+
+    const forceClickV33 = (el) => {
+        if (!el) return;
+        let target = el;
+        if (el && typeof el.length === 'number' && el[0] instanceof Node) target = el[0];
+        if (!target) return;
+        target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        ['mousedown', 'mouseup', 'click'].forEach(evt => {
+            target.dispatchEvent(new MouseEvent(evt, { bubbles: true, cancelable: true, view: window }));
+        });
+    };
+
+    const closeModalSafelyV33 = async () => {
+        let errBtns = Array.from(document.querySelectorAll('.ohke-alert, .swal2-popup'))
+            .filter(el => el.offsetWidth > 0)
+            .flatMap(m => Array.from(m.querySelectorAll('button, .w3-button, a')));
+        let firstErrBtn = errBtns.length > 0 ? errBtns[0] : null;
+
+        if (firstErrBtn) { forceClickV33(firstErrBtn); await delay(300); }
+
+        let closeBtns = Array.from(document.querySelectorAll('a[onclick*="onButtonBtnClose"], a[title="Đóng"], a[title="Close"], .close-btn, .ohke-popup-close'))
+            .filter(el => el.offsetWidth > 0);
+        let btn = closeBtns.length > 0 ? closeBtns[closeBtns.length - 1] : null;
+
+        if (!btn) {
+            let titles = Array.from(document.querySelectorAll('span.title-')).filter(el => el.offsetWidth > 0);
+            for (let el of titles) {
+                let txt = el.textContent.trim().toLowerCase();
+                if (txt === 'đóng' || txt === 'close') {
+                    btn = el.closest('a');
+                    break;
+                }
+            }
+        }
+
+        if (btn) {
+            // log(`Đóng Modal...`);
+            forceClickV33(btn);
+            await delay(400);
+        }
+
+        Array.from(document.querySelectorAll('.w3-modal, .ohke-popup-subform, .patch-modal'))
+            .filter(el => el.offsetWidth > 0)
+            .forEach(el => {
+                el.classList.remove('w3-show');
+                el.style.display = 'none';
+            });
+    };
+
+    const switchTabAndWaitV33 = async (tabKeywords = []) => {
+        let bestTab = null;
+        let tabs = document.querySelectorAll('button, a, .w3-bar-item, .w3-button, .tablink, .ohke-tab-btn, [role="tab"]');
+        for (let el of tabs) {
+            if (el.offsetWidth === 0) continue;
+            let txt = el.textContent.trim();
+            if (txt.length > 0 && txt.length <= 25) {
+                let txtLower = txt.toLowerCase();
+                if (tabKeywords.some(kw => txtLower === kw.toLowerCase() || txtLower.includes(kw.toLowerCase()))) {
+                    bestTab = el;
+                    break;
+                }
+            }
+        }
+
+        if (bestTab) {
+            log(`🧭 Đang quét lớp tại tab [${bestTab.textContent.trim()}]...`);
+            forceClickV33(bestTab);
+
+            await waitForElementToDisappear('.fa-spin, .ohke-icon-loading, .fa-spinner', 5000);
+            await delay(2500);
+
+            let moreBtns = Array.from(document.querySelectorAll('button, a, .w3-button, span, .ohke-btn'))
+                .filter(el => {
+                    let t = el.textContent.trim().toLowerCase();
+                    return t.length > 0 && t.length <= 25 && (t === 'xem thêm' || t === 'load more' || t === 'view more') && el.offsetWidth > 0;
+                });
+            let moreBtn = moreBtns.length > 0 ? moreBtns[0] : null;
+            if (moreBtn) {
+                forceClickV33(moreBtn);
+                await waitForElementToDisappear('.fa-spin, .ohke-icon-loading, .fa-spinner', 5000);
+                await delay(2500);
+            }
+            return true;
+        }
+        return false;
+    };
+
+    const getClassUnlockInfoV33 = (entityData, bufferMinutes = 5) => {
+        if (!entityData || !entityData.class_schedule_date) return { isSafe: true, unlockTimestamp: 0, timeString: "" };
+        try {
+            const dateStr = entityData.class_schedule_date;
+            const timeStr = entityData.class_hour_start_time || entityData.start_time || "00:00:00";
+            const dateParts = dateStr.split('-');
+            const year = parseInt(dateParts[0], 10);
+            const month = parseInt(dateParts[1], 10) - 1;
+            const day = parseInt(dateParts[2], 10);
+            const timeParts = timeStr.split(':');
+            const hours = parseInt(timeParts[0], 10) || 0;
+            const minutes = parseInt(timeParts[1], 10) || 0;
+            const seconds = parseInt(timeParts[2], 10) || 0;
+            const startTimestamp = new Date(year, month, day, hours, minutes, seconds).getTime();
+            const unlockTimestamp = startTimestamp + (bufferMinutes * 60 * 1000);
+            const now = Date.now();
+            const unlockDate = new Date(unlockTimestamp);
+            const timeString = `${String(unlockDate.getHours()).padStart(2, '0')}:${String(unlockDate.getMinutes()).padStart(2, '0')}`;
+            return { isSafe: now >= unlockTimestamp, unlockTimestamp: unlockTimestamp, timeString: timeString };
+        } catch (e) { return { isSafe: true, unlockTimestamp: 0, timeString: "" }; }
+    };
+
+    const updateOverlayV33 = (statusText, nextClassInfo, totalDone, intervalSec, isStopped = false) => {
+        let overlay = document.getElementById('ohke-v33-patient-hunter');
+        if (!overlay) {
+            const div = document.createElement('div');
+            div.id = 'ohke-v33-patient-hunter';
+            div.style.cssText = "position: fixed; bottom: 20px; right: 20px; z-index: 999999; background: rgba(18, 20, 26, 0.96); border: 1px solid #00FF66; box-shadow: 0 4px 20px rgba(0, 255, 102, 0.35); border-radius: 10px; padding: 14px 18px; width: 340px; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; color: #fff; transition: all 0.3s ease;";
+            div.innerHTML = `
+                <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid rgba(255,255,255,0.15); padding-bottom: 8px; margin-bottom: 10px;">
+                    <span style="font-weight: bold; font-size: 14px; color: #00FF66; display: flex; align-items: center; gap: 6px;">
+                        <span id="v33-dot" style="display: inline-block; width: 8px; height: 8px; background: #00FF66; border-radius: 50%; box-shadow: 0 0 8px #00FF66;"></span>
+                        V33 Patient Hunter
+                    </span>
+                </div>
+                <div id="v33-status-text" style="font-size: 13px; color: #E0E0E0; margin-bottom: 8px; line-height: 1.4;"></div>
+                <div id="v33-next-class" style="font-size: 12px; color: #FFD700; background: rgba(255, 215, 0, 0.1); padding: 6px 8px; border-radius: 6px; margin-bottom: 8px; display: none; border-left: 3px solid #FFD700;"></div>
+                <div style="display: flex; justify-content: space-between; align-items: center; font-size: 11px; color: #AAA; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 8px;">
+                    <span id="v33-total-done">✔️ Đã điểm danh: 0 tiết</span>
+                    <span id="v33-interval-info">⏳ Chu kỳ: ${intervalSec}s</span>
+                </div>
+            `;
+            document.body.appendChild(div);
+            overlay = div;
+        }
+        document.getElementById('v33-status-text').innerHTML = statusText;
+        let nextClassEl = document.getElementById('v33-next-class');
+        if (nextClassInfo) {
+            nextClassEl.innerHTML = `⏰ Tiết tiếp theo: <b>${nextClassInfo}</b>`;
+            nextClassEl.style.display = 'block';
+        } else {
+            nextClassEl.style.display = 'none';
+        }
+        document.getElementById('v33-total-done').textContent = `✔️ Đã điểm danh: ${totalDone} tiết`;
+        if (intervalSec > 0) document.getElementById('v33-interval-info').textContent = `⏳ Chu kỳ: ${intervalSec}s`;
+
+        let dot = document.getElementById('v33-dot');
+        if (isStopped) {
+            overlay.style.borderColor = '#FF3366';
+            overlay.style.boxShadow = '0 4px 20px rgba(255, 51, 102, 0.3)';
+            dot.style.background = '#FF3366';
+            dot.style.boxShadow = '0 0 8px #FF3366';
+        } else {
+            overlay.style.borderColor = '#00FF66';
+            overlay.style.boxShadow = '0 4px 20px rgba(0, 255, 102, 0.35)';
+            dot.style.background = '#00FF66';
+            dot.style.boxShadow = '0 0 8px #00FF66';
+        }
+    };
+
+    const submitAttendanceFlowV33 = async (classItem) => {
+        let entity = classItem.entity;
+        let masterKey = classItem.id;
+        let classUpdateTime = entity.update_time || "";
+        let env = window.Ohke && window.Ohke.session ? window.Ohke.session.env : "PROD";
+        let startTime = performance.now();
+
+        let classHourCode = entity.class_hour_code || '';
+        let isLessonZero = (classHourCode === 'H0' || String(classHourCode).startsWith('H0.'));
+
+        log(`⚡ Đang xử lý điểm danh tiết [${classHourCode || masterKey}]...`);
+
+        try {
+            if (!classItem.element) return false;
+            forceClickV33(classItem.element);
+            await delay(1000);
+
+            let elapsed = 0; let teacherId = null; let teacherEntityData = null;
+            while (elapsed < 3500) {
+                let modals = Array.from(document.querySelectorAll('.w3-modal, .ohke-popup-subform, .patch-modal')).filter(el => el.offsetWidth > 0);
+                let classModal = modals.length > 0 ? modals[modals.length - 1] : null;
+                if (classModal) {
+                    let entityEls = classModal.querySelectorAll('[data-entity]');
+                    for (let el of entityEls) {
+                        let subEntityStr = el.getAttribute('data-entity') || (el.dataset && el.dataset.entity);
+                        if (subEntityStr && subEntityStr !== '[object Object]') {
+                            try {
+                                let subEnt = (typeof subEntityStr === 'string') ? JSON.parse(subEntityStr) : subEntityStr;
+                                if (subEnt && subEnt.id && String(subEnt.id) !== String(masterKey)) {
+                                    if (subEnt.hrm_activity_type_code !== undefined || subEnt.study_instructor_code !== undefined || subEnt.instructor_id !== undefined) {
+                                        teacherId = String(subEnt.id); teacherEntityData = subEnt; break;
+                                    }
+                                }
+                            } catch (e) { }
+                        }
+                    }
+                    if (teacherId) break;
+                }
+                await delay(50); elapsed += 50;
+            }
+
+            if (!teacherId) {
+                await closeModalSafelyV33();
+                teacherId = entity.instructor_id || entity.instructor_sheet_id || (entity.instructor && entity.instructor.id) || masterKey;
+            }
+
+            let currentEntity = Object.assign({}, entity);
+            let currentTeacherEntity = Object.assign({}, teacherEntityData || entity);
+
+            if (!isLessonZero) {
+                let payloadApi1 = {
+                    id: teacherId, field_name: "status",
+                    begin_state: currentTeacherEntity.status || "INSTRUCTOR_ATTENDANCE_STATUS_NO_ATTENDANCE",
+                    to_state: API_CONFIG_V33.teacherTargetState,
+                    end_state: API_CONFIG_V33.teacherTargetState,
+                    is_reversal: 0, update_time: currentTeacherEntity.update_time || currentEntity.update_time || "",
+                    mode: "V", entity: currentTeacherEntity, env: env
+                };
+                try {
+                    let res1 = await rpcCallHeadlessV33('x24F76_jsonPostTransition', payloadApi1);
+                    if (res1 && res1.data && typeof res1.data === 'object') {
+                        Object.assign(currentTeacherEntity, res1.data);
+                        if (res1.data.update_time) { currentTeacherEntity.update_time = res1.data.update_time; currentEntity.update_time = res1.data.update_time; }
+                    }
+                } catch (e1) { }
+
+                let payloadApi2 = {
+                    id: masterKey, field_name: "instructor_attendance_status",
+                    begin_state: currentEntity.instructor_attendance_status || "INSTRUCTOR_ATTENDANCE_SHEET_STATUS_PENDING",
+                    to_state: "INSTRUCTOR_ATTENDANCE_SHEET_STATUS_ACCEPTED", end_state: "INSTRUCTOR_ATTENDANCE_SHEET_STATUS_ACCEPTED",
+                    is_reversal: 0, update_time: currentEntity.update_time || classUpdateTime,
+                    mode: "V", entity: currentEntity, env: env
+                };
+                try {
+                    let res2 = await rpcCallHeadlessV33('x35FD3_jsonPostTransition', payloadApi2);
+                    if (!res2 || (res2.type !== "success" && res2.status !== "success" && res2.code !== 200 && !res2.data)) {
+                        res2 = await rpcCallHeadlessV33('x24F76_jsonPostTransition', payloadApi2);
+                    }
+                    if (res2 && res2.data && typeof res2.data === 'object') {
+                        Object.assign(currentEntity, res2.data);
+                        if (res2.data.update_time) currentEntity.update_time = res2.data.update_time;
+                    }
+                } catch (e2) { }
+            }
+
+            // API 3: Copy HS theo tiết trước
+            // API 3: Gọi lệnh Copy/Đánh dấu điểm danh HS
+            try {
+                await rpcCallHeadlessV33(API_CONFIG_V33.studentActionApi, {
+                    id: masterKey, entity: currentEntity, master_key: String(masterKey),
+                    action_code: "MARK_ALL_STUDENT_ATTENDANCE_RECORDS_AS_PRESENT", env: env
+                });
+            } catch (e3) { }
+
+            // HYBRID FALLBACK: Bất chấp API 3 trả về gì, cứ quét màn hình.
+            // Nếu nút "Tất cả có mặt" / "Mark All As Present" vẫn hiện lù lù trên Modal,
+            // chứng tỏ API đã bị Server từ chối ngầm (Thường gặp ở Tiết 1) -> Click thủ công!
+            await delay(500); 
+            let topModal = Array.from(document.querySelectorAll('.w3-modal, .ohke-popup-subform, .patch-modal')).filter(el => el.offsetWidth > 0 || el.classList.contains('w3-show')).pop();
+            if (topModal) {
+                let btnAllPresent = Array.from(topModal.querySelectorAll('a, button, .ohke-btn')).find(el => {
+                    let t = el.textContent.toLowerCase();
+                    return (t.includes('tất cả có mặt') || t.includes('mark all as present') || t.includes('mark all')) && el.offsetWidth > 0;
+                });
+                
+                if (btnAllPresent) {
+                    forceClickV33(btnAllPresent);
+                    await delay(1500); // Chờ danh sách HS chuyển sang PRESENT
+                    
+                    let btnNext = Array.from(topModal.querySelectorAll('a, button')).find(el => {
+                        let t = el.textContent.toLowerCase();
+                        return (t.includes('tiếp tục') || t.includes('continue') || t.includes('next')) && el.offsetWidth > 0;
+                    });
+                    if (btnNext) { forceClickV33(btnNext); await delay(1500); }
+                }
+            }
+
+            try {
+                let resRefresh = await rpcCallHeadlessV33('x35FD2_Viewer', { id: masterKey, master_key: masterKey, mode: "V", env: env });
+                if (resRefresh) {
+                    if (resRefresh.data && typeof resRefresh.data === 'object') {
+                        Object.assign(currentEntity, resRefresh.data);
+                        if (resRefresh.data.update_time) currentEntity.update_time = resRefresh.data.update_time;
+                    } else if (resRefresh.update_time) { currentEntity.update_time = resRefresh.update_time; }
+                }
+            } catch (eRefresh) { }
+
+            let payloadApi4 = {
+                id: masterKey, field_name: "attendance_sheet_status",
+                begin_state: currentEntity.attendance_sheet_status || "CLASS_SCHEDULE_SLOT_STATUS_PENDING",
+                to_state: "CLASS_SCHEDULE_SLOT_STATUS_ACCEPTED", end_state: "CLASS_SCHEDULE_SLOT_STATUS_ACCEPTED",
+                is_reversal: 0, update_time: currentEntity.update_time || classUpdateTime,
+                mode: "V", entity: currentEntity, env: env
+            };
+            try {
+                let res4 = await rpcCallHeadlessV33('x35FD2_jsonPostTransition', payloadApi4);
+                if (res4 && res4.data && typeof res4.data === 'object') Object.assign(currentEntity, res4.data);
+            } catch (e4) { }
+
+            await closeModalSafelyV33();
+
+            classItem.element.style.opacity = '0.3'; 
+            classItem.element.setAttribute('data-da-diem-danh', 'true');
+            if (!classItem.element.innerHTML.includes('Đã Auto V33')) {
+                classItem.element.innerHTML += '<div style="color:#dc3545; font-weight:bold; font-size:12px; margin-top:5px;">✔️ Đã Auto V33</div>';
+            }
+            let duration = Math.round(performance.now() - startTime);
+            log(`✅ Thành công! Đã chốt sổ tiết [${classHourCode || masterKey}] trong ${(duration / 1000).toFixed(1)}s.`);
+            return true;
+        } catch (err) {
+            log(`❌ Lỗi Sniper tiết ${masterKey}: ${err.message}`);
+            await closeModalSafelyV33();
+            return false;
+        }
+    };
+
+    const processCurrentTabV33 = async (seenIds, bufferMinutes = 5) => {
+        let localReadyList = []; let localLockedList = [];
+
+        let items = Array.from(document.querySelectorAll('.list-item[data-entity], .item-4qfjeb3y6f[data-entity], [data-entity*="class_schedule_slot_id"]'))
+            .filter(el => !el.closest('.w3-modal, .ohke-popup-subform, .patch-modal'));
+        if (items.length === 0) {
+            items = Array.from(document.querySelectorAll('.list-item'))
+                .filter(el => !el.closest('.w3-modal, .ohke-popup-subform, .patch-modal'));
+        }
+
+        items.forEach((el) => {
+            if (el.offsetWidth === 0) return;
+            // Bỏ qua nếu đã được tool đánh dấu (Cờ vật lý chống lặp)
+            if (el.getAttribute('data-da-diem-danh') === 'true') return;
+
+            let rawEntity = el.getAttribute('data-entity') || (el.dataset && el.dataset.entity);
+            if (!rawEntity || rawEntity === '[object Object]') return;
+
+            try {
+                let entity = (typeof rawEntity === 'string') ? JSON.parse(rawEntity) : rawEntity;
+                if (!entity || (!entity.class_schedule_slot_id && !entity.class_hour_code)) return;
+                if (!entity.id) return;
+
+                // DATA-DRIVEN CHECK: Kiểm tra trạng thái trực tiếp từ Dữ liệu Server
+                let tStatus = String(entity.instructor_attendance_status || entity.status || "").toUpperCase();
+                let sStatus = String(entity.attendance_sheet_status || "").toUpperCase();
+                
+                // Giáo viên chưa điểm danh nếu KHÔNG CÓ chữ ACCEPTED, PRESENT hoặc FULL_ATTENDANCE
+                let isTeacherPending = (!tStatus.includes('ACCEPTED') && !tStatus.includes('PRESENT') && !tStatus.includes('FULL_ATTENDANCE'));
+                // Học sinh chưa nộp nếu KHÔNG CÓ chữ ACCEPTED
+                let isStudentPending = !sStatus.includes('ACCEPTED');
+
+                // Nếu cả 2 đều đã xong thì bỏ qua lớp này
+                if (!isTeacherPending && !isStudentPending) return;
+
+                let masterKey = String(entity.id || el.dataset?.id || entity.master_key);
+                if (seenIds.has(masterKey)) return;
+
+                seenIds.add(masterKey);
+                let unlockInfo = getClassUnlockInfoV33(entity, bufferMinutes);
+                let classHourCode = entity.class_hour_code || '';
+                let classItem = { element: el, entity: entity, id: masterKey, classCode: classHourCode, unlockInfo: unlockInfo };
+
+                if (unlockInfo.isSafe) localReadyList.push(classItem);
+                else localLockedList.push(classItem);
+            } catch (err) { }
+        });
+
+        localReadyList.sort((a, b) => (a.unlockInfo ? a.unlockInfo.unlockTimestamp : 0) - (b.unlockInfo ? b.unlockInfo.unlockTimestamp : 0));
+        localLockedList.sort((a, b) => (a.unlockInfo ? a.unlockInfo.unlockTimestamp : 0) - (b.unlockInfo ? b.unlockInfo.unlockTimestamp : 0));
+
+        if (localReadyList.length === 0) {
+        } else {
+            log(`🎯 Phát hiện ${localReadyList.length} tiết. Đang tiến hành điểm danh...`);
+            for (let cls of localReadyList) {
+                if (!isWatcherRunningV33) break;
+                if (cls.element.getAttribute('data-da-diem-danh') === 'true' || (cls.element.textContent || "").includes('Đã Auto V33')) continue;
+                let success = await submitAttendanceFlowV33(cls);
+                if (success) totalProcessedV33++;
+            }
+        }
+        return { processedCount: localReadyList.length, locked: localLockedList };
+    };
+
+    const runScanIterationV33 = async (intervalSec = 60) => {
+        if (!isWatcherRunningV33) return;
+        if (isProcessingV33) return;
+
+        isProcessingV33 = true;
+        try {
+            let allLocked = [];
+            updateOverlayV33("🟢 Đang điều hướng & xử lý tab Quá Khứ...", null, totalProcessedV33, intervalSec);
+            await switchTabAndWaitV33(['quá khứ', 'past']);
+            let pastResult = await processCurrentTabV33(globalSeenIdsV33, 5);
+            allLocked.push(...pastResult.locked);
+            if (pastResult.processedCount === 0) log("✔️ Tab hiện tại sạch sẽ, không có tiết nào bị trễ.");
+
+            if (!isWatcherRunningV33) return;
+
+            updateOverlayV33("🟢 Đang điều hướng & xử lý tab Hôm Nay...", null, totalProcessedV33, intervalSec);
+            await switchTabAndWaitV33(['hôm nay', 'today']);
+            let todayResult = await processCurrentTabV33(globalSeenIdsV33, 5);
+            allLocked.push(...todayResult.locked);
+            if (todayResult.processedCount === 0) log("✔️ Tab hiện tại sạch sẽ, không có tiết nào bị trễ.");
+
+            allLocked.sort((a, b) => (a.unlockInfo ? a.unlockInfo.unlockTimestamp : 0) - (b.unlockInfo ? b.unlockInfo.unlockTimestamp : 0));
+            let nextClassInfo = null;
+            if (allLocked.length > 0) {
+                let nextLocked = allLocked[0];
+                if (nextLocked.unlockInfo && nextLocked.unlockInfo.unlockTimestamp > 0) {
+                    let diffMs = nextLocked.unlockInfo.unlockTimestamp - Date.now();
+                    let diffMins = Math.max(1, Math.ceil(diffMs / 60000));
+                    nextClassInfo = `${nextLocked.classCode || nextLocked.id} (Mở lúc ${nextLocked.unlockInfo.timeString} - còn ~${diffMins} phút)`;
+                }
+            }
+
+            if (isWatcherRunningV33) {
+                let totalDoneThisCycle = pastResult.processedCount + todayResult.processedCount;
+                let statusText = (totalDoneThisCycle > 0) ? `🟢 Vừa dọn xong ${totalDoneThisCycle} tiết. Đang gác cổng...` : `🟢 Đang chờ tiết tiếp theo (Đã dọn sạch)...`;
+                updateOverlayV33(statusText, nextClassInfo, totalProcessedV33, intervalSec);
+
+                // BỔ SUNG: Đóng dấu ngày hoàn thành
+                let todayStr = new Date().toLocaleDateString('vi-VN');
+                chrome.storage.local.set({ 'ohke_last_run_date': todayStr });
+                log(`📅 Đã đóng dấu hoàn thành điểm danh cho ngày hôm nay (${todayStr}). Tự động tắt hệ thống.`);
+
+                // BỔ SUNG CẬP NHẬT UI CHECKBOX TẠI ĐÂY:
+                let debugDoneBox = document.getElementById('debug-done-today');
+                let textDoneBox = document.getElementById('text-done-today');
+                if (debugDoneBox && textDoneBox) {
+                    debugDoneBox.checked = true;
+                    textDoneBox.innerText = "Hôm nay đã xong";
+                    textDoneBox.style.color = "#28a745";
+                }
+
+                stopWatcherV33(); // Tự động tắt One-Shot
+                let btnV33 = document.getElementById('btn-v33-auto-watcher');
+                if (btnV33) {
+                    btnV33.innerHTML = '⚡ BẬT AUTO ĐIỂM DANH (SIÊU TỐC)';
+                    btnV33.style.background = '#20c997';
+                }
+            }
+        } catch (err) {
+            log("⚠️ [runScanIteration Ngoại lệ] " + err.message);
+        } finally {
+            isProcessingV33 = false;
+        }
+    };
+
+    const startWatcherV33 = async (intervalSeconds) => {
+        if (watcherIntervalV33) clearInterval(watcherIntervalV33);
+        isWatcherRunningV33 = true;
+        isProcessingV33 = false;
+        totalProcessedV33 = 0;
+        globalSeenIdsV33.clear();
+
+        log("🚀 Kích hoạt quy trình Điểm Danh Siêu Tốc...");
+        updateOverlayV33("🟢 Đang khởi động V33 Patient Hunter...", null, totalProcessedV33, intervalSeconds);
+
+        await runScanIterationV33(intervalSeconds);
+    };
+
+    const stopWatcherV33 = () => {
+        if (watcherIntervalV33) {
+            clearInterval(watcherIntervalV33);
+            watcherIntervalV33 = null;
+        }
+        isWatcherRunningV33 = false;
+        isProcessingV33 = false;
+        log("🛑 [V33] Đã tắt chế độ giám sát tự động.");
+        updateOverlayV33("🛑 V33 đã dừng", null, totalProcessedV33, 0, true);
+        let overlay = document.getElementById('ohke-v33-patient-hunter');
+        if (overlay) {
+            overlay.style.transition = 'opacity 0.3s ease';
+            overlay.style.opacity = '0';
+            setTimeout(() => {
+                if (overlay && overlay.parentNode) overlay.remove();
+            }, 300);
+        }
+    };
+    // ==========================================
+    // END MODULE V33
+    // ==========================================
+
+    // ==========================================
+    // 3. GIAO DIỆN CHÍNH (MAIN APP V22 + V33 DUAL-SYSTEM)
     // ==========================================
     const renderMainApp = () => {
         let pageText = document.body.innerText.toLowerCase();
@@ -111,7 +635,6 @@
         let displayAuth = currentToken ? 'none' : 'block';
         let displayTools = currentToken ? 'block' : 'none';
 
-        // Thêm biến để theo dõi trạng thái
         let isMinimized = false;
 
         panel.innerHTML = `
@@ -121,7 +644,7 @@
                 #ohke-hub-tools ::-webkit-scrollbar-track { background: #f1f1f1; border-radius: 4px; }
                 #ohke-hub-tools ::-webkit-scrollbar-thumb { background: #bbb; border-radius: 4px; }
                 #ohke-hub-tools .control-btn:hover { background: rgba(255,255,255,0.2); border-radius: 4px; }
-                #ohke-hub-tools button { font-size: 13px !important; } /* Ép font 13px cho mọi nút */
+                #ohke-hub-tools button { font-size: 13px !important; } 
             </style>
 
             <div id="ohke-drag-handle" style="display: flex; justify-content: space-between; align-items: center; background: #002752; color: white; padding: 10px 12px; cursor: move; user-select: none; flex-shrink: 0;">
@@ -196,7 +719,43 @@
                     <div style="background: #e9ecef; padding: 10px; border-radius: 5px; font-size: 13px; margin-bottom: 5px; line-height: 1.4;">
                         <b>Miễn phí:</b> Mở cửa sổ điểm danh trên web, sau đó bấm nút tự động dưới đây.
                     </div>
-                    <button id="btn-auto-attendance" style="background: #dc3545; color: white; padding: 10px; border: none; border-radius: 4px; font-weight: bold; cursor: pointer;">🚀 AUTO ĐIỂM DANH TẤT CẢ</button>
+
+                    <!-- Nút cũ (Đỏ) - Chế độ chậm -->
+                    <button id="btn-auto-attendance" style="background: #dc3545; color: white; padding: 10px; border: none; border-radius: 4px; font-weight: bold; cursor: pointer;">
+                        🐢 AUTO ĐIỂM DANH (CHẾ ĐỘ CLICK CHẬM)
+                    </button>
+
+                    <!-- Công tắc Hẹn giờ & Debug Trạng thái -->
+                    <div style="display: flex; align-items: center; justify-content: space-between; border: 1px solid #ccc; padding: 8px 10px; border-radius: 4px; background: #fff; margin-top: 5px;">
+                        <div style="display: flex; flex-direction: column; gap: 6px;">
+                            <span style="font-size: 13px; font-weight: bold; color: #333;">⏰ Tự bật Điểm danh Siêu tốc lúc 16:15</span>
+                            <label style="font-size: 11px; color: #666; display: flex; align-items: center; gap: 6px; cursor: pointer; user-select: none;">
+                                <input type="checkbox" id="debug-done-today" style="cursor: pointer; width: 14px; height: 14px; margin: 0;">
+                                <span id="text-done-today" style="font-style: italic;">Đang tải trạng thái...</span>
+                            </label>
+                        </div>
+                        <label class="switch" style="position: relative; display: inline-block; width: 40px; height: 20px; flex-shrink: 0;">
+                            <input type="checkbox" id="toggle-daily-cron" style="opacity: 0; width: 0; height: 0;">
+                            <span class="slider round" style="position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #ccc; transition: .4s; border-radius: 34px;"></span>
+                        </label>
+                        <style>
+                            .switch input:checked + .slider { background-color: #28a745; }
+                            .switch input:focus + .slider { box-shadow: 0 0 1px #28a745; }
+                            .switch .slider:before { position: absolute; content: ""; height: 14px; width: 14px; left: 3px; bottom: 3px; background-color: white; transition: .4s; border-radius: 50%; }
+                            .switch input:checked + .slider:before { transform: translateX(23px); }
+                        </style>
+                    </div>
+
+                    <!-- Nút mới V33 (Xanh ngọc) - Chế độ siêu tốc -->
+                    <button id="btn-v33-auto-watcher" style="background: #20c997; color: white; padding: 10px; border: none; border-radius: 4px; font-weight: bold; cursor: pointer; margin-top: 5px;">
+                        ⚡ BẬT AUTO ĐIỂM DANH (SIÊU TỐC)
+                    </button>
+                    <!-- Nút Reset Test -->
+                    <button id="btn-reset-attendance-test" style="background: #fd7e14; color: white; padding: 10px; border: none; border-radius: 4px; font-weight: bold; cursor: pointer; margin-top: 5px;">
+                        💣 RESET ĐIỂM DANH (DÙNG ĐỂ TEST)
+                    </button>
+                    
+                    <div style="border-top: 1px dashed #ccc; margin: 5px 0;"></div> 
                     <button id="btn-att-students" style="background: #17a2b8; color: white; padding: 10px; border: none; border-radius: 4px; font-weight: bold; cursor: pointer;">👨🎓 ĐIỂM DANH HỌC SINH (Như tiết trước)</button>
                     <button id="btn-att-teacher" style="background: #6f42c1; color: white; padding: 10px; border: none; border-radius: 4px; font-weight: bold; cursor: pointer;">👨🏫 ĐIỂM DANH GIÁO VIÊN</button>
                     <button id="btn-att-complete" style="background: #28a745; color: white; padding: 10px; border: none; border-radius: 4px; font-weight: bold; cursor: pointer;">✅ HOÀN THÀNH & TIẾP TỤC</button>
@@ -247,13 +806,10 @@
 
         dragHandle.addEventListener('mousedown', (e) => {
             isDragging = true;
-
-            // Tính toán khoảng cách từ chuột đến viền của Panel
             const rect = panel.getBoundingClientRect();
             dragOffsetX = e.clientX - rect.left;
             dragOffsetY = e.clientY - rect.top;
 
-            // Chuyển đổi định vị từ right/bottom sang left/top để di chuyển mượt mà
             panel.style.right = 'auto';
             panel.style.bottom = 'auto';
             panel.style.left = rect.left + 'px';
@@ -264,13 +820,10 @@
 
         document.addEventListener('mousemove', (e) => {
             if (!isDragging) return;
-            e.preventDefault(); // Ngăn chặn bôi đen văn bản khi đang kéo
-
-            // Tính toán tọa độ mới
+            e.preventDefault();
             let newX = e.clientX - dragOffsetX;
             let newY = e.clientY - dragOffsetY;
 
-            // Giới hạn không cho kéo văng ra khỏi màn hình
             let maxX = window.innerWidth - panel.offsetWidth;
             let maxY = window.innerHeight - panel.offsetHeight;
             newX = Math.max(0, Math.min(newX, maxX));
@@ -350,13 +903,11 @@
             };
         }
 
-        // Tự động Load từ khóa đã lưu trên trình duyệt
         chrome.storage.local.get(['ohke_subject_dict'], (res) => {
             let dict = res.ohke_subject_dict || { "Khoa học Tự nhiên": "KHTN, KHTN Lý", "Công nghệ": "Công nghệ" };
             renderDict(dict);
         });
 
-        // 💡 TÍNH NĂNG MỚI: TỰ ĐỘNG CẬP NHẬT TỪ ĐIỂN KHI CHỌN FILE EXCEL
         const fileInput = document.getElementById('excel-file');
         if (fileInput) {
             fileInput.addEventListener('change', async (e) => {
@@ -400,7 +951,6 @@
                 }
 
                 if (newSubjects.size > 0) {
-                    // Lấy danh sách môn học đã có trong từ điển hiện tại
                     let existingDict = {};
                     document.querySelectorAll('.dict-row .ex-name').forEach(inp => {
                         if (inp.value.trim()) existingDict[inp.value.trim().toLowerCase()] = true;
@@ -409,7 +959,6 @@
                     let added = 0;
                     newSubjects.forEach(subj => {
                         if (!existingDict[subj.toLowerCase()]) {
-                            // Thêm môn mới vào UI với viền Xanh lá cây để gây chú ý
                             let tr = document.createElement('tr');
                             tr.className = 'dict-row';
                             tr.innerHTML = `
@@ -423,7 +972,7 @@
                     });
 
                     if (added > 0) {
-                        bindDictEvents(); // Bật lại event lưu tự động
+                        bindDictEvents();
                         saveDict();
                         log(`✨ Đã tự động thêm ${added} môn mới vào Từ điển. (Các ô có viền xanh lá)`);
                     } else {
@@ -433,8 +982,6 @@
             });
         }
 
-
-        // Hàm tra cứu từ khóa cho vòng lặp
         const getSubjectMapping = () => {
             let mapping = {};
             document.querySelectorAll('.dict-row').forEach(row => {
@@ -448,13 +995,95 @@
         document.getElementById('btn-close-tool').onclick = () => panel.remove();
 
         // ==========================================
+        // EVENT: KÍCH HOẠT AUTO V33
+        // ==========================================
+        let toggleCron = document.getElementById('toggle-daily-cron');
+        if (toggleCron) {
+            chrome.storage.local.get(['ohke_daily_cron'], (res) => {
+                if (res.ohke_daily_cron) toggleCron.checked = true;
+            });
+            toggleCron.onchange = (e) => {
+                let isChecked = e.target.checked;
+                chrome.storage.local.set({ 'ohke_daily_cron': isChecked });
+                chrome.runtime.sendMessage({ action: isChecked ? 'ENABLE_DAILY_CRON' : 'DISABLE_DAILY_CRON' });
+                log(isChecked ? "⏰ Đã BẬT hẹn giờ chạy V33 lúc 16:15 hàng ngày." : "⏰ Đã TẮT hẹn giờ chạy V33.");
+            };
+        }
+
+        // ==========================================
+        // EVENT: DEBUG TRẠNG THÁI NGÀY HÔM NAY
+        // ==========================================
+        let debugDoneToday = document.getElementById('debug-done-today');
+        let textDoneToday = document.getElementById('text-done-today');
+
+        if (debugDoneToday && textDoneToday) {
+            let todayStr = new Date().toLocaleDateString('vi-VN');
+
+            // Đọc trạng thái ban đầu
+            chrome.storage.local.get(['ohke_last_run_date'], (res) => {
+                if (res.ohke_last_run_date === todayStr) {
+                    debugDoneToday.checked = true;
+                    textDoneToday.innerText = "Hôm nay đã xong";
+                    textDoneToday.style.color = "#28a745";
+                } else {
+                    debugDoneToday.checked = false;
+                    textDoneToday.innerText = "Hôm nay chưa chạy";
+                    textDoneToday.style.color = "#dc3545";
+                }
+            });
+
+            // Sự kiện khi User can thiệp bằng tay (Debug)
+            debugDoneToday.onchange = (e) => {
+                if (e.target.checked) {
+                    chrome.storage.local.set({ 'ohke_last_run_date': todayStr });
+                    textDoneToday.innerText = "Hôm nay đã xong";
+                    textDoneToday.style.color = "#28a745";
+                    log(`🛠️ [DEBUG] Đã giả lập trạng thái: Hôm nay ĐÃ HOÀN THÀNH.`);
+                } else {
+                    chrome.storage.local.remove(['ohke_last_run_date']);
+                    textDoneToday.innerText = "Hôm nay chưa chạy";
+                    textDoneToday.style.color = "#dc3545";
+                    log(`🛠️ [DEBUG] Đã xoá trạng thái. Hôm nay CHƯA CHẠY.`);
+                }
+            };
+        }
+
+        let btnV33 = document.getElementById('btn-v33-auto-watcher');
+        if (btnV33) {
+            btnV33.onclick = async () => {
+                // KIỂM TRA: Nếu không ở hệ thống Ohke -> Ra lệnh mở tab mới và dừng thực thi ở tab hiện tại
+                if (!window.location.href.includes('classhub')) {
+                    log("🚀 Đang ở trang ngoài. Mở thẻ ClassHub mới để chạy Điểm Danh...");
+                    chrome.runtime.sendMessage({ action: 'OPEN_CLASSHUB_TAB' });
+                    return;
+                }
+
+                if (isWatcherRunningV33) {
+                    stopWatcherV33();
+                    btnV33.innerHTML = '⚡ BẬT AUTO ĐIỂM DANH (SIÊU TỐC)';
+                    btnV33.style.background = '#20c997';
+                } else {
+                    btnV33.innerHTML = '⏳ ĐANG KHỞI ĐỘNG...';
+                    btnV33.style.background = '#ffc107';
+                    isWatcherRunningV33 = true;
+
+                    await startWatcherV33(60);
+
+                    if (isWatcherRunningV33) {
+                        btnV33.innerHTML = '🛑 TẮT AUTO ĐIỂM DANH (SIÊU TỐC)';
+                        btnV33.style.background = '#dc3545';
+                    }
+                }
+            };
+        }
+
+        // ==========================================
         // MODULE: TỰ ĐỘNG ĐIỀU HƯỚNG BẰNG DEEP LINK (V5)
         // ==========================================
         const getDeepLink = (type) => {
-            // Tự động quét và lấy mã ID hệ thống (VD: 61892) từ URL hiện tại
             let match = window.location.href.match(/idcloud\.vn\/(\d+)/);
-            let tenantId = match ? match[1] : '61892'; // Cập nhật ID mới của trường
-            let baseUrl = `https://idcloud.vn/${tenantId}`;
+            let tenantIdLocal = match ? match[1] : '61892';
+            let baseUrl = `https://idcloud.vn/${tenantIdLocal}`;
 
             if (type === 'CLASSHUB') return `${baseUrl}/appstart/classhub/source=deeplink`;
             if (type === 'CLASSROOM') return `${baseUrl}/appstart/classroom/source=deeplink`;
@@ -464,7 +1093,7 @@
         const forceNavigate = async (type) => {
             let targetUrl = getDeepLink(type);
             log(`🚀 Dùng Deep Link ép chuyển thẳng tới: ${type}...`);
-            window.location.href = targetUrl; // Ép trình duyệt nhảy thẳng URL
+            window.location.href = targetUrl;
             return 'HARD_RELOAD';
         };
 
@@ -557,17 +1186,15 @@
         document.getElementById('btn-auto-attendance').onclick = async () => {
             log("🚀 Kích hoạt quy trình Tự Động Hóa Điểm Danh...");
 
-            // Check xem URL hiện tại có đang ở ClassHub chưa
             if (!window.location.href.includes('classhub')) {
                 log("Đang lưu trạng thái và dùng Deep Link tới ClassHub...");
                 await chrome.storage.local.set({ 'pending_action': 'AUTO_ATTENDANCE' });
                 await forceNavigate('CLASSHUB');
-                return; // Dừng code nhường cho trang load lại
+                return;
             }
 
             chrome.storage.local.remove(['pending_action']);
 
-            // --- GIỮ NGUYÊN CODE TÌM TÊN GIÁO VIÊN BÊN DƯỚI CỦA BẠN ---
             log("🔍 Đang trích xuất danh tính Giáo viên...");
             let giaoDienTiengAnh = Array.from(document.querySelectorAll('a, button, div, span')).find(el => el.offsetWidth > 0 && (el.textContent.trim().toLowerCase() === 'past' || el.textContent.trim().toLowerCase() === 'today'));
 
@@ -618,7 +1245,7 @@
                 await delay(300);
                 tabQuaKhu.click();
                 log("⏳ Đang tải danh sách lớp trong quá khứ (5s)...");
-                await delay(5000); // Tăng lên 5s để đảm bảo load hết danh sách
+                await delay(5000);
             } else { alert("❌ LỖI: Không tìm thấy tab 'Quá Khứ'."); return; }
 
             const tabActive = document.querySelector('.tab-content > .tab-item:not(.w3-hide)');
@@ -752,6 +1379,121 @@
         };
 
         // ==========================================
+        // MODULE: RESET ĐIỂM DANH (TESTING ONLY)
+        // ==========================================
+        let btnResetAtt = document.getElementById('btn-reset-attendance-test');
+        if (btnResetAtt) {
+            btnResetAtt.onclick = async () => {
+                let confirmAction = confirm("⚠️ CẢNH BÁO: Chức năng này sẽ đảo ngược trạng thái của TẤT CẢ các lớp trên tab hiện tại về 'CHƯA NỘP' để test công cụ. Bạn có chắc chắn?");
+                if (!confirmAction) return;
+
+                log("💣 Đang khởi động quy trình Khôi phục Trạng thái (Mass Reset)...");
+                let env = window.Ohke && window.Ohke.session ? window.Ohke.session.env : "PROD";
+                
+                // Quét toàn bộ thẻ lớp trên tab hiện tại
+                let items = Array.from(document.querySelectorAll('.list-item[data-entity], .item-4qfjeb3y6f[data-entity], [data-entity*="class_schedule_slot_id"]'))
+                                 .filter(el => !el.closest('.w3-modal, .ohke-popup-subform, .patch-modal') && el.offsetWidth > 0);
+
+                if (items.length === 0) {
+                    log("⚠️ Không tìm thấy thẻ lớp nào trên tab này.");
+                    return;
+                }
+
+                let resetCount = 0;
+                for (let el of items) {
+                    let rawEntity = el.getAttribute('data-entity') || (el.dataset && el.dataset.entity);
+                    if (!rawEntity || rawEntity === '[object Object]') continue;
+
+                    try {
+                        let entity = JSON.parse(rawEntity);
+                        // BỘ LỌC CHUẨN: Chỉ lấy Tiết học thực sự
+                        if (!entity || (!entity.class_schedule_slot_id && !entity.class_hour_code)) continue;
+
+                        let masterKey = String(entity.id || el.dataset?.id || entity.master_key);
+                        let classHourCode = entity.class_hour_code || masterKey;
+                        
+                        log(`🔄 Đang Reset tiết [${classHourCode}]...`);
+
+                        // 1. [API NGẦM] Clear Học sinh & Đưa Chốt sổ về PENDING
+                        try {
+                            // Clear HS
+                            await rpcCallHeadlessV33('bttAction_x24477_', { id: String(masterKey) });
+                            
+                            // Pending Sổ GV
+                            let payloadTeacherSheet = {
+                                id: masterKey, field_name: "instructor_attendance_status",
+                                begin_state: entity.instructor_attendance_status || "INSTRUCTOR_ATTENDANCE_SHEET_STATUS_ACCEPTED",
+                                to_state: "INSTRUCTOR_ATTENDANCE_SHEET_STATUS_PENDING", 
+                                end_state: "INSTRUCTOR_ATTENDANCE_SHEET_STATUS_PENDING",
+                                is_reversal: 0, update_time: entity.update_time, mode: "V", entity: entity, env: env
+                            };
+                            let resT = await rpcCallHeadlessV33('x35FD3_jsonPostTransition', payloadTeacherSheet);
+                            if (!resT || (resT.status !== "success" && resT.type !== "success")) await rpcCallHeadlessV33('x24F76_jsonPostTransition', payloadTeacherSheet);
+
+                            // Pending Sổ HS
+                            let payloadStudentSheet = {
+                                id: masterKey, field_name: "attendance_sheet_status",
+                                begin_state: entity.attendance_sheet_status || "CLASS_SCHEDULE_SLOT_STATUS_ACCEPTED",
+                                to_state: "CLASS_SCHEDULE_SLOT_STATUS_PENDING", 
+                                end_state: "CLASS_SCHEDULE_SLOT_STATUS_PENDING",
+                                is_reversal: 0, update_time: entity.update_time, mode: "V", entity: entity, env: env
+                            };
+                            await rpcCallHeadlessV33('x35FD2_jsonPostTransition', payloadStudentSheet);
+                        } catch (e) {}
+
+                        // 2. [UI CLICK] Reset Giáo viên (Lấy ID ẩn)
+                        forceClickV33(el);
+                        await delay(1200); // Chờ Modal tải xong
+
+                        let topModal = Array.from(document.querySelectorAll('.w3-modal, .ohke-popup-subform, .patch-modal')).filter(m => m.offsetWidth > 0 || m.classList.contains('w3-show')).pop();
+                        if (topModal) {
+                            let btnPresent = Array.from(topModal.querySelectorAll('a, button, .ohke-btn')).find(b => {
+                                let t = b.textContent.toLowerCase().trim();
+                                return t === 'present' || t === 'có mặt';
+                            });
+                            
+                            if (btnPresent) {
+                                forceClickV33(btnPresent);
+                                await delay(800); // Chờ sub-modal của GV hiện lên
+                                
+                                let subModal = Array.from(document.querySelectorAll('.w3-modal, .ohke-popup-subform, .patch-modal')).filter(m => m.offsetWidth > 0 || m.classList.contains('w3-show')).pop();
+                                if (subModal) {
+                                    let btnNoAtt = Array.from(subModal.querySelectorAll('a, button, .ohke-btn')).find(b => {
+                                        let t = b.textContent.toLowerCase();
+                                        return t.includes('no attendance') || t.includes('chưa điểm danh');
+                                    });
+                                    if (btnNoAtt) { forceClickV33(btnNoAtt); await delay(800); }
+                                    
+                                    // Đóng sub-modal
+                                    let btnCloseSub = subModal.querySelector('.close-btn, a[onclick*="close"], i.fa-close');
+                                    if (btnCloseSub) forceClickV33(btnCloseSub);
+                                    await delay(400);
+                                }
+                            }
+                        }
+
+                        // Đóng Modal chính
+                        await closeModalSafelyV33();
+
+                        // 3. Xóa cờ vật lý trên UI
+                        el.removeAttribute('data-da-diem-danh');
+                        el.style.opacity = '1';
+                        let autoMark = Array.from(el.querySelectorAll('div')).find(d => d.textContent.includes('Đã Auto V33') || d.textContent.includes('Đã Auto'));
+                        if (autoMark) autoMark.remove();
+
+                        resetCount++;
+                        await delay(300); // Khoảng nghỉ an toàn
+                    } catch (err) {
+                        log(`❌ Lỗi khi parse dữ liệu tiết: ${err.message}`);
+                    }
+                }
+                
+                log(`🎉 Hoàn tất! Đã khôi phục thành công ${resetCount} lớp về trạng thái CHƯA ĐIỂM DANH.`);
+                alert(`Đã khôi phục ${resetCount} lớp. Hãy F5 (Tải lại trang) để hệ thống Ohke cập nhật màu sắc hiển thị!`);
+            };
+        }
+
+        // ==========================================
         // 5. MODULE NHẬP ĐIỂM (BẢN CHUẨN MASTER V22)
         // ==========================================
         const checkAndCloseErrorGrading = async () => {
@@ -766,7 +1508,7 @@
 
         const clickTabGrading = async (text) => {
             log(`Mở tab con [${text}]...`);
-            for (let i = 0; i < 15; i++) { // Tăng số vòng lặp lên một chút để bù cho delay ngắn lại
+            for (let i = 0; i < 15; i++) {
                 let els = Array.from(document.querySelectorAll('.ohke-tab-btn, .tab-btn-, .select-holder div'))
                     .filter(el => el.textContent.toLowerCase().includes(text.toLowerCase()) && el.offsetWidth > 0);
 
@@ -776,11 +1518,11 @@
 
                     if (target) {
                         forceClick(target);
-                        await delay(300); // GIẢM MẠNH: Từ 1000ms xuống chỉ còn 300ms
+                        await delay(300);
                         return true;
                     }
                 }
-                await delay(200); // GIẢM TỐC ĐỘ QUÉT: Từ 400ms xuống 200ms
+                await delay(200);
             }
             log(`⚠️ Không tìm thấy tab [${text}]`);
             return false;
@@ -799,7 +1541,6 @@
             if (!chuyenTiepBtn) return false;
             forceClick(chuyenTiepBtn);
 
-            // SMART WAIT: Chờ Popup tuỳ chọn mở ra
             await waitForCondition(() => document.querySelectorAll('.w3-modal.w3-show').length > 0, 3000);
 
             let batchModal = document.querySelectorAll('.w3-modal.w3-show')[document.querySelectorAll('.w3-modal.w3-show').length - 1];
@@ -814,7 +1555,6 @@
                 return false;
             }
 
-            // SMART WAIT: Xử lý Popup Mã Xác Nhận
             await waitForCondition(() => {
                 let modals = document.querySelectorAll('.w3-modal.w3-show');
                 if (modals.length === 0) return false;
@@ -836,18 +1576,6 @@
                 return true;
             }, 3000);
 
-            // Tự động bấm đồng ý bảng "Enqueued"
-            await waitForCondition(() => {
-                let modals = document.querySelectorAll('.w3-modal.w3-show');
-                if (modals.length > 0 && (modals[modals.length - 1].innerText.toLowerCase().includes('successfully') || modals[modals.length - 1].innerText.toLowerCase().includes('hàng đợi'))) {
-                    let btn = Array.from(modals[modals.length - 1].querySelectorAll('button, a, .ohke-btn')).find(el => el.textContent.toLowerCase().includes('đồng ý') && el.offsetWidth > 0);
-                    if (btn) forceClick(btn);
-                    return true;
-                }
-                return false;
-            }, 2000);
-
-            // SMART WAIT: Theo dõi thanh Loading đến khi Completed
             let isCompleted = await waitForCondition(() => {
                 let modals = document.querySelectorAll('.w3-modal.w3-show');
                 if (modals.length === 0) return false;
@@ -858,19 +1586,12 @@
                     return true;
                 }
                 return false;
-            }, 30000, 500); // Đợi tối đa 30 giây cho máy chủ duyệt xong
+            }, 30000, 500);
 
-            // Chờ các popup biến mất sạch sẽ
             await waitForElementToDisappear('.w3-modal.w3-show', 3000);
             return true;
         };
 
-        // ==========================================
-        // MODULE: ĐỌC EXCEL (AUTO 1 LỚP - BẢN GỐC ĐÃ CHẠY ỔN)
-        // ==========================================
-        // ==========================================
-        // MODULE 2: RÚT DỮ LIỆU CẤP TỐC (DÙNG CHO BATCH HOẶC 1 LỚP)
-        // ==========================================
         const extractAllExcelData = async () => {
             if (window.isBatchMode && window.currentBatchScores) {
                 log(`✔️ Xác nhận: Rút từ thùng [${window.currentBatchClassName}] -> Chuẩn ${window.currentBatchCount} điểm.`);
@@ -967,15 +1688,6 @@
             });
         };
 
-        // ==========================================
-        // MODULE 1: QUÉT NHÃN MÁC TẠO HÀNG ĐỢI (PRE-SCAN)
-        // ==========================================
-        // ==========================================
-        // MODULE 1: ĐÓNG GÓI DỮ LIỆU TỪ ĐẦU (V5 - RADAR & DIỆT KÝ TỰ ẨN)
-        // ==========================================
-        // ==========================================
-        // MODULE 1: ĐÓNG GÓI DỮ LIỆU TỪ ĐẦU (V6 - TÁCH BIỆT DOM)
-        // ==========================================
         const parseAllFilesUpfront = async () => {
             const fileInput = document.getElementById('excel-file');
             if (!fileInput.files.length) { alert("Vui lòng tải lên file Excel!"); return null; }
@@ -1005,7 +1717,6 @@
                                 const jsonArray = XLSX.utils.sheet_to_json(workbook.Sheets[targetSheet], { header: 1 });
                                 let className = "UNKNOWN", subjectName = "UNKNOWN";
 
-                                // QUÉT LỚP & MÔN
                                 for (let i = 0; i < Math.min(20, jsonArray.length); i++) {
                                     let rowStr = (jsonArray[i] || []).map(c => String(c || '')).join(" ");
                                     if (className === "UNKNOWN") {
@@ -1021,9 +1732,7 @@
                                     }
                                 }
 
-                                // 💡 TÍNH NĂNG MỚI: TÌM TÊN LỚP TRONG TÊN FILE (CỨU CÁNH)
                                 if (className === "UNKNOWN") {
-                                    // Nhận diện thông minh các cụm như: 9A5, 12A1, Lop 8C, Diem_6G.xlsx
                                     let fileClassMatch = file.name.match(/(?:l[ớo]p\s*|-|_|\b)([1-9][0-9]?[A-Za-z][A-Za-z0-9]*)\b/i);
                                     if (fileClassMatch) {
                                         className = fileClassMatch[1].trim().toUpperCase();
@@ -1104,8 +1813,6 @@
 
                                 if (countStudents > 0) {
                                     log(`📦 Đã nạp THÙNG [${className}]: ${countStudents} Học sinh | Chuẩn ${countDiem} điểm.`);
-
-                                    // PUSH TRỰC TIẾP VÀO HÀNG ĐỢI (KHÔNG QUÉT DOM NỮA)
                                     extracted.push({
                                         className,
                                         subjectName,
@@ -1125,9 +1832,6 @@
             return queue;
         };
 
-        // ==========================================
-        // MODULE: ĐIỀU HƯỚNG VÀO ĐÁNH GIÁ CHIỀU DỌC [959]
-        // ==========================================
         const switchToVerticalAssessment = async () => {
             log("🎯 Đang mở tab [Đánh Giá]...");
             window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -1141,7 +1845,6 @@
                 await clickTabGrading('Đánh Giá');
             }
 
-            // SMART WAIT: Đợi các tab con bên trong Đánh Giá nạp xong
             await waitForCondition(() => document.querySelectorAll('.ohke-tab-btn').length > 5, 5000);
 
             log("⏳ Đang tìm và kích hoạt tab [959 - Chiều Dọc]...");
@@ -1161,23 +1864,18 @@
                 return false;
             }
 
-            // ==========================================
-            // FIX LỖI CHẠY QUÁ NHANH: CHỜ ĐÚNG MỤC TIÊU
-            // ==========================================
             log("⏳ Đang chờ hệ thống nạp các cột điểm...");
             let listLoaded = await waitForCondition(() => {
-                // Phải bắt buộc nhìn thấy chữ "Tiến Trình Đánh Giá" mới tính là tải xong
                 let rows = Array.from(document.querySelectorAll('.list-item[data-entity]'));
                 return rows.some(r => r.innerText.includes('Tiến Trình Đánh Giá'));
-            }, 8000, 500); // Quét 0.5s/lần, đợi tối đa 8s
+            }, 8000, 500);
 
             if (!listLoaded) {
-                // Nếu đợi 8s mà vẫn không có, chờ thêm 2s để chắc chắn mạng không bị đứt
                 log("⚠️ Chưa thấy cột điểm nào. Đợi thêm 2 giây để xác nhận...");
                 await delay(2000);
             } else {
                 log("✅ Đã thấy các cột điểm xuất hiện!");
-                await delay(500); // Nghỉ 1 nhịp siêu nhỏ để DOM thực sự hoàn thiện
+                await delay(500);
             }
 
             return true;
@@ -1186,13 +1884,10 @@
         const processSingleColumn = async (scoreDict, mode, colKey = '') => {
             const autoCreate = (mode === 'create');
 
-            // HÀM NHẬP ĐIỂM CƠ BẢN (Đã thêm tham số skipEnter)
-            // HÀM NHẬP ĐIỂM CƠ BẢN (Tối ưu tốc độ động)
             const applyValue = async (targetInput, val, skipEnter = false, postDelay = 200) => {
                 let formattedVal = val.toString().replace(',', '.');
                 targetInput.scrollIntoView({ behavior: 'auto', block: 'center' });
 
-                // Nghỉ 1 nhịp siêu ngắn để DOM kịp cuộn
                 await delay(20);
 
                 targetInput.dispatchEvent(new Event('focus', { bubbles: true }));
@@ -1211,7 +1906,6 @@
                 targetInput.dispatchEvent(new Event('change', { bubbles: true }));
                 targetInput.dispatchEvent(new Event('blur', { bubbles: true }));
 
-                // THỜI GIAN CHỜ LINH HOẠT THEO CHỈ ĐỊNH
                 await delay(postDelay);
 
                 if (typeof checkAndCloseErrorGrading === "function") return await checkAndCloseErrorGrading();
@@ -1225,11 +1919,6 @@
 
             if (Object.keys(scoreDict).length === 0) return true;
 
-
-
-            // =======================================
-            // GIAI ĐOẠN 2: NHẬP ĐIỂM
-            // =======================================
             let openedTabNhanh = await clickTabGrading('Nhập Nhanh');
             if (!openedTabNhanh) return false;
 
@@ -1242,16 +1931,12 @@
             const SCORE_INPUT_SELECTOR = 'input[type="text"][name="quantitative_result"], .tab-content .active input[type="text"]';
 
             let isDataReady = await waitForCondition(() => {
-                // 1. Kiểm tra Spinner (phải mất ĐI)
                 let loaders = Array.from(document.querySelectorAll(LOADING_SELECTOR)).filter(el => el.offsetWidth > 0);
-
-                // 2. Kiểm tra Header (phải hiện LÊN)
                 let headers = Array.from(document.querySelectorAll(HEADER_SELECTOR));
                 let hasStandardHeader = headers.some(th => {
                     let txt = th.textContent.trim().toLowerCase();
                     return txt.includes('họ và tên') || txt.includes('định lượng') || txt.includes('stt');
                 });
-
                 return loaders.length === 0 && hasStandardHeader;
             }, 10000, 200);
 
@@ -1260,12 +1945,11 @@
                 await delay(1000);
             } else {
                 log("✅ XÁC NHẬN: Bảng và dữ liệu đã nạp xong!");
-                await delay(200); // Bước đệm ổn định UI
+                await delay(200);
             }
 
             log("⚡ Bắt đầu gõ điểm...");
 
-            // Lazy Load trước khi nhập (Kết hợp trong & ngoài)
             let tabContent = document.querySelector('.tab-content .active .dynamic-content, .tab-content .active .agent-list') || document.querySelector('.tab-content');
             let lastLen = 0;
             for (let k = 0; k < 12; k++) {
@@ -1278,12 +1962,8 @@
                 lastLen = inputsToScroll.length;
             }
 
-            // =======================================
-            // GIAI ĐOẠN 2: NHẬP ĐIỂM
-            // =======================================
             log("⬆️ Đang ép trình duyệt nhảy lên đầu bảng điểm...");
 
-            // 1. Ép cuộn cứng mọi thẻ chứa nội dung bằng scrollTop
             window.scrollTo({ top: 0, behavior: 'auto' });
             let containers = document.querySelectorAll('.dynamic-content, .agent-list, .tab-content, .tab-content .active, div[style*="overflow"]');
             containers.forEach(c => {
@@ -1291,21 +1971,18 @@
             });
             await delay(300);
 
-            // 2. TUYỆT CHIÊU: Ép focus và click vào ô nhập liệu đầu tiên (Theo đúng ý tưởng của bạn)
             let tempInputs = document.querySelectorAll('input[type="text"][name="quantitative_result"], input[type="text"][placeholder*="Định Lượng"]');
             if (tempInputs.length > 0) {
                 let firstInp = tempInputs[0];
                 firstInp.scrollIntoView({ behavior: 'auto', block: 'center' });
                 await delay(100);
 
-                // Giả lập click chuột thật mạnh để đánh thức framework
                 firstInp.dispatchEvent(new Event('focus', { bubbles: true }));
                 firstInp.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
                 firstInp.dispatchEvent(new MouseEvent('click', { bubbles: true }));
 
-                await delay(400); // Chờ UI thực sự load xong và nhả khung hình
+                await delay(400);
             } else {
-                // Nếu chưa thấy ô điểm nào, thử click vào hàng đầu tiên
                 let topItem = document.querySelector('.list-item, .w3-table-all tr');
                 if (topItem) {
                     topItem.scrollIntoView({ behavior: 'auto', block: 'center' });
@@ -1315,7 +1992,6 @@
             }
 
             let countFill = 0;
-            // BẮT BUỘC phải lấy lại danh sách inputs sau cú click đánh thức
             let inputs = document.querySelectorAll('input[type="text"][name="quantitative_result"], input[type="text"][placeholder*="Định Lượng"]');
 
             for (let input of inputs) {
@@ -1330,12 +2006,7 @@
 
                         let successInput = false;
                         for (let attempt = 1; attempt <= 3; attempt++) {
-
-                            // CÔNG THỨC TỐC ĐỘ (Cập nhật an toàn): 
-                            // - 3 bạn đầu tiên hoặc đang phải thử lại do lỗi: Chờ 400ms để ổn định.
-                            // - Từ bạn thứ 4 trở đi: Chạy đều ở tốc độ 200ms.
                             let speedDelay = (countFill < 3 || attempt > 1) ? 400 : 200;
-
                             await applyValue(input, targetScore, false, speedDelay);
 
                             let hasErrorPopup = typeof checkAndCloseErrorGrading === "function" ? await checkAndCloseErrorGrading() : false;
@@ -1348,7 +2019,7 @@
                             } else {
                                 log(`⚠️ Lỗi nhập liệu cho [${name}] (Thử lại lần ${attempt}/3)...`);
                                 input.style.border = '2px solid red';
-                                await delay(400); // Lỗi thì dừng lại 1 chút để DOM thở
+                                await delay(400);
                                 input.value = "";
                             }
                         }
@@ -1367,9 +2038,6 @@
                 await delay(300);
             }
 
-            // =======================================
-            // GIAI ĐOẠN 3: KIỂM TRA LỖI > 10 Ở SỔ ĐIỂM
-            // =======================================
             let openedSoDiem = await clickTabGrading('Sổ Điểm');
             if (!openedSoDiem) return false;
             await delay(2000);
@@ -1393,7 +2061,6 @@
                 }
             }
 
-            // CHUYỂN VỀ NHẬP NHANH ĐỂ SỬA TRƯỚC KHI GỬI DUYỆT
             if (studentsToFix.length > 0) {
                 log(`🛠️ Lùi về [Nhập Nhanh] để sửa lỗi > 10...`);
                 let openedTabNhanhAgain = await clickTabGrading('Nhập Nhanh');
@@ -1419,10 +2086,7 @@
                             if (rowText.includes(student.name)) {
                                 log(`🔨 Sửa điểm cho ${student.name} -> ${student.targetScore}`);
                                 let fixedTarget = parseFloat(student.targetScore).toFixed(2);
-
-                                // GỌI HÀM VỚI THAM SỐ skipEnter = true ĐỂ KHÔNG BẤM ENTER
                                 await applyValue(input, fixedTarget, true);
-
                                 await delay(400);
                                 break;
                             }
@@ -1435,35 +2099,27 @@
                     await clickTabGrading('Sổ Điểm');
                     await delay(2000);
 
-                    // --- BỔ SUNG: ÉP TẢI LẠI ĐIỂM ---
                     log("🔄 Mở hộp thoại Chuyển tiếp để ép hệ thống tải lại điểm mới...");
                     let chuyenTiepBtn = Array.from(document.querySelectorAll('a, button, .ohke-btn')).find(el => el.offsetWidth > 0 && el.textContent.toLowerCase().includes('chuyển tiếp'));
                     if (chuyenTiepBtn) {
                         forceClick(chuyenTiepBtn);
-                        await delay(1500); // Chờ popup mở
+                        await delay(1500);
                         let activeModals = document.querySelectorAll('.w3-modal.w3-show');
                         if (activeModals.length > 0) {
                             let batchModal = activeModals[activeModals.length - 1];
                             let closeBtn = batchModal.querySelector('.close-btn, a[class*="close-btn"], i.fa-close');
                             if (closeBtn) {
                                 forceClick(closeBtn);
-                                await delay(1500); // Chờ load lại bảng điểm
+                                await delay(1500);
                             }
                         }
                     }
                 }
             }
 
-            // =======================================
-            // GIAI ĐOẠN 4: AUTO PHÊ DUYỆT (TỐI ƯU MỚI)
-            // =======================================
             log("🚀 Tiến hành quá trình Gửi & Phê duyệt (Sẽ tự động bỏ qua nếu đã duyệt)...");
-
-            // Cứ bấm chuyển tiếp, nếu có nút Gửi thì chạy, không có thì tự tắt
             await handleBatchTransition('gửi người phê duyệt');
             await delay(1000);
-
-            // Cứ bấm chuyển tiếp, nếu có nút Chấp nhận thì chạy, không có thì tự tắt
             await handleBatchTransition('chấp nhận');
 
             return true;
@@ -1472,16 +2128,12 @@
         const runAutoGradingForCurrentClass = async (fullData) => {
             if (!fullData) return false;
 
-            // 1. Mở Cánh Cửa [959]
             let isReady = await switchToVerticalAssessment();
             if (!isReady) return false;
 
             let evalRows = Array.from(document.querySelectorAll('.list-item[data-entity]')).filter(r => r.innerText.includes('Tiến Trình Đánh Giá'));
             if (evalRows.length === 0) { log("⚠️ Lớp này chưa có đầu điểm nào."); return false; }
 
-            // =====================================
-            // PHASE 1: CHỈ TẠO BẢNG (TỐI ƯU SMART SKIP)
-            // =====================================
             log("🚀 [GIAI ĐOẠN 1]: Quét & Khởi tạo các bảng điểm...");
             let firstValidRow = null;
 
@@ -1501,35 +2153,32 @@
                     let radioBtn = row.querySelector('.switch-check, .check, input[type="checkbox"], input[type="radio"]') || row;
                     forceClick(radioBtn);
 
-                    // Nghỉ 1 chút để UI xóa dữ liệu của cột cũ và gọi API load cột mới
                     await delay(800);
 
                     log(`🔍 Đang kiểm tra trạng thái bảng [${key}]...`);
 
-                    // SMART POLLING: Bộ nhận diện trạng thái bảng
                     let taoBangBtn = null;
                     let isAlreadyCreated = false;
 
-                    for (let w = 0; w < 8; w++) { // Chờ tối đa 1.6 giây
+                    for (let w = 0; w < 8; w++) {
                         await delay(200);
 
                         taoBangBtn = Array.from(document.querySelectorAll('a, button, .ohke-btn'))
                             .find(el => el.textContent.toLowerCase().includes('tạo bảng tiêu chí') && el.offsetWidth > 0);
 
-                        // Nếu thấy các tab con xuất hiện => Bảng đã được tạo từ trước
                         let existTabs = Array.from(document.querySelectorAll('.ohke-tab-btn, .tab-btn-'))
                             .find(el => /\[\d+\]/.test(el.textContent) && (el.textContent.toLowerCase().includes('nhập nhanh') || el.textContent.toLowerCase().includes('sổ điểm')) && el.offsetWidth > 0);
 
-                        if (taoBangBtn) break; // Chưa tạo -> Thoát vòng lặp chờ để tạo
+                        if (taoBangBtn) break;
                         if (existTabs) {
                             isAlreadyCreated = true;
-                            break; // Đã tạo -> Ghi nhận và thoát
+                            break;
                         }
                     }
 
                     if (isAlreadyCreated) {
                         log(`⏭️ Bảng [${key}] ĐÃ TỒN TẠI. Bỏ qua bước tạo!`);
-                        continue; // Bỏ qua luôn, sang cột tiếp theo ngay lập tức
+                        continue;
                     }
 
                     if (taoBangBtn) {
@@ -1547,7 +2196,6 @@
                             if (dongBtn) { forceClick(dongBtn); await delay(400); }
                         }
 
-                        // Nháy qua Nhập Nhanh & cuộn mồi để DOM load trước danh sách
                         log(`⬇️ Load trước danh sách cho [${key}]...`);
                         let openedNhanh = await clickTabGrading('Nhập Nhanh');
                         if (openedNhanh) {
@@ -1569,9 +2217,6 @@
                 await delay(1500);
             }
 
-            // =====================================
-            // PHASE 2: NHẬP LIỆU & PHÊ DUYỆT
-            // =====================================
             log("\n🚀 [GIAI ĐOẠN 2]: Bắt đầu Nhập điểm & Phê duyệt...");
             for (let row of evalRows) {
                 let text = row.innerText.toLowerCase();
@@ -1604,23 +2249,15 @@
             return true;
         };
 
-        // ==========================================
-        // AUTO TOÀN TẬP (MASTER LOOP)
-        // ==========================================
-        // ==========================================
-        // NÚT AUTO NHẬP ĐIỂM 1 LỚP (V8 - ÉP VÀO TRONG LỚP)
-        // ==========================================
         document.getElementById('btn-auto-full').onclick = async () => {
             let fullData = window.restoredFullData || await extractAllExcelData();
             if (!fullData) return;
 
-            // KIỂM TRA NGỮ CẢNH: Đã vào trong giao diện có Sổ Điểm/Sidebar chưa?
             let isInsideClass = Array.from(document.querySelectorAll('.ohke-tab-btn, .tab-btn-, a, button')).some(el =>
                 el.offsetWidth > 0 && (el.textContent.includes('Đánh Giá') || el.textContent.includes('Sổ Điểm') || el.textContent.includes('Nhập điểm'))
             );
 
             if (!isInsideClass) {
-                // CHƯA VÀO LỚP: Đang ở trang chủ -> Nhảy Deep Link
                 if (!window.location.href.includes('classroom')) {
                     log("🚀 Chưa ở Phòng học. Đang lưu dữ liệu và nhảy Deep Link...");
                     await chrome.storage.local.set({ 'pending_action': 'AUTO_GRADING_FULL', 'pending_data': fullData });
@@ -1628,7 +2265,6 @@
                     return;
                 }
 
-                // CHƯA VÀO LỚP: Đang ở cửa Phòng Học (dạng thẻ) -> Phải click vào lớp đầu tiên
                 log("🖱️ Đang ở cửa Phòng Học. Tự động click vào lớp đầu tiên để lấy giao diện...");
                 await delay(1500);
                 let classCards = Array.from(document.querySelectorAll('.w3-col .w3-card')).filter(card => card.offsetWidth > 0);
@@ -1640,7 +2276,6 @@
                     let titleH5 = targetCard.querySelector('h5');
                     let clickTarget = titleH5 ? titleH5 : targetCard;
 
-                    // Backup dữ liệu vào RAM phòng trường hợp click thẻ làm web load lại
                     await chrome.storage.local.set({ 'pending_action': 'AUTO_GRADING_FULL', 'pending_data': fullData });
 
                     if (typeof window.$ !== 'undefined') try { window.$(clickTarget).trigger('click'); } catch (e) { }
@@ -1648,16 +2283,15 @@
 
                     log(`⏳ Đã click mở lớp. Đang theo dõi tiến trình nạp Sidebar và Sổ Điểm...`);
 
-                    // RADAR: Bám đuổi cho đến khi thấy Sổ Điểm xuất hiện mới chạy tiếp
                     let isLoaded = await waitForCondition(() => {
                         return Array.from(document.querySelectorAll('.ohke-tab-btn, .tab-btn-, a, button')).some(el =>
                             el.offsetWidth > 0 && (el.textContent.includes('Đánh Giá') || el.textContent.includes('Sổ Điểm') || el.textContent.includes('Nhập điểm'))
                         );
-                    }, 15000, 500); // Quét mỗi 500ms, đợi tối đa 15s
+                    }, 15000, 500);
 
                     if (isLoaded) {
                         log("🔄 ĐÃ VÀO GIAO DIỆN CHUẨN! Tiếp tục tiến trình...");
-                        await delay(1000); // Chờ UI Render lần cuối
+                        await delay(1000);
                         window.restoredFullData = fullData;
                         document.getElementById('btn-auto-full').click();
                     } else {
@@ -1670,7 +2304,6 @@
                 }
             }
 
-            // GIAI ĐOẠN CUỐI: ĐÃ Ở BÊN TRONG LỚP (CÓ SIDEBAR & SỔ ĐIỂM)
             chrome.storage.local.remove(['pending_action', 'pending_data', 'pending_queue']);
             window.restoredFullData = null;
 
@@ -1681,9 +2314,6 @@
             }
         };
 
-        // ==========================================
-        // CÁC NÚT TIỆN ÍCH BỔ SUNG
-        // ==========================================
         document.getElementById('btn-auto-input').onclick = async () => {
             let fullData = await extractAllExcelData();
             if (!fullData) return;
@@ -1696,10 +2326,6 @@
             if (success) { alert(`🎉 Hoàn tất quá trình nhập cho cột này!`); }
         };
 
-        // ==========================================
-        // MODULE: LOGIC RESET ĐIỂM (TURBO SPEED)
-        // ==========================================
-        // Hàm dùng chung: Thực hiện Reset 1 bảng đang được chọn với tốc độ cao
         const resetCurrentTable = async () => {
             let openedSoDiem = await clickTabGrading('Sổ Điểm');
             if (!openedSoDiem) return false;
@@ -1712,7 +2338,6 @@
             if (openedTabNhanh) {
                 log("🧹 Đang xoá trắng điểm số (Chế độ Turbo Max Speed)...");
 
-                // Kéo xuống cuối siêu tốc để DOM load toàn bộ học sinh
                 let lastLen = 0;
                 let tabContent = document.querySelector('.tab-content .active .dynamic-content, .tab-content .active .agent-list') || document.querySelector('.tab-content');
                 for (let k = 0; k < 10; k++) {
@@ -1730,14 +2355,10 @@
 
                 for (let input of inputs) {
                     if (input.value !== "") {
-                        // Không dùng cuộn smooth nữa để tăng tốc tối đa
                         input.value = "";
-
-                        // Bắn sự kiện thay đổi dữ liệu
                         input.dispatchEvent(new Event('input', { bubbles: true }));
                         input.dispatchEvent(new Event('change', { bubbles: true }));
 
-                        // Mô phỏng ấn phím Enter và Delete siêu tốc
                         input.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, key: 'Delete', code: 'Delete', keyCode: 46 }));
                         input.dispatchEvent(new KeyboardEvent('keyup', { bubbles: true, key: 'Delete', code: 'Delete', keyCode: 46 }));
                         input.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, key: 'Enter', code: 'Enter', keyCode: 13 }));
@@ -1746,15 +2367,12 @@
                         input.dispatchEvent(new Event('blur', { bubbles: true }));
 
                         countDeleted++;
-
-                        // Đã tăng delay lên 150ms để server kịp phản hồi các gói JSON
                         await delay(150);
                     }
                 }
 
                 if (countDeleted > 0) {
                     log(`✔️ Đã xoá siêu tốc ${countDeleted} ô điểm. Chuyển sang bước tiếp theo...`);
-                    // Đã bỏ delay(3000) ở đây để tool chạy lướt qua các bảng liên tục
                     if (typeof checkAndCloseErrorGrading === 'function') await checkAndCloseErrorGrading();
                 } else {
                     log(`✔️ Bảng này đã trống sẵn.`);
@@ -1765,29 +2383,24 @@
             return false;
         };
 
-        // Nút 1: RESET Cột Hiện Tại (Giữ nguyên logic cũ)
         document.getElementById('btn-reset').onclick = async () => {
             log("🔄 Bắt đầu Reset cột điểm hiện tại...");
             await resetCurrentTable();
             alert("🔄 Đã Reset sạch sẽ trạng thái và điểm của cột này!");
         };
 
-        // Nút 2: RESET TOÀN BỘ CÁC CỘT TRONG LỚP
         document.getElementById('btn-reset-all').onclick = async () => {
             let confirmAction = confirm("⚠️ CẢNH BÁO: Hành động này sẽ xoá SẠCH SẼ toàn bộ điểm của TẤT CẢ các cột trong lớp hiện tại (Kéo về Draft -> Xoá sạch). \n\nBạn có chắc chắn muốn thực hiện?");
             if (!confirmAction) return;
 
             log("💣 Kích hoạt quy trình XÓA SẠCH TOÀN BỘ BẢNG ĐIỂM...");
 
-            // 1. Chuyển vào view Đánh giá Chiều dọc [959] để thấy tất cả các cột
             let isReady = await switchToVerticalAssessment();
             if (!isReady) return;
 
-            // 2. Tìm tất cả các hàng đầu điểm
             let evalRows = Array.from(document.querySelectorAll('.list-item[data-entity]')).filter(r => r.innerText.includes('Tiến Trình Đánh Giá'));
             if (evalRows.length === 0) { alert("⚠️ Lớp này chưa có đầu điểm nào."); return; }
 
-            // 3. Vòng lặp duyệt qua từng đầu điểm để xoá
             for (let i = 0; i < evalRows.length; i++) {
                 let row = evalRows[i];
                 let nameCol = row.innerText.split('\n')[0].trim() || `Cột số ${i + 1}`;
@@ -1795,14 +2408,12 @@
                 log(`\n-------------------------------------------`);
                 log(`🗑️ ĐANG XÓA CỘT: [${nameCol}] (${i + 1}/${evalRows.length})`);
 
-                // Kiểm tra lại xem có đang ở view 959 không (tránh bị nhảy tab)
                 let isVertical = document.body.innerText.includes('Bộ Chọn Điểm Đánh Giá');
                 if (!isVertical) {
                     let tabVertical = Array.from(document.querySelectorAll('.ohke-tab-btn')).find(el => el.innerText.includes('[959]'));
                     if (tabVertical) { forceClick(tabVertical); await delay(2000); }
                 }
 
-                // Cuộn đến bảng điểm và click để mở nó ra
                 let scrollContainer = row.closest('.dynamic-content, .agent-list, div[style*="overflow"]');
                 if (scrollContainer) scrollContainer.scrollTo({ top: row.offsetTop - 50, behavior: 'smooth' });
                 await delay(300);
@@ -1811,24 +2422,17 @@
                 forceClick(radioBtn);
                 await delay(2000);
 
-                // 4. Gọi hàm Xoá (Dùng chung)
                 await resetCurrentTable();
             }
 
             alert("🎉 HOÀN TẤT: Đã xóa sạch sẽ toàn bộ các cột điểm của lớp này!");
         };
 
-        // ==========================================
-        // THE ULTIMATE MASTER LOOP (DELEGATION MODE V2)
-        // ==========================================
         const updateQueueUI = (id, statusHtml) => {
             let row = document.getElementById(id);
             if (row) row.querySelector('.q-status').innerHTML = statusHtml;
         };
 
-        // ==========================================
-        // NÚT AUTO CHẠY TẤT CẢ (V8 - ÉP VÀO LỚP RỒI MỚI XẢ QUEUE)
-        // ==========================================
         let btnAutoBatch = document.getElementById('btn-auto-batch');
         if (btnAutoBatch) {
             btnAutoBatch.onclick = async () => {
@@ -1859,7 +2463,6 @@
                         let titleH5 = targetCard.querySelector('h5');
                         let clickTarget = titleH5 ? titleH5 : targetCard;
 
-                        // Giữ lại Queue
                         let safeQueue = queue.map(q => ({ ...q, fileObj: null }));
                         await chrome.storage.local.set({ 'pending_action': 'AUTO_BATCH', 'pending_queue': safeQueue });
 
@@ -1868,7 +2471,6 @@
 
                         log(`⏳ Đã click mở lớp. Đang chờ Sidebar làm việc xuất hiện...`);
 
-                        // RADAR SPA THEO DÕI GIAO DIỆN CHUẨN
                         let isClassLoaded = await waitForCondition(() => {
                             return Array.from(document.querySelectorAll('.ohke-tab-btn, .tab-btn-, a, button')).some(el =>
                                 el.offsetWidth > 0 && (el.textContent.includes('Đánh Giá') || el.textContent.includes('Sổ Điểm') || el.textContent.includes('Nhập điểm'))
@@ -1890,9 +2492,6 @@
                     return;
                 }
 
-                // ========================================
-                // GIAI ĐOẠN ĐÃ Ở BÊN TRONG (CÓ SIDEBAR)
-                // ========================================
                 chrome.storage.local.remove(['pending_action', 'pending_queue']);
                 window.restoredBatchQueue = null;
 
@@ -1916,7 +2515,6 @@
                     updateQueueUI(`q-${i}`, `🏃`);
 
                     let classBtn = null;
-                    // TÌM LỚP TRÊN SIDEBAR
                     let sidebarItems = Array.from(document.querySelectorAll('.ohke-row, .list-item, .sidebar-item, a, .w3-card h5, .w3-card div')).filter(el => el.textContent.trim() !== "" && el.offsetWidth > 0);
 
                     if (task.exactWebName) classBtn = sidebarItems.find(el => el.innerText === task.exactWebName);
@@ -1950,7 +2548,7 @@
 
                         if (isClassLoaded) {
                             try {
-                                await delay(1000); // Chờ ổn định
+                                await delay(1000);
                                 window.currentBatchScores = task.scores;
                                 window.currentBatchClassName = task.className;
                                 window.currentBatchCount = task.countDiem;
@@ -1983,7 +2581,6 @@
             };
         }
 
-        // Mặc định khởi chạy thì kích hoạt Tab Điểm danh (Free)
         document.getElementById('tab-attendance').click();
     };
 
@@ -2003,6 +2600,12 @@
 
             // QUAN TRỌNG: Phải xóa khỏi bộ nhớ ngay lập tức
             chrome.storage.local.remove(['pending_action', 'pending_data', 'pending_queue']);
+
+            // Nếu chỉ là lệnh mở tool từ trang khác, UI đã tự render, không cần làm gì thêm
+            if (action === 'OPEN_TOOL') {
+                log("✨ Đã triệu hồi công cụ thành công!");
+                return;
+            }
 
             log(`⏳ Đang thiết lập tự động chạy tiếp [${action}] sau 4 giây...`);
 
@@ -2030,6 +2633,12 @@
 
                     let btnBatch = document.getElementById('btn-auto-batch');
                     if (btnBatch) btnBatch.click();
+                } else if (action === 'AUTO_V33') {
+                    let tabAtt = document.getElementById('tab-attendance');
+                    if (tabAtt) tabAtt.click();
+                    let btnV33 = document.getElementById('btn-v33-auto-watcher');
+                    // Chỉ click nếu tool chưa chạy
+                    if (btnV33 && !btnV33.textContent.includes('TẮT')) btnV33.click();
                 }
             }, 4000);
         }

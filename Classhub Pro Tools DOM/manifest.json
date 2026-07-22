@@ -1,17 +1,17 @@
 {
   "manifest_version": 3,
-  "name": "ClassHub Pro Tools ",
-  "version": "3.3.1",
+  "name": "ClassHub Pro Tools Test",
+  "version": "3.4.1",
   "description": "Bộ công cụ tự động Nhập Điểm và Điểm Danh siêu tốc cho ClassHub.",
   "permissions": [
     "activeTab",
     "scripting",
     "storage",
-    "tabs"
+    "tabs",
+    "alarms"
   ],
   "host_permissions": [
-    "*://idcloud.vn/*",
-    "*://*.idcloud.vn/*"
+    "<all_urls>"
   ],
   "action": {},
   "background": {

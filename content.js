@@ -638,20 +638,195 @@
              * Chuyển tới Tab Quá Khứ và chờ sự kiện agent-loaded
              */
             async switchToPastTab() {
-                let $pastTabBtn = $('.ohke-tab-btn, .tab-btn-, a, button, div, span').filter((i, el) => {
-                    let txt = $(el).text().trim().toLowerCase();
-                    return (txt === 'quá khứ' || txt === 'past') && $(el).is(':visible');
-                }).first();
+                return await this.switchTabAndWait(['quá khứ', 'past']);
+            }
 
-                if ($pastTabBtn.length) {
-                    this.log("⏳ Mở tab 'Quá khứ' và chờ sự kiện agent-loaded...");
-                    let $tabContainer = $('.tab-content > .tab-item, .agent-container').first();
-                    let loadPromise = this.waitForAgentLoaded($tabContainer);
-                    $pastTabBtn.click();
-                    await loadPromise;
+            /**
+             * Helper giả lập Click đầy đủ sự kiện MouseEvent (V33 The Patient Hunter)
+             */
+            forceClick(el) {
+                if (!el) return;
+                let target = (el instanceof jQuery) ? el[0] : el;
+                if (!target) return;
+                if (typeof target.scrollIntoView === 'function') {
+                    target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                }
+                ['mousedown', 'mouseup', 'click'].forEach(evt => {
+                    target.dispatchEvent(new MouseEvent(evt, { bubbles: true, cancelable: true, view: window }));
+                });
+            }
+
+            /**
+             * Helper Chuyển Tab (V33 - The Patient Hunter)
+             * Dùng forceClick, chờ loader biến mất và thêm 2.5s để SPA render đầy đủ DOM
+             */
+            async switchTabAndWait(tabKeywords = []) {
+                const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+                let bestTab = null;
+                $('button, a, .w3-bar-item, .w3-button, .tablink, .ohke-tab-btn, [role="tab"]').each(function() {
+                    let $el = $(this);
+                    if (!$el.is(':visible')) return;
+                    let txt = $el.text().trim();
+                    if (txt.length > 0 && txt.length <= 25) {
+                        let txtLower = txt.toLowerCase();
+                        if (tabKeywords.some(kw => txtLower === kw.toLowerCase() || txtLower.includes(kw.toLowerCase()))) {
+                            bestTab = $el;
+                            return false; // Break vòng lặp each
+                        }
+                    }
+                });
+
+                if (bestTab) {
+                    this.log(`🧭 [V33 Patient Hunter] Chuyển tab: [${bestTab.text().trim()}]...`);
+                    this.forceClick(bestTab);
+
+                    // Smart Wait: Chờ icon loading biến mất (tối đa 5s)
+                    let waitLoader = 0;
+                    while ($('.fa-spin:visible, .ohke-icon-loading:visible').length > 0 && waitLoader < 5000) {
+                        await delay(250); waitLoader += 250;
+                    }
+                    this.log(`   │    ⏳ Đang chờ hệ thống render dữ liệu tab...`);
+                    await delay(2500); // Thêm 2.5s cứng để Ohke dựng xong thẻ HTML
+
+                    // Tự động bấm Xem Thêm nếu có để nạp đủ danh sách lớp trên tab này
+                    let $moreBtn = $('button, a, .w3-button, span, .ohke-btn').filter((i, el) => {
+                        let t = $(el).text().trim();
+                        return t.length > 0 && t.length <= 25 && t.toLowerCase() === 'xem thêm' && $(el).is(':visible');
+                    }).first();
+                    if ($moreBtn.length) {
+                        this.forceClick($moreBtn);
+                        let waitLoaderMore = 0;
+                        while ($('.fa-spin:visible, .ohke-icon-loading:visible').length > 0 && waitLoaderMore < 5000) {
+                            await delay(250); waitLoaderMore += 250;
+                        }
+                        await delay(2500);
+                    }
                     return true;
                 }
                 return false;
+            }
+
+            /**
+             * Module Đóng Cửa Sổ 3 Lớp Bảo Vệ & Diệt Popup Lỗi (Robust Modal Cleanup - V32 The Apex Sniper)
+             * Tìm trực tiếp nút Đóng đang hiển thị trên toàn bộ trang (layer trên cùng) và ép ẩn .patch-modal
+             */
+            async closeModalSafely() {
+                const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+                
+                // Diệt popup lỗi đỏ hệ thống
+                let $errBtn = $('.ohke-alert, .swal2-popup').filter(':visible').find('button, .w3-button, a').first();
+                if ($errBtn.length) { $errBtn.trigger('click'); await delay(300); }
+
+                // Tìm nút Đóng của thẻ lớp (Ưu tiên các nút nhìn thấy được ở layer trên cùng)
+                let $btn = $('a[onclick*="onButtonBtnClose"]:visible, a[title="Đóng"]:visible, a[title="Close"]:visible, .close-btn:visible, .ohke-popup-close:visible').last();
+
+                if (!$btn.length) {
+                    $('span.title-:visible').each(function() {
+                        let txt = $(this).text().trim().toLowerCase();
+                        if (txt === 'đóng' || txt === 'close') {
+                            $btn = $(this).closest('a'); return false;
+                        }
+                    });
+                }
+
+                if ($btn.length) {
+                    this.log(`   │    🧹 Đóng Modal...`);
+                    if ($btn[0] && typeof $btn[0].click === 'function') $btn[0].click();
+                    $btn.trigger('click'); await delay(400);
+                }
+
+                // Force hide fallback (Bao gồm cả .patch-modal)
+                $('.w3-modal, .ohke-popup-subform, .patch-modal').filter(':visible').removeClass('w3-show').hide();
+            }
+
+            /**
+             * Module Quét Tới Đâu Điểm Danh Tới Đó (Tránh DOM Detachment - V32 The Apex Sniper)
+             * Quét các thẻ lớp tại tab hiện tại, chặn rác [object Object], loại trừ Học sinh và Modal
+             */
+            async processCurrentTab(seenIds, bufferMinutes = 5) {
+                let pendingList = [];
+                let lockedList = [];
+                // 1. Bảo vệ DOM: Bỏ qua nếu thẻ này nằm trong Modal (bảng điểm danh đang mở)
+                let $items = $('.list-item[data-entity], .item-4qfjeb3y6f[data-entity], [data-entity*="class_schedule_slot_id"]').filter(function() {
+                    return $(this).closest('.w3-modal, .ohke-popup-subform, .patch-modal').length === 0;
+                });
+                if (!$items.length) {
+                    $items = $('.list-item').filter(function() {
+                        return $(this).closest('.w3-modal, .ohke-popup-subform, .patch-modal').length === 0;
+                    });
+                }
+
+                $items.each((i, el) => {
+                    let $el = $(el);
+                    if (!$el.is(':visible')) return;
+                    if ($el.attr('data-da-diem-danh') === 'true') return;
+
+                    let rawEntity = $el.attr('data-entity') || ($el[0].dataset && $el[0].dataset.entity);
+                    if (!rawEntity || rawEntity === '[object Object]') return; // Bỏ qua rác để tránh lỗi SyntaxError JSON
+
+                    try {
+                        let entity = (typeof rawEntity === 'string') ? JSON.parse(rawEntity) : rawEntity;
+                        if (!entity || !entity.id) return;
+                        // 2. Bảo vệ JSON: Phải có trường của Lớp học
+                        if (entity.instructor_attendance_status === undefined || entity.attendance_sheet_status === undefined) return;
+                        // 3. Tuyệt đối không phải Học sinh
+                        if (entity.student_code !== undefined || entity.face_photo !== undefined) return;
+
+                        let masterKey = String(entity.id || $el.data('id') || entity.master_key);
+                        if (seenIds.has(masterKey)) return; // Khử trùng lặp
+
+                        // Module Lọc Trạng Thái Tuyệt Đối (Absolute Status Filter)
+                        let tStatus = String(entity.instructor_attendance_status || entity.status || "").toUpperCase();
+                        let sStatus = String(entity.attendance_sheet_status || "").toUpperCase();
+                        let isTeacherPending = !tStatus.includes('ACCEPTED') && !tStatus.includes('PRESENT');
+                        let isStudentPending = !sStatus.includes('ACCEPTED');
+
+                        if (isTeacherPending || isStudentPending) {
+                            seenIds.add(masterKey);
+                            let unlockInfo = this.getClassUnlockInfo(entity, bufferMinutes);
+                            let classHourCode = entity.class_hour_code || '';
+                            let classItem = {
+                                element: $el,
+                                entity: entity,
+                                id: masterKey,
+                                classHourCode: classHourCode,
+                                unlockInfo: unlockInfo
+                            };
+
+                            if (unlockInfo.isSafe) {
+                                pendingList.push(classItem);
+                            } else {
+                                lockedList.push(classItem);
+                                let classCode = entity.class_hour_code || entity.__class_hour_code || entity.id;
+                                this.log(`⏳ [Time-Lock V26-PRO] Bỏ qua lớp [${classCode}] do chưa qua thời điểm an toàn (+${bufferMinutes} phút từ lúc bắt đầu).`);
+                            }
+                        }
+                    } catch (err) {
+                        this.log("⚠️ Lỗi parse dataset.entity: " + err.message);
+                    }
+                });
+
+                // Sắp xếp ưu tiên: tiết cũ hơn xử lý trước
+                pendingList.sort((a, b) => (a.unlockInfo ? a.unlockInfo.unlockTimestamp : 0) - (b.unlockInfo ? b.unlockInfo.unlockTimestamp : 0));
+                lockedList.sort((a, b) => (a.unlockInfo ? a.unlockInfo.unlockTimestamp : 0) - (b.unlockInfo ? b.unlockInfo.unlockTimestamp : 0));
+
+                if (pendingList.length > 0) {
+                    this.log(`🎯 [V33 Patient Hunter] Tại tab hiện tại, gom được ${pendingList.length} tiết đạt điều kiện an toàn. Tiến hành bắn tỉa ngay...`);
+                    for (let cls of pendingList) {
+                        if (!this.isWatcherRunning && this.isWatcherMode) break;
+                        if (cls.element.attr('data-da-diem-danh') === 'true') continue;
+
+                        this.log(`⚡ [V33 Patient Hunter] Bắn tỉa cho lớp [${cls.classHourCode || cls.id}]...`);
+                        let success = await this.submitAttendanceFlow(cls);
+                        if (success) {
+                            this.totalWatcherProcessed++;
+                        }
+                    }
+                } else {
+                    this.log("🔍 [processCurrentTab] Tab hiện tại không có tiết nào cần xử lý hoặc DOM chưa sẵn sàng.");
+                }
+
+                return { processedCount: pendingList.length, locked: lockedList };
             }
 
             /**
@@ -659,43 +834,53 @@
              * Chỉ cho phép điểm danh nếu Thời gian hiện tại >= Thời gian bắt đầu tiết + bufferMinutes (mặc định 5 phút)
              */
             validateSafeTime(entityData, bufferMinutes = 5) {
-                if (!entityData || !entityData.class_schedule_date) return true; // Fallback an toàn nếu thiếu dữ liệu ngày
+                let info = this.getClassUnlockInfo(entityData, bufferMinutes);
+                return info.isSafe;
+            }
+
+            /**
+             * Lấy chi tiết thông tin Khóa thời gian (dùng cho Watcher V23 để biết khi nào lớp tiếp theo mở khóa)
+             */
+            getClassUnlockInfo(entityData, bufferMinutes = 5) {
+                if (!entityData || !entityData.class_schedule_date) return { isSafe: true, unlockTimestamp: 0, timeString: "" };
                 try {
                     const dateStr = entityData.class_schedule_date; // Ví dụ: "2026-05-04"
                     const timeStr = entityData.class_hour_start_time || entityData.start_time || "00:00:00"; // "08:30:00"
 
-                    // Parse ngày thủ công (tránh lỗi lệch ngày UTC của new Date(dateStr))
                     const dateParts = dateStr.split('-');
                     const year = parseInt(dateParts[0], 10);
                     const month = parseInt(dateParts[1], 10) - 1; // JS Date tháng từ 0 - 11
                     const day = parseInt(dateParts[2], 10);
 
-                    // Parse giờ/phút/giây
                     const timeParts = timeStr.split(':');
                     const hours = parseInt(timeParts[0], 10) || 0;
                     const minutes = parseInt(timeParts[1], 10) || 0;
                     const seconds = parseInt(timeParts[2], 10) || 0;
 
                     const classStartTimestamp = new Date(year, month, day, hours, minutes, seconds).getTime();
+                    const safeThreshold = classStartTimestamp + (bufferMinutes * 60 * 1000);
                     const nowTimestamp = Date.now();
 
-                    // Ngưỡng mở khóa: Thời gian bắt đầu + bufferMinutes (ms)
-                    const safeThreshold = classStartTimestamp + (bufferMinutes * 60 * 1000);
-                    return nowTimestamp >= safeThreshold;
+                    return {
+                        isSafe: nowTimestamp >= safeThreshold,
+                        unlockTimestamp: safeThreshold,
+                        timeString: `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`
+                    };
                 } catch (e) {
                     this.log("⚠️ Lỗi parse ngày giờ Time-Lock: " + e.message);
-                    return true; // Fallback cho thực thi nếu sai định dạng thời gian
+                    return { isSafe: true, unlockTimestamp: 0, timeString: "" };
                 }
             }
 
             /**
-             * Bộ lọc Thông Minh Miễn nhiễm Ngôn ngữ (JSON Agnostic Filter + Khóa Thời gian V22)
-             * Quét cả 2 tab Hôm Nay & Quá Khứ, lọc lớp 100% qua JSON invariant constants
+             * Bộ lọc Toàn Cục Miễn nhiễm Ngôn ngữ & Hàng đợi Ưu tiên (V24 Global Watcher Priority Queue)
+             * Quét toàn bộ DOM trên mọi tab (bỏ :visible), robust JSON check và sắp xếp ưu tiên Quá Khứ trước
              */
-            getPendingClasses() {
+            getPendingClasses(bufferMinutes = 5, returnAllWithLockInfo = false) {
                 let pendingList = [];
-                // Quét tất cả thẻ lớp đang hiển thị trên DOM (Hôm Nay & Quá Khứ)
-                let $items = $('.list-item[data-entity]:visible, .item-4qfjeb3y6f[data-entity]:visible, [data-entity*="class_schedule_slot_id"]:visible');
+                let lockedList = [];
+                // Quét toàn bộ thẻ lớp trên tất cả các tab (kể cả tab đang ẩn display: none)
+                let $items = $('.list-item[data-entity], .item-4qfjeb3y6f[data-entity], [data-entity*="class_schedule_slot_id"]');
                 if (!$items.length) $items = $('.list-item');
 
                 $items.each((i, el) => {
@@ -708,36 +893,140 @@
                     try {
                         let entity = (typeof rawEntity === 'string') ? JSON.parse(rawEntity) : rawEntity;
 
-                        // Điều kiện 0: Phải là đối tượng tiết học có ID và mã tiết
-                        if (!entity.id || !entity.class_schedule_slot_id) return;
+                        // Điều kiện 0: Phải là đối tượng có ID
+                        if (!entity || !entity.id) return;
 
-                        // Điều kiện 1: Trạng thái PENDING nội bộ (Agnostic 100% với ngôn ngữ vi/en)
-                        let isTeacherPending = (entity.instructor_attendance_status === 'INSTRUCTOR_ATTENDANCE_SHEET_STATUS_PENDING');
-                        let isStudentPending = (entity.attendance_sheet_status === 'CLASS_SCHEDULE_SLOT_STATUS_PENDING');
+                        // Điều kiện 1: Trạng thái PENDING nội bộ (Robust check qua .includes('PENDING'))
+                        let tStatus = String(entity.instructor_attendance_status || entity.status || "");
+                        let sStatus = String(entity.attendance_sheet_status || "");
+                        let isTeacherPending = tStatus.includes('PENDING');
+                        let isStudentPending = sStatus.includes('PENDING');
 
                         if (isTeacherPending || isStudentPending) {
-                            // Điều kiện 2: Khóa Thời gian an toàn (Time-Lock >= tiết bắt đầu + 5 phút)
-                            if (!this.validateSafeTime(entity, 5)) {
-                                let classCode = entity.class_hour_code || entity.__class_hour_code || entity.id;
-                                this.log(`⏳ [Time-Lock V22] Bỏ qua lớp [${classCode}] do chưa qua thời điểm an toàn (+5 phút từ lúc bắt đầu).`);
-                                return;
-                            }
-
+                            let unlockInfo = this.getClassUnlockInfo(entity, bufferMinutes);
                             let classHourCode = entity.class_hour_code || '';
                             let isLessonZero = (classHourCode === 'H0' || String(classHourCode).startsWith('H0.'));
-                            pendingList.push({
+                            let classItem = {
                                 element: $el,
                                 entity: entity,
                                 id: entity.id || $el.data('id') || entity.master_key,
                                 classHourCode: classHourCode,
-                                isLessonZero: isLessonZero
-                            });
+                                isLessonZero: isLessonZero,
+                                unlockInfo: unlockInfo
+                            };
+
+                            // Điều kiện 2: Khóa Thời gian an toàn (Time-Lock >= tiết bắt đầu + 5 phút)
+                            if (unlockInfo.isSafe) {
+                                pendingList.push(classItem);
+                            } else {
+                                lockedList.push(classItem);
+                                let classCode = entity.class_hour_code || entity.__class_hour_code || entity.id;
+                                this.log(`⏳ [Time-Lock V24] Bỏ qua lớp [${classCode}] do chưa qua thời điểm an toàn (+5 phút từ lúc bắt đầu).`);
+                            }
                         }
                     } catch (err) {
                         this.log("⚠️ Lỗi parse dataset.entity: " + err.message);
                     }
                 });
 
+                // Hàng đợi Ưu tiên (Priority Queue Sorting): Sắp xếp theo thời gian tăng dần (cũ nhất / Quá Khứ xử lý trước)
+                pendingList.sort((a, b) => (a.unlockInfo ? a.unlockInfo.unlockTimestamp : 0) - (b.unlockInfo ? b.unlockInfo.unlockTimestamp : 0));
+                lockedList.sort((a, b) => (a.unlockInfo ? a.unlockInfo.unlockTimestamp : 0) - (b.unlockInfo ? b.unlockInfo.unlockTimestamp : 0));
+
+                if (returnAllWithLockInfo) {
+                    return { ready: pendingList, locked: lockedList };
+                }
+                return pendingList;
+            }
+
+            /**
+             * Thu thập đa không gian & Khử trùng lặp (V26-PRO Flawless Execution)
+             * Tự động điều hướng qua tab Quá Khứ -> Hôm Nay, quét DOM, deduplicate theo entity.id và sắp xếp Hàng đợi Ưu tiên
+             */
+            async getPendingClassesAcrossTabs(bufferMinutes = 5, returnAllWithLockInfo = false) {
+                let pendingList = [];
+                let lockedList = [];
+                let seenIds = new Set();
+
+                // Hàm con quét DOM tại tab đang mở và gom thẻ lớp (V31 Màng Lọc Kép)
+                const scanCurrentDOM = () => {
+                    // 1. Bảo vệ DOM: Bỏ qua nếu thẻ nằm trong Modal
+                    let $items = $('.list-item[data-entity], .item-4qfjeb3y6f[data-entity], [data-entity*="class_schedule_slot_id"]').filter(function() {
+                        return $(this).closest('.w3-modal, .ohke-popup-subform, .patch-modal').length === 0;
+                    });
+                    if (!$items.length) {
+                        $items = $('.list-item').filter(function() {
+                            return $(this).closest('.w3-modal, .ohke-popup-subform, .patch-modal').length === 0;
+                        });
+                    }
+
+                    $items.each((i, el) => {
+                        let $el = $(el);
+                        if ($el.attr('data-da-diem-danh') === 'true') return;
+
+                        let rawEntity = $el.attr('data-entity') || ($el[0].dataset && $el[0].dataset.entity);
+                        if (!rawEntity || rawEntity === '[object Object]') return; // Bỏ qua rác để tránh lỗi SyntaxError JSON
+
+                        try {
+                            let entity = (typeof rawEntity === 'string') ? JSON.parse(rawEntity) : rawEntity;
+                            if (!entity || !entity.id) return;
+                            // 2. Bảo vệ JSON: Phải có trường của Lớp học
+                            if (entity.instructor_attendance_status === undefined || entity.attendance_sheet_status === undefined) return;
+                            // 3. Tuyệt đối không phải Học sinh
+                            if (entity.student_code !== undefined || entity.face_photo !== undefined) return;
+
+                            let masterKey = String(entity.id || $el.data('id') || entity.master_key);
+                            if (seenIds.has(masterKey)) return; // Khử trùng lặp (Deduplicate)
+
+                            // Module Lọc Trạng Thái Tuyệt Đối (Absolute Status Filter - V26-PRO)
+                            let tStatus = String(entity.instructor_attendance_status || entity.status || "").toUpperCase();
+                            let sStatus = String(entity.attendance_sheet_status || "").toUpperCase();
+                            let isTeacherPending = !tStatus.includes('ACCEPTED') && !tStatus.includes('PRESENT');
+                            let isStudentPending = !sStatus.includes('ACCEPTED');
+
+                            if (isTeacherPending || isStudentPending) {
+                                seenIds.add(masterKey);
+                                let unlockInfo = this.getClassUnlockInfo(entity, bufferMinutes);
+                                let classHourCode = entity.class_hour_code || '';
+                                let isLessonZero = (classHourCode === 'H0' || String(classHourCode).startsWith('H0.'));
+                                let classItem = {
+                                    element: $el,
+                                    entity: entity,
+                                    id: masterKey,
+                                    classHourCode: classHourCode,
+                                    isLessonZero: isLessonZero,
+                                    unlockInfo: unlockInfo
+                                };
+
+                                if (unlockInfo.isSafe) {
+                                    pendingList.push(classItem);
+                                } else {
+                                    lockedList.push(classItem);
+                                    let classCode = entity.class_hour_code || entity.__class_hour_code || entity.id;
+                                    this.log(`⏳ [Time-Lock V25] Bỏ qua lớp [${classCode}] do chưa qua thời điểm an toàn (+${bufferMinutes} phút từ lúc bắt đầu).`);
+                                }
+                            }
+                        } catch (err) {
+                            this.log("⚠️ Lỗi parse dataset.entity: " + err.message);
+                        }
+                    });
+                };
+
+                // Lượt 1: Điều hướng sang tab Quá Khứ và quét DOM
+                await this.switchTabAndWait(['quá khứ', 'past']);
+                scanCurrentDOM();
+
+                // Lượt 2: Điều hướng sang tab Hôm Nay và quét DOM (dừng lại ở Hôm Nay cho user theo dõi)
+                await this.switchTabAndWait(['hôm nay', 'today']);
+                scanCurrentDOM();
+
+                // Sắp xếp Hàng đợi Ưu tiên: Cũ nhất xử lý trước (Quá Khứ -> Hôm Nay)
+                pendingList.sort((a, b) => (a.unlockInfo ? a.unlockInfo.unlockTimestamp : 0) - (b.unlockInfo ? b.unlockInfo.unlockTimestamp : 0));
+                lockedList.sort((a, b) => (a.unlockInfo ? a.unlockInfo.unlockTimestamp : 0) - (b.unlockInfo ? b.unlockInfo.unlockTimestamp : 0));
+
+                if (returnAllWithLockInfo) {
+                    return { ready: pendingList, locked: lockedList };
+                }
                 return pendingList;
             }
 
@@ -1631,6 +1920,7 @@
                 try {
                     // Bước 1: Kích hoạt UI mở Modal & Zero-Delay Polling chộp Sub-ID GV chính xác tuyệt đối
                     this.forceClick(classItem.element);
+                    await delay(500); // Đợi 500ms để Ohke dựng Modal khi trigger event từ thẻ lớp ở tab khác
 
                     let teacherId = null;
                     let teacherEntityData = null;
@@ -1683,6 +1973,8 @@
                     }
 
                     if (!teacherId) {
+                        this.log(`  ├─ ⚠️ Không chộp được Sub-ID GV qua modal cho lớp [${classItem.classHourCode || masterKey}], đóng modal an toàn và thử fallback...`);
+                        await this.closeModalSafely();
                         teacherId = entity.instructor_id || entity.instructor_sheet_id || (entity.instructor && entity.instructor.id) || masterKey;
                     }
 
@@ -1751,10 +2043,16 @@
                         this.log(`  │    ├─ ⚠️ Ngoại lệ API 2: ${e2.message}`);
                     }
 
-                    // API 3: Copy HS theo tiết trước
+                    // API 3: Copy HS theo tiết trước (V30 - Khôi phục Endpoint Chuẩn bttAction_x2447C_)
                     try {
-                        await this.rpcCall(config.studentActionApi, { id: masterKey });
-                        this.log(`  │    ├─ ✔️ [API 3 Xong] Copy điểm danh HS hoàn tất`);
+                        await this.rpcCall(config.studentActionApi, {
+                            id: masterKey,
+                            entity: currentEntity,
+                            master_key: String(masterKey),
+                            action_code: "MARK_ALL_STUDENT_ATTENDANCE_RECORDS_AS_PRESENT",
+                            env: env
+                        });
+                        this.log(`  │    ├─ ✔️ [API 3 Xong] Copy điểm danh HS hoàn tất (${config.studentActionApi})`);
                     } catch (e3) {
                         this.log(`  │    ├─ ⚠️ Ngoại lệ API 3: ${e3.message}`);
                     }
@@ -1805,22 +2103,8 @@
                         this.log(`  │    └─ ⚠️ Ngoại lệ API 4: ${e4.message}`);
                     }
 
-                    // Bước 3: Đóng Modal siêu tốc & làm mờ thẻ lớp
-                    let $finalModal = $('.w3-modal:visible, .ohke-popup-subform:visible').last();
-                    let closed = false;
-                    $finalModal.find('a, button, span, label, i').each(function() {
-                        let txt = $(this).text().trim().toLowerCase();
-                        if ((txt === 'đóng' || txt === 'close') && $(this).is(':visible')) {
-                            $(this)[0].click();
-                            closed = true;
-                            return false;
-                        }
-                    });
-                    if (!closed) {
-                        let $closeBtn = $finalModal.find('.close-btn, [onclick*="close"], [data-dismiss="modal"], i.fa-close, .w3-button, .close').first();
-                        if ($closeBtn.length && $finalModal.is(':visible')) this.forceClick($closeBtn);
-                        else $('.w3-modal').removeClass('w3-show').hide();
-                    }
+                    // Bước 3: Đóng Modal siêu tốc bằng Robust Modal Cleanup (V32 The Apex Sniper) & làm mờ thẻ lớp
+                    await this.closeModalSafely();
 
                     classItem.element.css('opacity', '0.4').attr('data-da-diem-danh', 'true');
                     let duration = Math.round(performance.now() - startTime);
@@ -1848,45 +2132,193 @@
             }
 
             /**
-             * Quy trình tự động hóa điểm danh toàn diện (Hybrid Turbo UI + Transition State V22)
+             * Quy trình tự động hóa điểm danh toàn diện (V26-PRO - Flawless Execution)
+             * Quét tới đâu điểm danh tới đó (tránh DOM Detachment) cho cả tab Quá Khứ và Hôm Nay
              */
             async run() {
-                this.log("🚀 Kích hoạt quy trình Auto Điểm Danh (Test Suite V22 - Ultimate Agnostic Sniper)...");
+                this.log("🚀 Kích hoạt quy trình Auto Điểm Danh (Test Suite V26-PRO - Flawless Execution)...");
                 let isReady = await this.ensureClassHubSPA();
                 if (!isReady) return;
 
-                let totalProcessed = 0;
-                while (true) {
-                    let pendingClasses = this.getPendingClasses();
-                    if (pendingClasses.length === 0) {
-                        let $moreBtn = $('.ohke-btn, a, button, span').filter((i, el) => $(el).text().trim() === 'Xem Thêm' && $(el).is(':visible')).first();
-                        if ($moreBtn.length) {
-                            this.log("⏳ Tải thêm danh sách lớp qua 'Xem Thêm' và chờ agent-loaded...");
-                            let $activeContainer = $('.tab-content > .tab-item:not(.w3-hide)').first();
-                            let loadPromise = this.waitForAgentLoaded($activeContainer);
-                            $moreBtn.click();
-                            await loadPromise;
-                            continue;
-                        }
-                        break;
-                    }
+                this.isWatcherMode = false;
+                let seenIds = new Set();
+                this.log("🧭 Đang chuyển sang xử lý tab Quá Khứ trước...");
+                await this.switchTabAndWait(['quá khứ', 'past']);
+                let pastRes = await this.processCurrentTab(seenIds, 5);
 
-                    this.log(`🔍 Phát hiện ${pendingClasses.length} lớp đủ điều kiện (Agnostic & Time-lock) cần điểm danh.`);
-                    for (let cls of pendingClasses) {
-                        if (cls.element.attr('data-da-diem-danh') === 'true') continue;
+                this.log("🧭 Đang chuyển sang xử lý tab Hôm Nay...");
+                await this.switchTabAndWait(['hôm nay', 'today']);
+                let todayRes = await this.processCurrentTab(seenIds, 5);
 
-                        this.log(`⚡ Đang thực thi điểm danh siêu tốc V22 cho lớp [${cls.classHourCode || cls.id}]...`);
-                        let success = await this.submitAttendanceFlow(cls);
-                        if (success) {
-                            totalProcessed++;
-                        }
-                    }
+                let totalCount = pastRes.processedCount + todayRes.processedCount;
+                this.log(`🎉 HOÀN TẤT ĐIỂM DANH V26-PRO! Tổng số tiết đã xử lý qua API: ${totalCount} tiết.`);
+                alert(`🎉 HOÀN TẤT ĐIỂM DANH V26-PRO! Tổng số tiết đã điểm danh siêu tốc qua API: ${totalCount} tiết.`);
+            }
+
+            /**
+             * =========================================================================
+             * TEST SUITE V26-PRO - FLAWLESS EXECUTION (MULTI-TAB WATCHER & ROBUST MODAL)
+             * Quét tới đâu điểm danh tới đó, không lưu DOM sang tab khác để tránh Detachment
+             * =========================================================================
+             */
+            startWatcher(intervalSeconds = 60) {
+                if (this.watcherInterval) {
+                    this.log("⚠️ Flawless Watcher V26-PRO đang chạy rồi!");
+                    return;
+                }
+                window.__v26ProWatcherBot = this;
+                this.isWatcherRunning = true;
+                this.isProcessingWatcher = false;
+                this.totalWatcherProcessed = 0;
+                this.log(`🟢 [V26-PRO Flawless Execution] Khởi chạy bộ giám sát đa không gian (quét mỗi ${intervalSeconds} giây)...`);
+                
+                // Cập nhật UI Overlay
+                this.updateWatcherOverlay("🟢 Đang điều hướng & giám sát (Ưu tiên Quá Khứ)...", null, this.totalWatcherProcessed, intervalSeconds);
+
+                // Quét ngay lần đầu
+                this.runWatcherIteration(intervalSeconds);
+
+                // Chu kỳ lặp setInterval
+                this.watcherInterval = setInterval(() => {
+                    this.runWatcherIteration(intervalSeconds);
+                }, intervalSeconds * 1000);
+            }
+
+            async runWatcherIteration(intervalSeconds = 60) {
+                if (!this.isWatcherRunning) return;
+                if (this.isProcessingWatcher) {
+                    this.log("⏳ [V26-PRO] Luồng bắn tỉa đang xử lý tiết trước đó, tạm bỏ qua chu kỳ này để tránh trùng lặp.");
+                    return;
                 }
 
-                this.log(`🎉 HOÀN TẤT ĐIỂM DANH V22! Tổng số lớp đã xử lý qua API: ${totalProcessed} lớp.`);
-                alert(`🎉 HOÀN TẤT ĐIỂM DANH V22! Tổng số lớp đã điểm danh siêu tốc qua API: ${totalProcessed} lớp.`);
+                this.isProcessingWatcher = true;
+                this.isWatcherMode = true;
+                try {
+                    let isReady = await this.ensureClassHubSPA();
+                    if (!isReady) {
+                        this.updateWatcherOverlay("⚠️ Đang chờ chuyển sang tab ClassHub...", null, this.totalWatcherProcessed, intervalSeconds);
+                        return;
+                    }
+
+                    let seenIds = new Set();
+                    let allLocked = [];
+
+                    // Bước 1: Nhảy sang tab Quá Khứ -> Điểm danh ngay các tiết đủ điều kiện (tránh DOM Detachment)
+                    this.updateWatcherOverlay("🟢 Đang điều hướng & xử lý tab Quá Khứ...", null, this.totalWatcherProcessed, intervalSeconds);
+                    await this.switchTabAndWait(['quá khứ', 'past']);
+                    let pastResult = await this.processCurrentTab(seenIds, 5);
+                    allLocked.push(...pastResult.locked);
+
+                    // Bước 2: Nhảy sang tab Hôm Nay -> Điểm danh ngay các tiết đủ điều kiện
+                    this.updateWatcherOverlay("🟢 Đang điều hướng & xử lý tab Hôm Nay...", null, this.totalWatcherProcessed, intervalSeconds);
+                    await this.switchTabAndWait(['hôm nay', 'today']);
+                    let todayResult = await this.processCurrentTab(seenIds, 5);
+                    allLocked.push(...todayResult.locked);
+
+                    // Tìm lớp tiếp theo sắp mở khóa từ danh sách bị lock
+                    allLocked.sort((a, b) => (a.unlockInfo ? a.unlockInfo.unlockTimestamp : 0) - (b.unlockInfo ? b.unlockInfo.unlockTimestamp : 0));
+                    let nextClassInfo = null;
+                    if (allLocked.length > 0) {
+                        let nextLocked = allLocked[0];
+                        if (nextLocked.unlockInfo && nextLocked.unlockInfo.unlockTimestamp > 0) {
+                            let diffMs = nextLocked.unlockInfo.unlockTimestamp - Date.now();
+                            let diffMins = Math.max(1, Math.ceil(diffMs / 60000));
+                            nextClassInfo = `${nextLocked.classHourCode || nextLocked.id} (Mở lúc ${nextLocked.unlockInfo.timeString} - còn ~${diffMins} phút)`;
+                        }
+                    }
+
+                    // Cập nhật overlay sau chu kỳ quét
+                    if (this.isWatcherRunning) {
+                        let totalDoneThisCycle = pastResult.processedCount + todayResult.processedCount;
+                        let statusText = (totalDoneThisCycle > 0) ? `🟢 Vừa dọn xong ${totalDoneThisCycle} tiết. Đang gác cổng V26-PRO...` : `🟢 Đang chờ tiết tiếp theo (Đã dọn sạch cả 2 tab)...`;
+                        this.updateWatcherOverlay(statusText, nextClassInfo, this.totalWatcherProcessed, intervalSeconds);
+                    }
+                } catch (err) {
+                    this.log("⚠️ [V26-PRO Ngoại lệ] " + err.message);
+                } finally {
+                    this.isProcessingWatcher = false;
+                }
+            }
+
+            stopWatcher() {
+                if (this.watcherInterval) {
+                    clearInterval(this.watcherInterval);
+                    this.watcherInterval = null;
+                }
+                this.isWatcherRunning = false;
+                this.isProcessingWatcher = false;
+                this.log("🛑 [V26-PRO Flawless Execution] Đã dừng bộ giám sát tự động.");
+                this.updateWatcherOverlay("🛑 Flawless Watcher đã dừng", null, this.totalWatcherProcessed, 0, true);
+            }
+
+            updateWatcherOverlay(statusText, nextClassInfo, totalDone, intervalSeconds, isStopped = false) {
+                let $overlay = $('#ohke-v26-pro-flawless-execution');
+                if (!$overlay.length) {
+                    // Xóa toàn bộ overlay cũ
+                    $('#ohke-v23-auto-watcher, #ohke-v24-global-watcher, #ohke-v25-omniscient-navigator, #ohke-v26-strict-navigator').remove();
+                    $('body').append(`
+                        <div id="ohke-v26-pro-flawless-execution" style="position: fixed; bottom: 20px; right: 20px; z-index: 999999; background: rgba(18, 20, 26, 0.96); border: 1px solid #00FF66; box-shadow: 0 4px 20px rgba(0, 255, 102, 0.35); border-radius: 10px; padding: 14px 18px; width: 340px; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; color: #fff; transition: all 0.3s ease;">
+                            <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid rgba(255,255,255,0.15); padding-bottom: 8px; margin-bottom: 10px;">
+                                <span style="font-weight: bold; font-size: 14px; color: #00FF66; display: flex; align-items: center; gap: 6px;">
+                                    <span id="v26pro-dot" style="display: inline-block; width: 8px; height: 8px; background: #00FF66; border-radius: 50%; box-shadow: 0 0 8px #00FF66;"></span>
+                                    V26-PRO Flawless
+                                </span>
+                                <button id="btn-v26pro-stop-watcher" style="background: #FF3366; color: #fff; border: none; padding: 4px 10px; border-radius: 6px; font-size: 11px; font-weight: bold; cursor: pointer; transition: 0.2s;">Dừng</button>
+                            </div>
+                            <div id="v26pro-status-text" style="font-size: 13px; color: #E0E0E0; margin-bottom: 8px; line-height: 1.4;"></div>
+                            <div id="v26pro-next-class" style="font-size: 12px; color: #FFD700; background: rgba(255, 215, 0, 0.1); padding: 6px 8px; border-radius: 6px; margin-bottom: 8px; display: none; border-left: 3px solid #FFD700;"></div>
+                            <div style="display: flex; justify-content: space-between; align-items: center; font-size: 11px; color: #AAA; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 8px;">
+                                <span id="v26pro-total-done">✔️ Đã điểm danh: 0 lớp</span>
+                                <span id="v26pro-interval-info">⏳ Chu kỳ: 60s</span>
+                            </div>
+                        </div>
+                    `);
+                    $overlay = $('#ohke-v26-pro-flawless-execution');
+                    $('#btn-v26pro-stop-watcher').on('click', () => {
+                        if (this.isWatcherRunning) {
+                            this.stopWatcher();
+                        } else {
+                            $overlay.fadeOut(300, () => $overlay.remove());
+                        }
+                    });
+                }
+
+                $('#v26pro-status-text').html(statusText);
+                if (nextClassInfo) {
+                    $('#v26pro-next-class').html(`⏰ Tiết tiếp theo: <b>${nextClassInfo}</b>`).show();
+                } else {
+                    $('#v26pro-next-class').hide();
+                }
+                $('#v26pro-total-done').text(`✔️ Đã điểm danh: ${totalDone} lớp`);
+                if (intervalSeconds > 0) {
+                    $('#v26pro-interval-info').text(`⏳ Chu kỳ: ${intervalSeconds}s`);
+                }
+
+                if (isStopped) {
+                    $overlay.css({ 'border-color': '#FF3366', 'box-shadow': '0 4px 20px rgba(255, 51, 102, 0.3)' });
+                    $('#v26pro-dot').css({ 'background': '#FF3366', 'box-shadow': '0 0 8px #FF3366' });
+                    $('#btn-v26pro-stop-watcher').text('Đóng').css('background', '#555');
+                } else {
+                    $overlay.css({ 'border-color': '#00FF66', 'box-shadow': '0 4px 20px rgba(0, 255, 102, 0.35)' });
+                    $('#v26pro-dot').css({ 'background': '#00FF66', 'box-shadow': '0 0 8px #00FF66' });
+                    $('#btn-v26pro-stop-watcher').text('Dừng').css('background', '#FF3366');
+                }
             }
         }
+
+        // Đăng ký Global API cho Console / Kiểm thử
+        window.startWatcher = (intervalSeconds = 60) => {
+            const bot = new AttendanceAutomationPro(log);
+            bot.startWatcher(intervalSeconds);
+            return bot;
+        };
+        window.stopWatcher = () => {
+            if (window.__v26ProWatcherBot && typeof window.__v26ProWatcherBot.stopWatcher === 'function') {
+                window.__v26ProWatcherBot.stopWatcher();
+            } else if (window.__v26WatcherBot && typeof window.__v26WatcherBot.stopWatcher === 'function') {
+                window.__v26WatcherBot.stopWatcher();
+            }
+        };
 
         // Gắn logic vào nút #btn-auto-attendance của giao diện extension
         document.getElementById('btn-auto-attendance').onclick = async () => {
