@@ -3,7 +3,7 @@
 import React from "react";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import { useAuth } from "@/contexts/AuthContext";
-import { LogOut, Home, FileText, Settings, Users, Menu, X, Bell, Building2, ShieldAlert, GraduationCap } from "lucide-react";
+import { LogOut, Home, FileText, Settings, Users, Menu, X, Bell, Building2, ShieldAlert, GraduationCap, Calendar } from "lucide-react";
 import { auth, db } from "@/lib/firebase/client";
 import { signOut } from "firebase/auth";
 import toast from "react-hot-toast";
@@ -123,6 +123,7 @@ export default function DashboardLayout({
             <NavLink href="/dashboard/classes" icon={GraduationCap}>Quản lý Lớp học</NavLink>
             <NavLink href="/dashboard/grades" icon={BookOpen}>Sổ điểm</NavLink>
             <NavLink href="/dashboard/evaluations" icon={FileText}>Phiếu Đánh giá</NavLink>
+            <NavLink href="/dashboard/schedule" icon={Calendar}>Thời khóa biểu</NavLink>
             
             {(profile?.role === "ADMIN" || profile?.role === "BGH" || profile?.role === "SUPER_ADMIN") && (
               <>
@@ -130,6 +131,7 @@ export default function DashboardLayout({
                   <p className="px-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">Cấu hình Hệ thống</p>
                 </div>
                 <NavLink href="/dashboard/rules" icon={Settings}>Quy định (Rules)</NavLink>
+                <NavLink href="/dashboard/settings/schedule" icon={Calendar}>Upload Thời Khóa Biểu</NavLink>
               </>
             )}
             

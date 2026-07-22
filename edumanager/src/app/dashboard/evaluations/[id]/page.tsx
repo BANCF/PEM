@@ -259,7 +259,7 @@ export default function EvaluationDetailPage() {
   if (loading) return <div className="flex justify-center p-20"><Loader2 className="animate-spin text-blue-600" size={40} /></div>;
   if (!evaluation) return null;
 
-  const isTeacher = profile?.role === "TEACHER";
+  const isTargetTeacher = profile?.id === evaluation.teacherId;
   let canResolve = false;
   if (profile?.role === "ADMIN" || profile?.role === "BGH") {
     canResolve = true;
@@ -364,8 +364,8 @@ export default function EvaluationDetailPage() {
               )}
             </div>
 
-            {/* Vùng Phản hồi của Giáo viên (Dành cho Giáo viên khi PENDING_APPEAL) */}
-            {isTeacher && evaluation.status === "PENDING_APPEAL" && !isOverdue && (
+            {/* Vùng Phản hồi của Giáo viên (Dành cho Giáo viên bị đánh giá khi PENDING_APPEAL) */}
+            {isTargetTeacher && evaluation.status === "PENDING_APPEAL" && !isOverdue && (
               <div className="border-2 border-orange-200 bg-orange-50/50 p-6 rounded-xl mt-8">
                 <div className="flex justify-between items-center mb-4">
                   <h3 className="text-lg font-bold text-orange-800 flex items-center">
@@ -412,7 +412,7 @@ export default function EvaluationDetailPage() {
               </div>
             )}
 
-            {isTeacher && evaluation.status === "PENDING_APPEAL" && isOverdue && (
+            {isTargetTeacher && evaluation.status === "PENDING_APPEAL" && isOverdue && (
               <div className="p-4 bg-gray-100 rounded-lg text-gray-600 font-medium text-center">
                 Đã hết hạn khiếu nại (Quá 48 giờ). Phiếu này sắp được hệ thống tự động chốt.
               </div>
