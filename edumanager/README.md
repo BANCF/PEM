@@ -43,10 +43,9 @@ Với giao diện trực quan, minh bạch và ứng dụng các cơ chế tạo
 - **Phiếu Nhận xét Tháng (PDF):** Tự động tổng hợp dữ liệu KPI và tạo phiếu nhận xét tháng chuẩn form biểu nhà trường, hỗ trợ xem trước và xuất file PDF lưu hồ sơ thi đua.
 - **Xuất Excel Tổng hợp:** Tải báo cáo xếp hạng KPI, bảng lương thưởng thi đua định kỳ nhanh chóng mà không cần nhập liệu thủ công.
 
-### 🔐 Phân quyền Đa tầng & Bảo mật Hệ thống (Advanced RBAC & System Security)
-- **Phân quyền Chặt chẽ theo Cấp bậc:** Quyền hạn được phân định rõ ràng giữa các vai trò: Giáo viên (`TEACHER`), Tổ Trưởng/Tổ Phó (`TTCM`/`TPCM`), Ban Giám Hiệu (`BGH`) và Quản trị viên (`ADMIN`).
-- **Khóa Bảo trì Hệ thống (System Frozen):** Hỗ trợ tính năng khóa tạm thời toàn bộ thao tác lập phiếu khi hệ thống cần bảo trì hoặc chốt sổ tổng kết kỳ thi đua cuối tháng/cuối kỳ.
-- **Nhật ký Kiểm toán (Audit Logs):** Ghi vết chi tiết lịch sử các thao tác quan trọng trên hệ thống nhằm đảm bảo tính minh bạch, chính xác và an toàn dữ liệu tuyệt đối.
+### 🔐 Phân quyền Đa tầng (Role-Based Access Control)
+- **Phân quyền Chặt chẽ theo Cấp bậc:** Quyền hạn được chia nhỏ và bảo mật chặt chẽ giữa 4 vai trò tiêu chuẩn: Giáo viên (`TEACHER`), Tổ Trưởng/Tổ Phó (`TTCM`/`TPCM`), Ban Giám Hiệu (`BGH`) và Quản trị viên (`ADMIN`).
+- **Bảo mật & Dữ liệu Minh bạch:** Hệ thống được thiết kế theo tiêu chuẩn bảo mật phân tầng, đảm bảo tính riêng tư và phân định thẩm quyền rõ ràng trong mọi thao tác tạo phiếu, duyệt giải trình và quản lý học vụ.
 
 ### 🔔 Thông báo & Phân tích Dữ liệu (Real-time Alerts & Analytics)
 - **Chuông Báo Tức thì:** Hệ thống thông báo thời gian thực về các phiếu đánh giá mới, kết quả xử lý khiếu nại và các thông báo từ BGH.
