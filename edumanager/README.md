@@ -43,11 +43,10 @@ Với giao diện trực quan, minh bạch và ứng dụng các cơ chế tạo
 - **Phiếu Nhận xét Tháng (PDF):** Tự động tổng hợp dữ liệu KPI và tạo phiếu nhận xét tháng chuẩn form biểu nhà trường, hỗ trợ xem trước và xuất file PDF lưu hồ sơ thi đua.
 - **Xuất Excel Tổng hợp:** Tải báo cáo xếp hạng KPI, bảng lương thưởng thi đua định kỳ nhanh chóng mà không cần nhập liệu thủ công.
 
-### 🔐 Phân quyền Đa tầng & Bảo mật Tối cao (Advanced RBAC & Super Admin)
-- **6 Cấp độ Phân quyền Chặt chẽ:** Giáo viên (`TEACHER`), Tổ Phó (`TPCM`), Tổ Trưởng (`TTCM`), Ban Giám Hiệu (`BGH`), Quản trị viên (`ADMIN`), Quản trị Tối cao (`SUPER_ADMIN`).
-- **Khóa Hệ thống (System Frozen):** `SUPER_ADMIN` có quyền khóa tạm thời hệ thống để phục vụ bảo trì hoặc chốt sổ tổng kết kỳ thi đua.
-- **Chuyển góc nhìn (Impersonate / View As):** Cho phép Quản trị viên trải nghiệm và kiểm tra hệ thống dưới góc nhìn của bất kỳ người dùng nào để hỗ trợ kỹ thuật tức thì.
-- **Nhật ký Kiểm toán (Audit Logs):** Ghi vết toàn bộ các thao tác nhạy cảm (xóa phiếu, duyệt khẩn cấp, thay đổi cấu hình) để đảm bảo tính minh bạch tuyệt đối.
+### 🔐 Phân quyền Đa tầng & Bảo mật Hệ thống (Advanced RBAC & System Security)
+- **Phân quyền Chặt chẽ theo Cấp bậc:** Quyền hạn được phân định rõ ràng giữa các vai trò: Giáo viên (`TEACHER`), Tổ Trưởng/Tổ Phó (`TTCM`/`TPCM`), Ban Giám Hiệu (`BGH`) và Quản trị viên (`ADMIN`).
+- **Khóa Bảo trì Hệ thống (System Frozen):** Hỗ trợ tính năng khóa tạm thời toàn bộ thao tác lập phiếu khi hệ thống cần bảo trì hoặc chốt sổ tổng kết kỳ thi đua cuối tháng/cuối kỳ.
+- **Nhật ký Kiểm toán (Audit Logs):** Ghi vết chi tiết lịch sử các thao tác quan trọng trên hệ thống nhằm đảm bảo tính minh bạch, chính xác và an toàn dữ liệu tuyệt đối.
 
 ### 🔔 Thông báo & Phân tích Dữ liệu (Real-time Alerts & Analytics)
 - **Chuông Báo Tức thì:** Hệ thống thông báo thời gian thực về các phiếu đánh giá mới, kết quả xử lý khiếu nại và các thông báo từ BGH.
