@@ -24,12 +24,29 @@ export default function DashboardLayout({
   const pathname = usePathname();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [isFrozen, setIsFrozen] = useState(false);
+  const [features, setFeatures] = useState<Record<string, boolean>>({
+    classes: true,
+    grades: true,
+    evaluations: true,
+    schedule: true,
+    certificates: true
+  });
   const [loadingConfig, setLoadingConfig] = useState(true);
 
   useEffect(() => {
     const unsub = onSnapshot(doc(db, "system_settings", "general"), (snapshot) => {
       if (snapshot.exists()) {
-        setIsFrozen(snapshot.data().systemFrozen || false);
+        const data = snapshot.data();
+        setIsFrozen(data.systemFrozen || false);
+        if (data.features) {
+          setFeatures({
+            classes: data.features.classes ?? true,
+            grades: data.features.grades ?? true,
+            evaluations: data.features.evaluations ?? true,
+            schedule: data.features.schedule ?? true,
+            certificates: data.features.certificates ?? true,
+          });
+        }
       }
       setLoadingConfig(false);
     });
@@ -53,7 +70,7 @@ export default function DashboardLayout({
     return false;
   };
 
-  const NavLink = ({ href, icon: Icon, children }: { href: string, icon: any, children: React.ReactNode }) => {
+  const NavLink = ({ href, icon: Icon, children, locked = false }: { href: string, icon: any, children: React.ReactNode, locked?: boolean }) => {
     const active = isActive(href);
     return (
       <Link 
@@ -66,7 +83,8 @@ export default function DashboardLayout({
         }`}
       >
         <Icon size={20} className={active ? "text-white" : "text-slate-400 group-hover:text-white"} />
-        <span>{children}</span>
+        <span className="flex-1">{children}</span>
+        {locked && <ShieldAlert size={16} className="text-amber-500" />}
       </Link>
     );
   };
@@ -85,6 +103,19 @@ export default function DashboardLayout({
       </div>
     );
   }
+
+  const featureMap: Record<string, string> = {
+    "/dashboard/classes": "classes",
+    "/dashboard/grades": "grades",
+    "/dashboard/evaluations": "evaluations",
+    "/dashboard/schedule": "schedule",
+    "/dashboard/certificates": "certificates",
+  };
+
+  const currentFeatureKey = Object.keys(featureMap).find(path => pathname.startsWith(path));
+  const featureName = currentFeatureKey ? featureMap[currentFeatureKey] : null;
+
+  const isFeatureLocked = featureName && !features[featureName] && actualProfile?.role !== "ADMIN" && actualProfile?.role !== "SUPER_ADMIN";
 
   return (
     <ProtectedRoute>
@@ -120,11 +151,11 @@ export default function DashboardLayout({
           <div className="flex-1 overflow-y-auto py-6 px-4 space-y-2">
             <p className="px-3 text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Quản lý chung</p>
             <NavLink href="/dashboard" icon={Home}>Tổng quan KPI</NavLink>
-            <NavLink href="/dashboard/classes" icon={GraduationCap}>Quản lý Lớp học</NavLink>
-            <NavLink href="/dashboard/grades" icon={BookOpen}>Sổ điểm</NavLink>
-            <NavLink href="/dashboard/evaluations" icon={FileText}>Phiếu Đánh giá</NavLink>
-            <NavLink href="/dashboard/schedule" icon={Calendar}>Thời khóa biểu</NavLink>
-            <NavLink href="/dashboard/certificates" icon={Award}>Giấy Khen & Chứng Nhận</NavLink>
+            <NavLink href="/dashboard/classes" icon={GraduationCap} locked={!features.classes && actualProfile?.role !== "ADMIN" && actualProfile?.role !== "SUPER_ADMIN"}>Quản lý Lớp học</NavLink>
+            <NavLink href="/dashboard/grades" icon={BookOpen} locked={!features.grades && actualProfile?.role !== "ADMIN" && actualProfile?.role !== "SUPER_ADMIN"}>Sổ điểm</NavLink>
+            <NavLink href="/dashboard/evaluations" icon={FileText} locked={!features.evaluations && actualProfile?.role !== "ADMIN" && actualProfile?.role !== "SUPER_ADMIN"}>Phiếu Đánh giá</NavLink>
+            <NavLink href="/dashboard/schedule" icon={Calendar} locked={!features.schedule && actualProfile?.role !== "ADMIN" && actualProfile?.role !== "SUPER_ADMIN"}>Thời khóa biểu</NavLink>
+            <NavLink href="/dashboard/certificates" icon={Award} locked={!features.certificates && actualProfile?.role !== "ADMIN" && actualProfile?.role !== "SUPER_ADMIN"}>Giấy Khen & Chứng Nhận</NavLink>
             
             {(profile?.role === "ADMIN" || profile?.role === "BGH" || profile?.role === "SUPER_ADMIN") && (
               <>
@@ -139,6 +170,7 @@ export default function DashboardLayout({
             {(profile?.role === "ADMIN" || profile?.role === "SUPER_ADMIN") && (
               <div className="pt-4 mt-4 border-t border-slate-800 space-y-2">
                 <p className="px-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">Admin Tools</p>
+                <NavLink href="/dashboard/feature-toggles" icon={Settings}>Quản lý Tính năng</NavLink>
                 <NavLink href="/dashboard/departments" icon={Building2}>Tổ Bộ Môn</NavLink>
                 <NavLink href="/dashboard/users" icon={Users}>Quản lý Nhân sự</NavLink>
                 {actualProfile?.role === "SUPER_ADMIN" && (
@@ -209,7 +241,22 @@ export default function DashboardLayout({
           {/* Page Content */}
           <main className="flex-1 overflow-y-auto p-6 lg:p-10 print:p-0 print:overflow-visible">
             <div className="max-w-7xl mx-auto w-full print:max-w-none">
-              {children}
+              {isFeatureLocked ? (
+                <div className="flex flex-col items-center justify-center p-12 text-center bg-white rounded-2xl border border-slate-200 shadow-sm mt-10 max-w-2xl mx-auto animate-in fade-in zoom-in duration-300">
+                  <div className="w-20 h-20 bg-amber-50 rounded-full flex items-center justify-center mb-6">
+                    <ShieldAlert className="w-10 h-10 text-amber-500" />
+                  </div>
+                  <h2 className="text-2xl font-bold text-slate-800 mb-3">Tính Năng Đang Bảo Trì</h2>
+                  <p className="text-slate-500 max-w-md mx-auto leading-relaxed">
+                    Tính năng này đang được khóa tạm thời để nâng cấp hệ thống hoặc tổng kết cuối kỳ. Vui lòng quay lại sau!
+                  </p>
+                  <button onClick={() => router.push("/dashboard")} className="mt-8 px-6 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-xl transition-colors">
+                    Trở về Trang chủ
+                  </button>
+                </div>
+              ) : (
+                children
+              )}
             </div>
           </main>
           

@@ -1,0 +1,151 @@
+{
+  "classesFound": [
+    "TTH1",
+    "TTH2",
+    "TTH3",
+    "Lớp 1 - Rainbow",
+    "Lớp Happy 1",
+    "Lớp Happy 2",
+    "Lớp 3-  Magic stars 1",
+    "Lớp 4 - Magic stars 2",
+    "Lớp 5 - Magic stars 2",
+    "2G0 - T",
+    "2GE",
+    "2GE - T",
+    "2C",
+    "2A",
+    "2T",
+    "3C",
+    "3I",
+    "3A",
+    "3T",
+    "4C",
+    "4A",
+    "4T",
+    "5C",
+    "THCS- Busy Bee K6",
+    "THCS- Busy Bee K7,8",
+    "Định hướng hệ G 2015 Toán",
+    "Định hướng hệ G 2015 Anh",
+    "Định hướng hệ G 2014",
+    "Đội tuyển 9 -1",
+    "Đội tuyển 9 -2",
+    "Đội tuyển 9 -3",
+    "Đội tuyển 9 -4",
+    "Đội tuyển IMSO",
+    "9A",
+    "9M",
+    "9C",
+    "9AC",
+    "8C",
+    "8A1",
+    "8A2",
+    "9A",
+    "9M",
+    "9C",
+    "9AC"
+  ],
+  "teachersFound": 97,
+  "sampleTeacher": {
+    "2": [
+      {
+        "period": "1",
+        "time": "8h00-8h35",
+        "className": "TTH1",
+        "subject": "Tiếng Việt lí thú"
+      },
+      {
+        "period": "3",
+        "time": "9h40-10h15",
+        "className": "TTH1",
+        "subject": "Tiếng Việt lí thú"
+      },
+      {
+        "period": "5",
+        "time": "13h55 - 14h30",
+        "className": "TTH1",
+        "subject": "Tiếng Việt lí thú"
+      },
+      {
+        "period": "6",
+        "time": "14h35 - 15h10",
+        "className": "TTH1",
+        "subject": "Toán học vui"
+      }
+    ],
+    "3": [
+      {
+        "period": "1",
+        "time": "8h00-8h35",
+        "className": "Định hướng hệ G 2014",
+        "subject": "Tiếng Anh"
+      },
+      {
+        "period": "2",
+        "time": "8h45-9h20",
+        "className": "Định hướng hệ G 2014",
+        "subject": "Tiếng Anh"
+      },
+      {
+        "period": "5",
+        "time": "13h55 - 14h30",
+        "className": "TTH1",
+        "subject": "Toán học vui"
+      }
+    ],
+    "4": [
+      {
+        "period": "1",
+        "time": "8h00-8h35",
+        "className": "TTH1",
+        "subject": "Tiếng Việt lí thú"
+      },
+      {
+        "period": "5",
+        "time": "13h55 - 14h30",
+        "className": "TTH1",
+        "subject": "Toán tư duy"
+      }
+    ],
+    "5": [
+      {
+        "period": "1",
+        "time": "8h00-8h35",
+        "className": "TTH1",
+        "subject": "Toán tư duy"
+      },
+      {
+        "period": "3",
+        "time": "9h40-10h15",
+        "className": "TTH1",
+        "subject": "Tiếng Việt lí thú"
+      },
+      {
+        "period": "4",
+        "time": "10h25-11h00",
+        "className": "TTH1",
+        "subject": "Tiếng Việt lí thú"
+      }
+    ],
+    "6": [
+      {
+        "period": "4",
+        "time": "10h25-11h00",
+        "className": "TTH1",
+        "subject": "Toán học vui"
+      },
+      {
+        "period": "6",
+        "time": "14h35 - 15h10",
+        "className": "TTH1",
+        "subject": "Tiếng Việt lí thú"
+      },
+      {
+        "period": "7",
+        "time": "15h25 - 16h00",
+        "className": "TTH1",
+        "subject": "Sinh hoạt tập thể"
+      }
+    ]
+  }
+}
