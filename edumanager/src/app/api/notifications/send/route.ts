@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { adminDb } from "@/lib/firebase/admin";
 import webpush from "web-push";
 
-const vapidPublicKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY || "BKGkUiU6KsJL6g05T0-ooAHl1IsUy0BMzy2pi4iVNdoaGdRR-ceUkutoqxE4txXa910vk1NK3_cryg5yl6tg1oo";
+const vapidPublicKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY || "BJIAdA_hDMLR2dBCmSXonTtJWq8wJ7wIexkObcbnFYKsSm0mFzahj_DRBqQRrhbmb4iXTn1pdESIF_sMvW6ZPVA";
 const vapidPrivateKey = process.env.VAPID_PRIVATE_KEY || "AV7azbriBw-PGKthFYDIPwCpmxVq0hXmQeyLJVZWHv8";
 const vapidSubject = process.env.VAPID_SUBJECT || "mailto:bancf.pascal@gmail.com";
 

@@ -222,7 +222,7 @@ export default function Notifications() {
             } as any);
 
             // 2. Đăng ký W3C Push Subscription ngầm với Google Push Server cho điện thoại (dành cho lúc TẮT APP)
-            const publicVapidKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY || "BKGkUiU6KsJL6g05T0-ooAHl1IsUy0BMzy2pi4iVNdoaGdRR-ceUkutoqxE4txXa910vk1NK3_cryg5yl6tg1oo";
+            const publicVapidKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY || "BJIAdA_hDMLR2dBCmSXonTtJWq8wJ7wIexkObcbnFYKsSm0mFzahj_DRBqQRrhbmb4iXTn1pdESIF_sMvW6ZPVA";
             
             try {
               const urlBase64ToUint8Array = (base64String: string) => {
