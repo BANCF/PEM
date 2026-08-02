@@ -1,0 +1,6 @@
+{
+  "buildCommand": "cd edumanager && npm run build",
+  "outputDirectory": "edumanager/.next",
+  "framework": "nextjs",
+  "cleanUrls": true
+}
