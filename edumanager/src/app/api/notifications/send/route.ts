@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
-import { getAdminApp } from "@/lib/firebase/admin";
+import { adminDb } from "@/lib/firebase/admin";
 import { getMessaging } from "firebase-admin/messaging";
-import { getFirestore } from "firebase-admin/firestore";
 
 export async function POST(req: Request) {
   try {
@@ -11,15 +10,16 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
     }
 
-    const adminApp = getAdminApp();
-    const db = getFirestore(adminApp);
+    if (!adminDb) {
+      return NextResponse.json({ error: "Admin DB not initialized" }, { status: 500 });
+    }
 
     // Lấy danh sách FCM Tokens của người dùng
-    const userDoc = await db.collection("users").doc(userId).get();
+    const userDoc = await adminDb.collection("users").doc(userId).get();
     const fcmTokens: string[] = userDoc.data()?.fcmTokens || [];
 
     if (fcmTokens.length > 0) {
-      const messaging = getMessaging(adminApp);
+      const messaging = getMessaging();
 
       const response = await messaging.sendEachForMulticast({
         tokens: fcmTokens,
