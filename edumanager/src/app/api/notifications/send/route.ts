@@ -1,6 +1,18 @@
 import { NextResponse } from "next/server";
 import { adminDb } from "@/lib/firebase/admin";
-import { getMessaging } from "firebase-admin/messaging";
+import webpush from "web-push";
+
+const vapidPublicKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY || "BKGkUiU6KsJL6g05T0-ooAHl1IsUy0BMzy2pi4iVNdoaGdRR-ceUkutoqxE4txXa910vk1NK3_cryg5yl6tg1oo";
+const vapidPrivateKey = process.env.VAPID_PRIVATE_KEY || "AV7azbriBw-PGKthFYDIPwCpmxVq0hXmQeyLJVZWHv8";
+const vapidSubject = process.env.VAPID_SUBJECT || "mailto:bancf.pascal@gmail.com";
+
+if (vapidPublicKey && vapidPrivateKey) {
+  try {
+    webpush.setVapidDetails(vapidSubject, vapidPublicKey, vapidPrivateKey);
+  } catch (e) {
+    console.error("VAPID setup error:", e);
+  }
+}
 
 export async function POST(req: Request) {
   try {
@@ -14,43 +26,24 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Admin DB not initialized" }, { status: 500 });
     }
 
-    // Lấy danh sách FCM Tokens của người dùng
+    // Lấy danh sách Web Push Subscriptions của người dùng
     const userDoc = await adminDb.collection("users").doc(userId).get();
-    const fcmTokens: string[] = userDoc.data()?.fcmTokens || [];
+    const pushSubscriptions: any[] = userDoc.data()?.pushSubscriptions || [];
 
-    if (fcmTokens.length > 0) {
-      const messaging = getMessaging();
+    const payload = JSON.stringify({
+      title,
+      message,
+      link: link || "/dashboard/evaluations",
+    });
 
-      const response = await messaging.sendEachForMulticast({
-        tokens: fcmTokens,
-        notification: {
-          title,
-          body: message,
-        },
-        data: {
-          title,
-          message,
-          link: link || "/dashboard/evaluations",
-        },
-        webpush: {
-          headers: {
-            Urgency: "high",
-          },
-          notification: {
-            title,
-            body: message,
-            icon: "/logo-pascal-01.png",
-            badge: "/logo-pascal-01.png",
-            sound: "/sounds/notification.wav",
-            vibrate: [500, 200, 500, 200, 500],
-          },
-          fcmOptions: {
-            link: link || "/dashboard/evaluations",
-          },
-        },
-      });
-
-      console.log(`Successfully sent ${response.successCount} FCM push messages to user ${userId}`);
+    if (pushSubscriptions.length > 0) {
+      await Promise.all(
+        pushSubscriptions.map((sub) =>
+          webpush.sendNotification(sub, payload).catch((err) => {
+            console.error("WebPush send error:", err);
+          })
+        )
+      );
     }
 
     return NextResponse.json({ success: true });

@@ -210,7 +210,7 @@ export default function Notifications() {
           if ("serviceWorker" in navigator) {
             const reg = await navigator.serviceWorker.ready;
             
-            // Bắn thử 1 thông báo Test nổi trên điện thoại ngay lập tức
+            // 1. Phát thử 1 thông báo Test nổi trên màn hình ngay lập tức
             reg.showNotification("PEM Pascal", {
               body: "🎉 Đã kích hoạt thông báo đẩy ngầm thành công trên điện thoại!",
               icon: "/logo-pascal-01.png",
@@ -221,22 +221,42 @@ export default function Notifications() {
               renotify: true
             } as any);
 
+            // 2. Đăng ký W3C Push Subscription ngầm với Google Push Server cho điện thoại (dành cho lúc TẮT APP)
+            const publicVapidKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY || "BKGkUiU6KsJL6g05T0-ooAHl1IsUy0BMzy2pi4iVNdoaGdRR-ceUkutoqxE4txXa910vk1NK3_cryg5yl6tg1oo";
+            
             try {
-              const messaging = getMessaging(app);
-              const token = await getToken(messaging, { serviceWorkerRegistration: reg });
-              if (token && profile) {
-                const userRef = doc(db, "users", profile.id);
-                await updateDoc(userRef, {
-                  fcmTokens: arrayUnion(token)
+              const urlBase64ToUint8Array = (base64String: string) => {
+                const padding = '='.repeat((4 - base64String.length % 4) % 4);
+                const base64 = (base64String + padding).replace(/\-/g, '+').replace(/_/g, '/');
+                const rawData = window.atob(base64);
+                const outputArray = new Uint8Array(rawData.length);
+                for (let i = 0; i < rawData.length; ++i) {
+                  outputArray[i] = rawData.charCodeAt(i);
+                }
+                return outputArray;
+              };
+
+              let subscription = await reg.pushManager.getSubscription();
+              if (!subscription) {
+                subscription = await reg.pushManager.subscribe({
+                  userVisibleOnly: true,
+                  applicationServerKey: urlBase64ToUint8Array(publicVapidKey)
                 });
               }
-            } catch (fcmErr) {
-              console.log("FCM getToken fallback:", fcmErr);
+
+              if (subscription && profile) {
+                const userRef = doc(db, "users", profile.id);
+                await updateDoc(userRef, {
+                  pushSubscriptions: arrayUnion(JSON.parse(JSON.stringify(subscription)))
+                });
+              }
+            } catch (subErr) {
+              console.log("Web Push Subscription fallback:", subErr);
             }
           }
           toast.success("Đã bật thông báo đẩy trực tiếp về điện thoại!");
         } catch (e) {
-          console.error("FCM Token Registration Error:", e);
+          console.error("Push Registration Error:", e);
           toast.success("Đã bật quyền nhận thông báo!");
         }
       } else {
