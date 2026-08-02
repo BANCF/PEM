@@ -9,7 +9,7 @@ self.addEventListener('activate', (event) => {
 
 // Xử lý sự kiện Push Notification khi App/Trình duyệt đóng hoàn toàn
 self.addEventListener('push', (event) => {
-  let data = { title: 'Thông báo PEM Pascal', message: 'Bạn có thông báo mới từ hệ thống.', link: '/dashboard/evaluations' };
+  let data = { title: '🔔 Thông báo PEM Pascal', message: 'Bạn có thông báo mới từ hệ thống.', link: '/dashboard/evaluations' };
   if (event.data) {
     try {
       data = event.data.json();
@@ -18,13 +18,16 @@ self.addEventListener('push', (event) => {
     }
   }
 
+  const pushTitle = data.title || data.notification?.title || '🔔 Thông báo từ PEM Pascal';
+  const pushMessage = data.message || data.body || data.notification?.body || 'Bạn vừa nhận được 1 thông báo mới từ hệ thống.';
+
   const options = {
-    body: data.message || data.body,
+    body: pushMessage,
     icon: '/logo-pascal-01.png',
     badge: '/logo-pascal-01.png',
     sound: '/sounds/notification.wav',
     vibrate: [500, 200, 500, 200, 500], // Nhịp rung mạnh trên điện thoại
-    tag: data.tag || 'pem-notification',
+    tag: data.tag || `pem-${Date.now()}`,
     renotify: true,
     data: {
       url: data.link || data.url || '/dashboard/evaluations'
@@ -36,7 +39,7 @@ self.addEventListener('push', (event) => {
   };
 
   event.waitUntil(
-    self.registration.showNotification(data.title || 'PEM Pascal', options)
+    self.registration.showNotification(pushTitle, options)
   );
 });
 

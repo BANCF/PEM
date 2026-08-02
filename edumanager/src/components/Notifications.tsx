@@ -211,8 +211,8 @@ export default function Notifications() {
             const reg = await navigator.serviceWorker.ready;
             
             // 1. Phát thử 1 thông báo Test nổi trên màn hình ngay lập tức
-            reg.showNotification("PEM Pascal", {
-              body: "🎉 Đã kích hoạt thông báo đẩy ngầm thành công trên điện thoại!",
+            reg.showNotification("🎉 Đã bật Push App thành công!", {
+              body: "Từ giờ bạn sẽ nhận được thông báo thi đua & KPI trực tiếp kể cả khi đã tắt App.",
               icon: "/logo-pascal-01.png",
               badge: "/logo-pascal-01.png",
               sound: "/sounds/notification.wav",
