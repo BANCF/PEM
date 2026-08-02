@@ -12,11 +12,17 @@ import toast from "react-hot-toast";
 
 // Helper component to render a schedule grid
 const ScheduleGrid = ({ scheduleData, title }: { scheduleData: Record<string, ScheduleClassInfo[]>, title: string }) => {
-  const days = ["2", "3", "4", "5", "6"]; // Thứ 2 đến 6
-  // Lấy danh sách các tiết duy nhất để vẽ hàng
+  const days = ["2", "3", "4", "5", "6"];
+  const [activeMobileDay, setActiveMobileDay] = useState("2");
+
   const allPeriodsSet = new Set<string>();
   Object.values(scheduleData).forEach(dayArr => {
-    dayArr.forEach(item => allPeriodsSet.add(item.period));
+    dayArr.forEach(item => {
+      if (item && item.period) {
+        const match = item.period.toString().trim().match(/\d+/);
+        if (match) allPeriodsSet.add(match[0]);
+      }
+    });
   });
   const periods = Array.from(allPeriodsSet).sort((a, b) => parseInt(a) - parseInt(b));
 
@@ -24,12 +30,16 @@ const ScheduleGrid = ({ scheduleData, title }: { scheduleData: Record<string, Sc
     return <div className="p-8 text-center text-slate-500 bg-slate-50 rounded-xl">Không có dữ liệu thời khóa biểu.</div>;
   }
 
+  const activeDayData = scheduleData[activeMobileDay] || [];
+
   return (
     <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden" id="schedule-print-area">
       <div className="bg-blue-600 text-white p-4 text-center">
         <h2 className="text-xl font-bold uppercase">{title}</h2>
       </div>
-      <div className="overflow-x-auto p-4">
+
+      {/* Desktop Table View */}
+      <div className="hidden md:block overflow-x-auto p-4">
         <table className="w-full text-center border-collapse">
           <thead>
             <tr>
@@ -74,6 +84,66 @@ const ScheduleGrid = ({ scheduleData, title }: { scheduleData: Record<string, Sc
             ))}
           </tbody>
         </table>
+      </div>
+
+      {/* Mobile Day-by-Day Timeline View */}
+      <div className="block md:hidden p-4 space-y-4">
+        {/* Day Selector Tabs */}
+        <div className="flex justify-between bg-slate-100 p-1.5 rounded-xl gap-1">
+          {days.map(day => (
+            <button
+              key={day}
+              type="button"
+              onClick={() => setActiveMobileDay(day)}
+              className={`flex-1 py-2 text-xs font-bold rounded-lg transition ${
+                activeMobileDay === day
+                  ? "bg-blue-600 text-white shadow-sm"
+                  : "text-slate-600 hover:bg-slate-200"
+              }`}
+            >
+              Thứ {day}
+            </button>
+          ))}
+        </div>
+
+        {/* Timeline list for selected day */}
+        <div className="space-y-3 pt-2">
+          {periods.map(period => {
+            const cellData = activeDayData.find(item => item.period === period);
+
+            return (
+              <div key={period} className="flex items-center gap-3 bg-slate-50 p-3.5 rounded-xl border border-slate-200">
+                <div className="w-14 h-14 bg-blue-100 text-blue-800 rounded-xl flex flex-col items-center justify-center shrink-0 border border-blue-200">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-blue-600">Tiết</span>
+                  <span className="text-xl font-black">{period}</span>
+                </div>
+
+                <div className="flex-1 min-w-0">
+                  {cellData ? (
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <h4 className="font-bold text-slate-800 text-base">{cellData.subject}</h4>
+                        <span className="text-xs font-bold bg-blue-50 text-blue-700 px-2 py-0.5 rounded border border-blue-200">
+                          {cellData.className}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-3 text-xs text-slate-500 mt-1">
+                        {cellData.time && (
+                          <span className="text-emerald-700 font-semibold bg-emerald-50 px-1.5 py-0.5 rounded">
+                            {cellData.time}
+                          </span>
+                        )}
+                        {cellData.teacher && <span>GV: {cellData.teacher}</span>}
+                      </div>
+                    </div>
+                  ) : (
+                    <span className="text-slate-400 text-sm italic">Nghỉ / Không có tiết</span>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
       </div>
     </div>
   );

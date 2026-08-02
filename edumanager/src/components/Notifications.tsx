@@ -49,13 +49,12 @@ export default function Notifications() {
 
       setNotifications(notifs);
       
-      // Check if there are new unread notifications that we haven't seen yet to show toast
-      // We compare with previous unread count (only if it increased, it means a new one arrived)
+      // Phát thông báo Toast + Bắn thông báo Push hệ thống điện thoại/trình duyệt khi có tin mới
       setUnreadCount((prevCount) => {
         if (unread > prevCount && prevCount !== -1) {
-          // Find the newest unread one
           const newestUnread = notifs.find(n => !n.read);
           if (newestUnread) {
+            // 1. In-app Toast
             toast.custom((t) => (
               <div
                 className={`${
@@ -89,6 +88,18 @@ export default function Notifications() {
                 </div>
               </div>
             ));
+
+            // 2. Native System Push Notification (cho điện thoại & trình duyệt)
+            if (typeof window !== "undefined" && "Notification" in window && window.Notification.permission === "granted") {
+              try {
+                new window.Notification(newestUnread.title, {
+                  body: newestUnread.message,
+                  icon: "/logo-pascal-01.png"
+                });
+              } catch (e) {
+                console.error("Native notification error:", e);
+              }
+            }
           }
         }
         return unread;
@@ -120,6 +131,17 @@ export default function Notifications() {
     setIsOpen(false);
   };
 
+  const requestPushPermission = async () => {
+    if (typeof window !== "undefined" && "Notification" in window) {
+      const perm = await window.Notification.requestPermission();
+      if (perm === "granted") {
+        toast.success("Đã bật thông báo đẩy hệ thống thành công!");
+      } else {
+        toast.error("Bạn đã từ chối quyền bật thông báo đẩy.");
+      }
+    }
+  };
+
   return (
     <div className="relative">
       <button 
@@ -143,15 +165,24 @@ export default function Notifications() {
           <div className="absolute right-0 mt-2 w-80 md:w-96 bg-white rounded-2xl shadow-xl border border-slate-100 z-50 overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200">
             <div className="p-4 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
               <h3 className="font-bold text-slate-800">Thông báo</h3>
-              {unreadCount > 0 && (
-                <button 
-                  onClick={markAllAsRead}
-                  className="text-xs text-blue-600 font-medium hover:text-blue-700 flex items-center transition"
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={requestPushPermission}
+                  className="text-xs text-emerald-600 font-semibold hover:text-emerald-700 bg-emerald-50 px-2 py-1 rounded border border-emerald-200 transition"
+                  title="Bật thông báo nổi trên điện thoại"
                 >
-                  <Check size={14} className="mr-1" />
-                  Đánh dấu đã đọc
+                  Bật Push App
                 </button>
-              )}
+                {unreadCount > 0 && (
+                  <button 
+                    onClick={markAllAsRead}
+                    className="text-xs text-blue-600 font-medium hover:text-blue-700 flex items-center transition"
+                  >
+                    <Check size={14} className="mr-1" />
+                    Đọc hết
+                  </button>
+                )}
+              </div>
             </div>
             
             <div className="max-h-[400px] overflow-y-auto">

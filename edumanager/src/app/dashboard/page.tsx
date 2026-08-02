@@ -396,7 +396,8 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        <div className="overflow-x-auto">
+        {/* Desktop Table View */}
+        <div className="hidden md:block overflow-x-auto">
           <table className="w-full text-left border-collapse">
             <thead>
               <tr className="bg-slate-50/80 text-xs uppercase tracking-wider text-slate-500 border-b border-slate-100">
@@ -465,6 +466,56 @@ export default function DashboardPage() {
               )}
             </tbody>
           </table>
+        </div>
+
+        {/* Mobile Card List View (< md) */}
+        <div className="block md:hidden divide-y divide-slate-100 p-4 space-y-4">
+          {filteredData.length === 0 ? (
+            <div className="p-8 text-center text-slate-500">Không tìm thấy giáo viên nào.</div>
+          ) : (
+            filteredData.map((t, index) => (
+              <div 
+                key={t.uid}
+                onClick={() => window.location.href = `/dashboard/teachers/${t.uid}`}
+                className="bg-slate-50 p-4 rounded-2xl border border-slate-200 space-y-3 cursor-pointer"
+              >
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className={`w-8 h-8 rounded-full flex items-center justify-center font-black text-sm shrink-0 ${
+                      index === 0 ? "bg-yellow-400 text-yellow-950" :
+                      index === 1 ? "bg-slate-300 text-slate-800" :
+                      index === 2 ? "bg-amber-400 text-amber-950" :
+                      "bg-slate-200 text-slate-700"
+                    }`}>
+                      {index + 1}
+                    </div>
+                    <div>
+                      <h4 className="font-bold text-slate-800 text-base">{t.fullName}</h4>
+                      <p className="text-xs text-slate-500">{t.department}</p>
+                    </div>
+                  </div>
+                  <span className="font-black text-lg text-blue-700 bg-blue-50 px-3 py-1 rounded-xl border border-blue-200">
+                    {t.finalScore}
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-3 gap-2 text-center text-xs bg-white p-2.5 rounded-xl border border-slate-100">
+                  <div>
+                    <span className="block text-[10px] font-bold text-slate-400 uppercase">Phiếu ĐG</span>
+                    <span className="font-bold text-slate-700">{t.evalCount}</span>
+                  </div>
+                  <div>
+                    <span className="block text-[10px] font-bold text-emerald-600 uppercase">Thưởng</span>
+                    <span className="font-bold text-emerald-600">{t.kudosScore > 0 ? `+${t.kudosScore}` : 0}</span>
+                  </div>
+                  <div>
+                    <span className="block text-[10px] font-bold text-rose-600 uppercase">Phạt</span>
+                    <span className="font-bold text-rose-600">{t.penaltyScore < 0 ? t.penaltyScore : 0}</span>
+                  </div>
+                </div>
+              </div>
+            ))
+          )}
         </div>
       </div>
     </div>

@@ -29,95 +29,156 @@ export default function ScheduleSettingsPage() {
       const arrayBuffer = await file.arrayBuffer();
       const workbook = XLSX.read(arrayBuffer, { type: "array" });
 
-      const sheetName = workbook.SheetNames.find(s => s.toLowerCase().includes('sangchieu') || s.toLowerCase().includes('sáng chiều')) || workbook.SheetNames[0];
-      const worksheet = workbook.Sheets[sheetName];
-      const data = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: null }) as any[][];
+      // 1. Phân tích Sheet TKB SangChieu (TKB theo Lớp và Môn học)
+      const sangChieuSheetName = workbook.SheetNames.find(s => s.toLowerCase().includes('sangchieu') || s.toLowerCase().includes('sáng chiều')) || workbook.SheetNames[0];
+      const sangChieuSheet = workbook.Sheets[sangChieuSheetName];
+      const sangChieuData = XLSX.utils.sheet_to_json(sangChieuSheet, { header: 1, defval: null }) as any[][];
 
-      if (!data || data.length < 3) {
+      if (!sangChieuData || sangChieuData.length < 3) {
         throw new Error("File không đúng định dạng chuẩn");
       }
 
-      // Xây dựng map cột lớp học từ dòng thứ 2 (index 1)
-      const classCols: Record<number, string> = {};
-      const row1 = data[1];
+      const classColMap: Record<number, { className: string; pCol: number; tCol: number }> = {};
+      const row1 = sangChieuData[1] || [];
+
       for (let c = 0; c < row1.length; c++) {
         const val = row1[c];
-        if (val && typeof val === 'string' && val.trim() !== 'Thứ' && val.trim() !== 'Tiết' && val.trim() !== 'Thời gian') {
-          classCols[c] = val.trim();
+        if (val && typeof val === 'string') {
+          const trimmed = val.trim();
+          if (!['thứ', 'tiết', 'thời gian'].includes(trimmed.toLowerCase())) {
+            // Tìm cột 'Tiết' gần nhất về phía bên trái
+            let pCol = 1;
+            for (let p = c - 1; p >= 0; p--) {
+              if (row1[p] && typeof row1[p] === 'string' && row1[p].toString().trim().toLowerCase() === 'tiết') {
+                pCol = p;
+                break;
+              }
+            }
+            // Tìm cột 'Thời gian' gần nhất về phía bên trái
+            let tCol = pCol + 1;
+            for (let t = c - 1; t >= 0; t--) {
+              if (row1[t] && typeof row1[t] === 'string' && row1[t].toString().trim().toLowerCase().includes('thời gian')) {
+                tCol = t;
+                break;
+              }
+            }
+            classColMap[c] = { className: trimmed, pCol, tCol };
+          }
         }
       }
 
-      const teachersSchedule: any = {};
-      const classesSchedule: any = {};
-      let currentDay = null;
+      const teachersSchedule: Record<string, Record<string, any[]>> = {};
+      const classesSchedule: Record<string, Record<string, any[]>> = {};
+      let currentDay: string | null = null;
 
-      // Đọc từ dòng 3 (index 2) trở đi
-      for (let r = 2; r < data.length; r++) {
-        const row = data[r];
-        
+      for (let r = 2; r < sangChieuData.length; r++) {
+        const row = sangChieuData[r];
+        if (!row) continue;
+
         if (row[0]) {
-          currentDay = row[0].toString().trim();
+          const dayStr = row[0].toString().trim();
+          const m = dayStr.match(/\d+/);
+          if (m) currentDay = m[0];
         }
-        
         if (!currentDay) continue;
 
-        for (const cStr in classCols) {
+        for (const cStr in classColMap) {
           const c = parseInt(cStr);
-          const className = classCols[c];
-          
-          // Xác định cột Tiết và Thời gian tương ứng với khối lớp
-          let pCol = 1; let tCol = 2;
-          if (c > 15 && c < 61) { pCol = 15; tCol = 16; }
-          else if (c > 61 && c < 76) { pCol = 61; tCol = 62; }
-          else if (c > 76) { pCol = 76; tCol = 77; }
+          const { className, pCol, tCol } = classColMap[c];
 
-          let period = row[pCol];
-          let time = row[tCol];
+          const rawPeriod = row[pCol];
+          const rawTime = row[tCol];
 
-          if (!period && !time) continue;
-          period = period ? period.toString().trim() : "";
-          time = time ? time.toString().trim() : "";
-          
+          if (rawPeriod === null || rawPeriod === undefined) continue;
+
+          // Chuẩn hóa tiết: CHỈ lấy các chữ số (bỏ các chuỗi rác như "Mạnh Hiếu" hay "Tiết")
+          let periodClean = rawPeriod.toString().trim();
+          const periodMatch = periodClean.match(/^\d+/);
+          if (!periodMatch) continue;
+          periodClean = periodMatch[0];
+
+          const timeClean = rawTime ? rawTime.toString().trim() : "";
           const subject = row[c];
-          const teacherStr = row[c+1];
+          const teacherStr = row[c + 1];
 
           if (subject && typeof subject === 'string') {
             const subjectTrimmed = subject.trim();
-            // Khởi tạo schedule cho lớp
+            if (!subjectTrimmed || subjectTrimmed === '0') continue;
+
             if (!classesSchedule[className]) classesSchedule[className] = {};
             if (!classesSchedule[className][currentDay]) classesSchedule[className][currentDay] = [];
-            
-            const scheduleEntry = {
-              period,
-              time,
-              className,
-              subject: subjectTrimmed,
-              teacher: teacherStr ? teacherStr.toString().trim() : ""
-            };
 
-            // Thêm vào TKB của lớp, tránh duplicate tiết (do file excel có thể có nhiều cột thừa)
-            const existingClassPeriod = classesSchedule[className][currentDay].find((p: any) => p.period === period);
+            const existingClassPeriod = classesSchedule[className][currentDay].find((p: any) => p.period === periodClean);
             if (!existingClassPeriod) {
-               classesSchedule[className][currentDay].push(scheduleEntry);
+              classesSchedule[className][currentDay].push({
+                period: periodClean,
+                time: timeClean,
+                className,
+                subject: subjectTrimmed,
+                teacher: teacherStr ? teacherStr.toString().trim() : ""
+              });
             }
+          }
+        }
+      }
 
-            // Thêm vào TKB của giáo viên
-            if (teacherStr && typeof teacherStr === 'string') {
-              const teachers = teacherStr.split(/[\/,]/).map(t => t.trim()).filter(t => t);
-              for (const t of teachers) {
-                if (!teachersSchedule[t]) teachersSchedule[t] = {};
-                if (!teachersSchedule[t][currentDay]) teachersSchedule[t][currentDay] = [];
-                
-                // Tránh duplicate
-                const existingTeacherPeriod = teachersSchedule[t][currentDay].find((p: any) => p.period === period);
-                if (!existingTeacherPeriod) {
-                  teachersSchedule[t][currentDay].push({
-                    period,
-                    time,
-                    className,
-                    subject: subjectTrimmed
-                  });
+      // 2. Phân tích Sheet TKB GV (Ưu tiên nguồn dữ liệu TKB Giáo viên chuẩn xác 100%)
+      const gvSheetName = workbook.SheetNames.find(s => s.toLowerCase().includes('tkb gv') || s.toLowerCase().includes('tkb_gv'));
+      if (gvSheetName && workbook.Sheets[gvSheetName]) {
+        const gvSheet = workbook.Sheets[gvSheetName];
+        const gvData = XLSX.utils.sheet_to_json(gvSheet, { header: 1, defval: null }) as any[][];
+
+        if (gvData && gvData.length >= 4) {
+          const rowDays = gvData[1] || [];
+          const rowPeriods = gvData[2] || [];
+
+          for (let r = 3; r < gvData.length; r++) {
+            const row = gvData[r];
+            if (!row || !row[1]) continue;
+
+            const teacherName = row[1].toString().trim();
+            if (!teacherName || teacherName.toLowerCase() === 'tên gv') continue;
+
+            let curDay = '2';
+            for (let c = 2; c < row.length; c++) {
+              if (rowDays[c]) {
+                const dMatch = rowDays[c].toString().trim().match(/\d+/);
+                if (dMatch) curDay = dMatch[0];
+              }
+
+              const rawPeriod = rowPeriods[c];
+              if (!rawPeriod) continue;
+
+              const pMatch = rawPeriod.toString().trim().match(/^\d+/);
+              if (!pMatch) continue;
+              const periodClean = pMatch[0];
+
+              const className = row[c] ? row[c].toString().trim() : "";
+              if (!className || className === '0') continue;
+
+              if (!teachersSchedule[teacherName]) teachersSchedule[teacherName] = {};
+              if (!teachersSchedule[teacherName][curDay]) teachersSchedule[teacherName][curDay] = [];
+
+              // Tra cứu Tên môn và Khung giờ từ TKB của lớp
+              let subject = "Giảng dạy";
+              let time = "";
+
+              if (classesSchedule[className] && classesSchedule[className][curDay]) {
+                const matchInClass = classesSchedule[className][curDay].find(item => item.period === periodClean);
+                if (matchInClass) {
+                  subject = matchInClass.subject;
+                  time = matchInClass.time;
                 }
+              }
+
+              const existingT = teachersSchedule[teacherName][curDay].find((p: any) => p.period === periodClean);
+              if (!existingT) {
+                teachersSchedule[teacherName][curDay].push({
+                  period: periodClean,
+                  time,
+                  className,
+                  subject
+                });
               }
             }
           }

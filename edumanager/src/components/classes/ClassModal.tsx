@@ -11,7 +11,7 @@ interface ClassModalProps {
 
 export default function ClassModal({ isOpen, onClose, onSuccess, initialData }: ClassModalProps) {
   const [name, setName] = useState("");
-  const [grade, setGrade] = useState("10");
+  const [grade, setGrade] = useState("TTH");
   const [academicYear, setAcademicYear] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -22,7 +22,7 @@ export default function ClassModal({ isOpen, onClose, onSuccess, initialData }: 
       setAcademicYear(initialData.academicYear);
     } else {
       setName("");
-      setGrade("6");
+      setGrade("TTH");
       
       // Auto-set academic year based on current month
       const today = new Date();
@@ -93,6 +93,12 @@ export default function ClassModal({ isOpen, onClose, onSuccess, initialData }: 
               onChange={(e) => setGrade(e.target.value)}
               className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
+              <option value="TTH">Tiền Tiểu học (TTH)</option>
+              <option value="1">Khối 1</option>
+              <option value="2">Khối 2</option>
+              <option value="3">Khối 3</option>
+              <option value="4">Khối 4</option>
+              <option value="5">Khối 5</option>
               <option value="6">Khối 6</option>
               <option value="7">Khối 7</option>
               <option value="8">Khối 8</option>

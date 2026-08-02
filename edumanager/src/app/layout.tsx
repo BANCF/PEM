@@ -15,8 +15,19 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "EduManager - Hệ thống Đánh giá Giáo viên",
-  description: "Hệ thống quản lý, đánh giá KPI giáo viên trường tư thục",
+  title: "Pascal Education Manager - PEM",
+  description: "Hệ thống Quản lý Giáo dục - Trường Tiểu học & THCS Pascal",
+  manifest: "/manifest.json",
+  themeColor: "#00205b",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "default",
+    title: "PEM Pascal",
+  },
+  icons: {
+    icon: "/logo-pascal-01.png",
+    apple: "/logo-pascal-01.png",
+  },
 };
 
 export default function RootLayout({

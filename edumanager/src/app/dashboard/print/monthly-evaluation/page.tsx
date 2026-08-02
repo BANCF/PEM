@@ -182,13 +182,11 @@ export default function PrintMonthlyEvaluation() {
             >
               
               {/* HEADER TABLE */}
-              <div className="flex mb-10 items-center">
-                <div className="w-1/5 flex justify-center pl-4">
-                  <img src="/logo-pascal-01.png" alt="Pascal Logo" className="w-24 h-auto" />
-                </div>
-                <div className="w-4/5 text-center">
-                  <p className="font-bold text-[19px] uppercase text-[#e31837] whitespace-nowrap">TRƯỜNG TIỂU HỌC - TRUNG HỌC CƠ SỞ PASCAL</p>
-                  <p className="font-bold text-[17px] uppercase text-[#00205b] mt-1">PASCAL PRIMARY AND SECONDARY SCHOOL</p>
+              <div className="flex items-center justify-center gap-4 mb-8 pb-4 border-b border-black">
+                <img src="/logo-pascal-01.png" alt="Pascal Logo" className="w-16 h-auto object-contain shrink-0" />
+                <div className="text-left">
+                  <p className="font-bold text-[17px] uppercase text-[#a01d23] leading-snug">TRƯỜNG TIỂU HỌC - TRUNG HỌC CƠ SỞ PASCAL</p>
+                  <p className="font-bold text-[17px] uppercase text-[#1d1d1b] leading-snug mt-0.5">PASCAL PRIMARY AND SECONDARY SCHOOL</p>
                 </div>
               </div>
 

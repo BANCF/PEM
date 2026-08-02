@@ -439,7 +439,8 @@ export default function GradeInputPage({ params }: { params: Promise<{ classId: 
 
         {/* Grade Grid */}
         <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
-          <div className="overflow-x-auto">
+          {/* Desktop Table View (hidden on mobile) */}
+          <div className="hidden md:block overflow-x-auto">
             <table className="w-full text-left border-collapse whitespace-nowrap min-w-[1000px]">
               <thead>
                 <tr className="bg-slate-800 text-white text-sm font-semibold">
@@ -575,6 +576,80 @@ export default function GradeInputPage({ params }: { params: Promise<{ classId: 
                 )}
               </tbody>
             </table>
+          </div>
+
+          {/* Mobile Grade Input Card View (< md) */}
+          <div className="block md:hidden divide-y divide-slate-100 p-4 space-y-4">
+            {students.length === 0 ? (
+              <div className="p-8 text-center text-slate-500">Lớp chưa có học sinh nào.</div>
+            ) : (
+              students.map((student, index) => {
+                const studentGrades = grades[student.id!];
+                if (!studentGrades) return null;
+                const g = studentGrades[semester];
+                const avgHK = g?.average;
+
+                return (
+                  <div key={student.id} className="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-3">
+                    <div className="flex justify-between items-center">
+                      <div>
+                        <span className="text-xs font-bold text-slate-400 mr-1.5">#{index + 1}</span>
+                        <span className="font-bold text-slate-800 text-sm">{student.fullName}</span>
+                      </div>
+                      <div className="text-right">
+                        <span className="text-[10px] font-bold text-slate-400 uppercase block">ĐTB HK{semester}</span>
+                        <span className="font-black text-blue-700 text-base">{avgHK ?? "-"}</span>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-6 gap-1.5 pt-1 text-center">
+                      {(["tx1", "tx2", "tx3", "tx4"] as const).map((field, i) => (
+                        <div key={field}>
+                          <span className="block text-[10px] font-semibold text-slate-500 mb-0.5">TX{i+1}</span>
+                          <input
+                            type="number"
+                            min="0" max="10" step="0.1"
+                            value={g[field] ?? ""}
+                            onChange={e => handleGradeChange(student.id!, field, e.target.value)}
+                            className="w-full text-center py-1.5 border border-slate-300 rounded-lg font-bold text-slate-800 text-xs focus:ring-2 focus:ring-blue-500 bg-white"
+                          />
+                        </div>
+                      ))}
+
+                      <div>
+                        <span className="block text-[10px] font-bold text-amber-700 mb-0.5">GK</span>
+                        <input
+                          type="number"
+                          min="0" max="10" step="0.1"
+                          value={g.gk ?? ""}
+                          onChange={e => handleGradeChange(student.id!, "gk", e.target.value)}
+                          className="w-full text-center py-1.5 border border-amber-300 rounded-lg font-bold text-amber-900 text-xs focus:ring-2 focus:ring-amber-500 bg-amber-50"
+                        />
+                      </div>
+
+                      <div>
+                        <span className="block text-[10px] font-bold text-emerald-700 mb-0.5">CK</span>
+                        <input
+                          type="number"
+                          min="0" max="10" step="0.1"
+                          value={g.ck ?? ""}
+                          onChange={e => handleGradeChange(student.id!, "ck", e.target.value)}
+                          className="w-full text-center py-1.5 border border-emerald-300 rounded-lg font-bold text-emerald-900 text-xs focus:ring-2 focus:ring-emerald-500 bg-emerald-50"
+                        />
+                      </div>
+                    </div>
+
+                    <input
+                      type="text"
+                      placeholder="Nhận xét môn..."
+                      value={g.comment ?? ""}
+                      onChange={e => handleCommentChange(student.id!, e.target.value)}
+                      className="w-full text-xs py-1.5 px-3 border border-slate-200 rounded-lg text-slate-700 bg-white focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                );
+              })
+            )}
           </div>
         </div>
 
