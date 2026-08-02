@@ -22,7 +22,8 @@ self.addEventListener('push', (event) => {
     body: data.message || data.body,
     icon: '/logo-pascal-01.png',
     badge: '/logo-pascal-01.png',
-    vibrate: [300, 100, 300, 100, 300], // Rung máy trên điện thoại
+    sound: '/sounds/notification.wav',
+    vibrate: [500, 200, 500, 200, 500], // Nhịp rung mạnh trên điện thoại
     tag: data.tag || 'pem-notification',
     renotify: true,
     data: {
