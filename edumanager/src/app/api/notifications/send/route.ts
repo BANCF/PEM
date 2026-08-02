@@ -27,24 +27,13 @@ export async function POST(req: Request) {
 
         const response = await messaging.sendEachForMulticast({
           tokens: fcmTokens,
-          webpush: {
-            headers: {
-              Urgency: "high",
-            },
-            notification: {
-              title: pushTitle,
-              body: pushMessage,
-              icon: "/logo-pascal-01.png",
-              badge: "/logo-pascal-01.png",
-              sound: "/sounds/notification.wav",
-              vibrate: [500, 200, 500, 200, 500],
-              tag: `pem-${Date.now()}`,
-              renotify: true,
-              data: {
-                url: link || "/dashboard/evaluations",
-              },
-            },
-          },
+          data: {
+            title: pushTitle,
+            message: pushMessage,
+            body: pushMessage,
+            link: link || "/dashboard/evaluations",
+            tag: `pem-${Date.now()}`
+          }
         });
 
         console.log(`Successfully delivered ${response.successCount} FCM push messages to user ${userId}`);
