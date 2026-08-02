@@ -209,13 +209,29 @@ export default function Notifications() {
         try {
           if ("serviceWorker" in navigator) {
             const reg = await navigator.serviceWorker.ready;
-            const messaging = getMessaging(app);
-            const token = await getToken(messaging, { serviceWorkerRegistration: reg });
-            if (token && profile) {
-              const userRef = doc(db, "users", profile.id);
-              await updateDoc(userRef, {
-                fcmTokens: arrayUnion(token)
-              });
+            
+            // Bắn thử 1 thông báo Test nổi trên điện thoại ngay lập tức
+            reg.showNotification("PEM Pascal", {
+              body: "🎉 Đã kích hoạt thông báo đẩy ngầm thành công trên điện thoại!",
+              icon: "/logo-pascal-01.png",
+              badge: "/logo-pascal-01.png",
+              sound: "/sounds/notification.wav",
+              vibrate: [500, 200, 500, 200, 500],
+              tag: "pem-test-notification",
+              renotify: true
+            } as any);
+
+            try {
+              const messaging = getMessaging(app);
+              const token = await getToken(messaging, { serviceWorkerRegistration: reg });
+              if (token && profile) {
+                const userRef = doc(db, "users", profile.id);
+                await updateDoc(userRef, {
+                  fcmTokens: arrayUnion(token)
+                });
+              }
+            } catch (fcmErr) {
+              console.log("FCM getToken fallback:", fcmErr);
             }
           }
           toast.success("Đã bật thông báo đẩy trực tiếp về điện thoại!");

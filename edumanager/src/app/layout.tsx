@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { Toaster } from "react-hot-toast";
 import { Geist, Geist_Mono } from "next/font/google";
@@ -14,11 +14,14 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
+export const viewport: Viewport = {
+  themeColor: "#00205b",
+};
+
 export const metadata: Metadata = {
   title: "Pascal Education Manager - PEM",
   description: "Hệ thống Quản lý Giáo dục - Trường Tiểu học & THCS Pascal",
   manifest: "/manifest.json",
-  themeColor: "#00205b",
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",
