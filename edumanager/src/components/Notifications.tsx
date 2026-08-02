@@ -24,6 +24,53 @@ export default function Notifications() {
   const [isOpen, setIsOpen] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
 
+  // Hàm phát âm thanh chuông báo (Chime Sound)
+  const playNotificationSound = () => {
+    try {
+      if (typeof window === "undefined") return;
+      const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+      if (!AudioCtx) return;
+      const ctx = new AudioCtx();
+      
+      const now = ctx.currentTime;
+      // Note 1: A5 (880Hz)
+      const osc1 = ctx.createOscillator();
+      const gain1 = ctx.createGain();
+      osc1.type = "sine";
+      osc1.frequency.setValueAtTime(880, now);
+      gain1.gain.setValueAtTime(0.3, now);
+      gain1.gain.exponentialRampToValueAtTime(0.001, now + 0.3);
+      osc1.connect(gain1);
+      gain1.connect(ctx.destination);
+      osc1.start(now);
+      osc1.stop(now + 0.3);
+
+      // Note 2: E6 (1320Hz)
+      const osc2 = ctx.createOscillator();
+      const gain2 = ctx.createGain();
+      osc2.type = "sine";
+      osc2.frequency.setValueAtTime(1320, now + 0.15);
+      gain2.gain.setValueAtTime(0.4, now + 0.15);
+      gain2.gain.exponentialRampToValueAtTime(0.001, now + 0.6);
+      osc2.connect(gain2);
+      gain2.connect(ctx.destination);
+      osc2.start(now + 0.15);
+      osc2.stop(now + 0.6);
+    } catch (e) {
+      console.error("Audio chime error:", e);
+    }
+  };
+
+  // Đăng ký Service Worker khi ứng dụng khởi chạy
+  useEffect(() => {
+    if (typeof window !== "undefined" && "serviceWorker" in navigator) {
+      navigator.serviceWorker
+        .register("/sw.js")
+        .then((reg) => console.log("Service Worker registered:", reg.scope))
+        .catch((err) => console.error("Service Worker registration failed:", err));
+    }
+  }, []);
+
   useEffect(() => {
     if (!profile) return;
 
@@ -37,7 +84,6 @@ export default function Notifications() {
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const notifs: Notification[] = [];
       let unread = 0;
-      let hasNewUnread = false;
 
       snapshot.forEach((doc) => {
         const data = doc.data() as Omit<Notification, "id">;
@@ -49,12 +95,15 @@ export default function Notifications() {
 
       setNotifications(notifs);
       
-      // Phát thông báo Toast + Bắn thông báo Push hệ thống điện thoại/trình duyệt khi có tin mới
+      // Phát thông báo Toast + Chuông Báo + Bắn thông báo Push Service Worker khi có tin mới
       setUnreadCount((prevCount) => {
         if (unread > prevCount && prevCount !== -1) {
           const newestUnread = notifs.find(n => !n.read);
           if (newestUnread) {
-            // 1. In-app Toast
+            // 1. Phát âm thanh chuông báo
+            playNotificationSound();
+
+            // 2. In-app Toast
             toast.custom((t) => (
               <div
                 className={`${
@@ -89,15 +138,27 @@ export default function Notifications() {
               </div>
             ));
 
-            // 2. Native System Push Notification (cho điện thoại & trình duyệt)
+            // 3. Native Service Worker Push Notification (Chạy ngầm kể cả khi đóng App)
             if (typeof window !== "undefined" && "Notification" in window && window.Notification.permission === "granted") {
-              try {
-                new window.Notification(newestUnread.title, {
-                  body: newestUnread.message,
-                  icon: "/logo-pascal-01.png"
+              if ("serviceWorker" in navigator) {
+                navigator.serviceWorker.ready.then((reg) => {
+                  reg.showNotification(newestUnread.title, {
+                    body: newestUnread.message,
+                    icon: "/logo-pascal-01.png",
+                    badge: "/logo-pascal-01.png",
+                    vibrate: [300, 100, 300, 100, 300],
+                    data: { url: newestUnread.link || "/dashboard/evaluations" }
+                  } as any);
                 });
-              } catch (e) {
-                console.error("Native notification error:", e);
+              } else {
+                try {
+                  new window.Notification(newestUnread.title, {
+                    body: newestUnread.message,
+                    icon: "/logo-pascal-01.png"
+                  });
+                } catch (e) {
+                  console.error("Native notification error:", e);
+                }
               }
             }
           }
