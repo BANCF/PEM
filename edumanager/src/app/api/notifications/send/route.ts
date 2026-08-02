@@ -22,15 +22,19 @@ export async function POST(req: Request) {
     if (fcmTokens.length > 0) {
       try {
         const messaging = getMessaging();
+        const pushTitle = title || "Thông báo từ PEM Pascal";
+        const pushMessage = message || "Bạn vừa nhận được 1 thông báo mới từ hệ thống.";
+
         const response = await messaging.sendEachForMulticast({
           tokens: fcmTokens,
           notification: {
-            title,
-            body: message,
+            title: pushTitle,
+            body: pushMessage,
           },
           data: {
-            title,
-            message,
+            title: pushTitle,
+            message: pushMessage,
+            body: pushMessage,
             link: link || "/dashboard/evaluations",
           },
           webpush: {
@@ -38,12 +42,14 @@ export async function POST(req: Request) {
               Urgency: "high",
             },
             notification: {
-              title,
-              body: message,
+              title: pushTitle,
+              body: pushMessage,
               icon: "/logo-pascal-01.png",
               badge: "/logo-pascal-01.png",
               sound: "/sounds/notification.wav",
               vibrate: [500, 200, 500, 200, 500],
+              tag: `pem-${Date.now()}`,
+              renotify: true,
             },
             fcmOptions: {
               link: link || "/dashboard/evaluations",

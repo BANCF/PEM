@@ -17,13 +17,17 @@ const messaging = firebase.messaging();
 messaging.onBackgroundMessage((payload) => {
   console.log('[firebase-messaging-sw.js] Background Push Received:', payload);
 
-  const title = payload.notification?.title || payload.data?.title || 'Thông báo PEM Pascal';
+  const title = payload.notification?.title || payload.data?.title || 'PEM Pascal';
+  const bodyText = payload.notification?.body || payload.data?.message || payload.data?.body || 'Bạn vừa nhận được 1 thông báo mới từ hệ thống.';
+
   const options = {
-    body: payload.notification?.body || payload.data?.message || 'Bạn có thông báo mới từ hệ thống.',
+    body: bodyText,
     icon: '/logo-pascal-01.png',
     badge: '/logo-pascal-01.png',
     sound: '/sounds/notification.wav',
     vibrate: [500, 200, 500, 200, 500],
+    tag: payload.data?.tag || `pem-${Date.now()}`,
+    renotify: true,
     data: {
       url: payload.data?.link || payload.data?.url || '/dashboard/evaluations'
     },
