@@ -180,12 +180,19 @@ export default function ThiDuaDetailPage({ params }: { params: Promise<{ id: str
 
       const savedId = await teacherThiDuaService.saveEvaluation(payload);
 
-      // Gửi thông báo real-time
+      // Gửi thông báo Push ngầm trực tiếp về điện thoại cho các bên
       if (targetStatus === "APPROVED_BGH" && payload.teacherId) {
         sendNotification({
           userId: payload.teacherId,
-          title: "BGH đã phê duyệt phiếu thi đua",
+          title: "🏆 BGH đã phê duyệt phiếu thi đua",
           message: `BGH đã duyệt chốt điểm thi đua tháng ${month} cho bạn (Xếp loại: ${ranking}).`,
+          link: `/dashboard/evaluations/thi-dua/${savedId}`
+        });
+      } else if (targetStatus === "REVIEWED_TTCM" && payload.teacherId) {
+        sendNotification({
+          userId: payload.teacherId,
+          title: "📝 TTCM đã đánh giá phiếu thi đua",
+          message: `TTCM ${profile.fullName} đã hoàn thành đánh giá lại phiếu thi đua tháng ${month} của bạn.`,
           link: `/dashboard/evaluations/thi-dua/${savedId}`
         });
       }

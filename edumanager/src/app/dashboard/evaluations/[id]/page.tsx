@@ -13,6 +13,8 @@ import Link from "next/link";
 import { format } from "date-fns";
 import { vi } from "date-fns/locale";
 
+import { sendNotification } from "@/lib/services/notification.service";
+
 export default function EvaluationDetailPage() {
   const { profile, actualProfile } = useAuth();
   const params = useParams();
@@ -91,15 +93,13 @@ export default function EvaluationDetailPage() {
         status: "APPEALED"
       });
 
-      // 3. Gửi thông báo cho người lập phiếu
+      // 3. Gửi thông báo và bắn Push Notification ra điện thoại cho người lập phiếu
       if (evaluation.createdBy) {
-        await addDoc(collection(db, "notifications"), {
+        await sendNotification({
           userId: evaluation.createdBy,
           title: "🚨 Khiếu nại mới từ Giáo viên",
           message: `Giáo viên ${evaluation.teacherName} vừa gửi khiếu nại về phiếu đánh giá: ${evaluation.ruleName}.`,
-          read: false,
-          link: `/dashboard/evaluations/${evalId}`,
-          createdAt: new Date().toISOString()
+          link: `/dashboard/evaluations/${evalId}`
         });
 
         // Tìm email của người lập phiếu để gửi email
@@ -176,15 +176,13 @@ export default function EvaluationDetailPage() {
       });
       toast.success("Đã xử lý khiếu nại thành công.");
 
-      // Tạo thông báo in-app
+      // Tạo thông báo và bắn Push Notification trực tiếp ra điện thoại
       if (evaluation) {
-        await addDoc(collection(db, "notifications"), {
+        await sendNotification({
           userId: evaluation.teacherId,
           title: "🔔 Kết quả Khiếu nại KPI",
           message: `Phiếu đánh giá ${evaluation.ruleName} đã được ${newStatus === 'APPROVED' ? 'GIỮ NGUYÊN (Bác bỏ khiếu nại)' : 'HỦY BỎ (Chấp nhận khiếu nại)'}.`,
-          read: false,
-          link: `/dashboard/evaluations/${evalId}`,
-          createdAt: new Date().toISOString()
+          link: `/dashboard/evaluations/${evalId}`
         });
       }
 

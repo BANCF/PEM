@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from "react";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import { db, storage } from "@/lib/firebase/client";
+import { sendNotification } from "@/lib/services/notification.service";
 import { collection, getDocs, query, where, addDoc } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { useAuth } from "@/contexts/AuthContext";
@@ -179,14 +180,12 @@ export default function CreateEvaluationPage() {
         createdByName: profile.fullName
       });
 
-      // Tạo thông báo in-app
-      await addDoc(collection(db, "notifications"), {
+      // Tạo thông báo và bắn Push Notification trực tiếp ra điện thoại
+      await sendNotification({
         userId: selectedTeacher.uid,
         title: selectedRule.type === "KUDOS" ? "🎉 Bạn nhận được điểm thưởng mới" : "⚠️ Bạn có 1 biên bản trừ điểm mới",
         message: `Đánh giá: ${selectedRule.name} (${selectedRule.score > 0 ? '+' : ''}${selectedRule.score} điểm) từ ${profile.fullName}.`,
-        read: false,
-        link: "/dashboard/evaluations",
-        createdAt: new Date().toISOString()
+        link: "/dashboard/evaluations"
       });
 
       toast.success("Tạo đánh giá thành công! Hạn chót khiếu nại là 48h tới.");
