@@ -8,6 +8,10 @@ import { Bell, Check, Trash2 } from "lucide-react";
 import toast from "react-hot-toast";
 import Link from "next/link";
 
+import { getMessaging, getToken } from "firebase/messaging";
+import { app } from "@/lib/firebase/client";
+import { arrayUnion } from "firebase/firestore";
+
 interface Notification {
   id: string;
   userId: string;
@@ -202,7 +206,23 @@ export default function Notifications() {
     if (typeof window !== "undefined" && "Notification" in window) {
       const perm = await window.Notification.requestPermission();
       if (perm === "granted") {
-        toast.success("Đã bật thông báo đẩy hệ thống thành công!");
+        try {
+          if ("serviceWorker" in navigator) {
+            const reg = await navigator.serviceWorker.ready;
+            const messaging = getMessaging(app);
+            const token = await getToken(messaging, { serviceWorkerRegistration: reg });
+            if (token && profile) {
+              const userRef = doc(db, "users", profile.id);
+              await updateDoc(userRef, {
+                fcmTokens: arrayUnion(token)
+              });
+            }
+          }
+          toast.success("Đã bật thông báo đẩy trực tiếp về điện thoại!");
+        } catch (e) {
+          console.error("FCM Token Registration Error:", e);
+          toast.success("Đã bật quyền nhận thông báo!");
+        }
       } else {
         toast.error("Bạn đã từ chối quyền bật thông báo đẩy.");
       }
