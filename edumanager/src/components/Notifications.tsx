@@ -71,13 +71,16 @@ export default function Notifications() {
     }
   };
 
-  // Đăng ký Service Worker khi ứng dụng khởi chạy
+  // Đăng ký Firebase Messaging Service Worker (xóa cache cũ, cập nhật code mới nhất từ Vercel)
   useEffect(() => {
     if (typeof window !== "undefined" && "serviceWorker" in navigator) {
       navigator.serviceWorker
-        .register("/sw.js")
-        .then((reg) => console.log("Service Worker registered:", reg.scope))
-        .catch((err) => console.error("Service Worker registration failed:", err));
+        .register("/firebase-messaging-sw.js", { updateViaCache: "none" })
+        .then((reg) => {
+          reg.update();
+          console.log("Firebase Messaging SW updated & registered:", reg.scope);
+        })
+        .catch((err) => console.error("Firebase Messaging SW registration failed:", err));
     }
   }, []);
 
