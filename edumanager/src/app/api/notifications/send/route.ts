@@ -1,18 +1,6 @@
 import { NextResponse } from "next/server";
 import { adminDb } from "@/lib/firebase/admin";
-import webpush from "web-push";
-
-const vapidPublicKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY || "BJIAdA_hDMLR2dBCmSXonTtJWq8wJ7wIexkObcbnFYKsSm0mFzahj_DRBqQRrhbmb4iXTn1pdESIF_sMvW6ZPVA";
-const vapidPrivateKey = process.env.VAPID_PRIVATE_KEY || "AV7azbriBw-PGKthFYDIPwCpmxVq0hXmQeyLJVZWHv8";
-const vapidSubject = process.env.VAPID_SUBJECT || "mailto:bancf.pascal@gmail.com";
-
-if (vapidPublicKey && vapidPrivateKey) {
-  try {
-    webpush.setVapidDetails(vapidSubject, vapidPublicKey, vapidPrivateKey);
-  } catch (e) {
-    console.error("VAPID setup error:", e);
-  }
-}
+import { getMessaging } from "firebase-admin/messaging";
 
 export async function POST(req: Request) {
   try {
@@ -26,24 +14,47 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Admin DB not initialized" }, { status: 500 });
     }
 
-    // Lấy danh sách Web Push Subscriptions của người dùng
+    // Lấy danh sách FCM Tokens của người dùng
     const userDoc = await adminDb.collection("users").doc(userId).get();
-    const pushSubscriptions: any[] = userDoc.data()?.pushSubscriptions || [];
+    const userData = userDoc.data();
+    const fcmTokens: string[] = userData?.fcmTokens || [];
 
-    const payload = JSON.stringify({
-      title,
-      message,
-      link: link || "/dashboard/evaluations",
-    });
+    if (fcmTokens.length > 0) {
+      try {
+        const messaging = getMessaging();
+        const response = await messaging.sendEachForMulticast({
+          tokens: fcmTokens,
+          notification: {
+            title,
+            body: message,
+          },
+          data: {
+            title,
+            message,
+            link: link || "/dashboard/evaluations",
+          },
+          webpush: {
+            headers: {
+              Urgency: "high",
+            },
+            notification: {
+              title,
+              body: message,
+              icon: "/logo-pascal-01.png",
+              badge: "/logo-pascal-01.png",
+              sound: "/sounds/notification.wav",
+              vibrate: [500, 200, 500, 200, 500],
+            },
+            fcmOptions: {
+              link: link || "/dashboard/evaluations",
+            },
+          },
+        });
 
-    if (pushSubscriptions.length > 0) {
-      await Promise.all(
-        pushSubscriptions.map((sub) =>
-          webpush.sendNotification(sub, payload).catch((err) => {
-            console.error("WebPush send error:", err);
-          })
-        )
-      );
+        console.log(`Successfully delivered ${response.successCount} FCM push messages to user ${userId}`);
+      } catch (fcmErr) {
+        console.error("FCM Multicast Send Error:", fcmErr);
+      }
     }
 
     return NextResponse.json({ success: true });

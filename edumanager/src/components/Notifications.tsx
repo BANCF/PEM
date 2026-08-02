@@ -221,37 +221,25 @@ export default function Notifications() {
               renotify: true
             } as any);
 
-            // 2. Đăng ký W3C Push Subscription ngầm với Google Push Server cho điện thoại (dành cho lúc TẮT APP)
+            // 2. Đăng ký FCM Device Token chính thức với Google Push Server cho điện thoại (dành cho lúc TẮT APP)
             const publicVapidKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY || "BJIAdA_hDMLR2dBCmSXonTtJWq8wJ7wIexkObcbnFYKsSm0mFzahj_DRBqQRrhbmb4iXTn1pdESIF_sMvW6ZPVA";
             
             try {
-              const urlBase64ToUint8Array = (base64String: string) => {
-                const padding = '='.repeat((4 - base64String.length % 4) % 4);
-                const base64 = (base64String + padding).replace(/\-/g, '+').replace(/_/g, '/');
-                const rawData = window.atob(base64);
-                const outputArray = new Uint8Array(rawData.length);
-                for (let i = 0; i < rawData.length; ++i) {
-                  outputArray[i] = rawData.charCodeAt(i);
-                }
-                return outputArray;
-              };
+              const messaging = getMessaging(app);
+              const fcmToken = await getToken(messaging, {
+                serviceWorkerRegistration: reg,
+                vapidKey: publicVapidKey
+              });
 
-              let subscription = await reg.pushManager.getSubscription();
-              if (!subscription) {
-                subscription = await reg.pushManager.subscribe({
-                  userVisibleOnly: true,
-                  applicationServerKey: urlBase64ToUint8Array(publicVapidKey)
-                });
-              }
-
-              if (subscription && profile) {
+              if (fcmToken && profile) {
                 const userRef = doc(db, "users", profile.id);
                 await updateDoc(userRef, {
-                  pushSubscriptions: arrayUnion(JSON.parse(JSON.stringify(subscription)))
+                  fcmTokens: arrayUnion(fcmToken)
                 });
+                console.log("FCM Device Token registered successfully:", fcmToken);
               }
-            } catch (subErr) {
-              console.log("Web Push Subscription fallback:", subErr);
+            } catch (fcmErr) {
+              console.error("FCM Token Registration Error:", fcmErr);
             }
           }
           toast.success("Đã bật thông báo đẩy trực tiếp về điện thoại!");
