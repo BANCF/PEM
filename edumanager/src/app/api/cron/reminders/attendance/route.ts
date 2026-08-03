@@ -27,7 +27,7 @@ export async function GET(request: Request) {
     
     const allTokens: string[] = [];
     
-    usersSnapshot.forEach(doc => {
+    usersSnapshot.forEach((doc: any) => {
       const data = doc.data();
       if (data.fcmTokens && Array.isArray(data.fcmTokens)) {
         allTokens.push(...data.fcmTokens);
