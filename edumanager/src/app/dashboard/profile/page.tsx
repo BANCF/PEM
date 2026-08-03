@@ -15,6 +15,7 @@ export default function ProfilePage() {
   
   const [classhubUsername, setClasshubUsername] = useState("");
   const [classhubPassword, setClasshubPassword] = useState("");
+  const [classhubStatus, setClasshubStatus] = useState<"NONE" | "CONNECTED" | "ERROR" | "VERIFYING">("NONE");
 
   useEffect(() => {
     const fetchUserData = async () => {
@@ -26,6 +27,7 @@ export default function ProfilePage() {
           const data = docSnap.data();
           if (data.classhubUsername) setClasshubUsername(data.classhubUsername);
           if (data.classhubPassword) setClasshubPassword(atob(data.classhubPassword)); // Basic decode for now
+          if (data.classhubStatus) setClasshubStatus(data.classhubStatus);
         }
       } catch (error) {
         console.error("Error fetching user data:", error);
@@ -35,6 +37,33 @@ export default function ProfilePage() {
     };
     fetchUserData();
   }, [profile?.id]);
+
+  const verifyClassHubConnection = async () => {
+    setClasshubStatus("VERIFYING");
+    try {
+      const auth = await import("@/lib/firebase/client").then(m => m.auth);
+      const token = await auth.currentUser?.getIdToken();
+      if (!token) throw new Error("No auth token");
+
+      const res = await fetch("/api/classhub/verify", {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${token}`
+        }
+      });
+      const data = await res.json();
+      if (data.success) {
+        setClasshubStatus("CONNECTED");
+        toast.success(data.message);
+      } else {
+        setClasshubStatus("ERROR");
+        toast.error(data.message || "Kết nối thất bại");
+      }
+    } catch (error) {
+      setClasshubStatus("ERROR");
+      toast.error("Lỗi khi kiểm tra kết nối");
+    }
+  };
 
   const handleSaveClassHub = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -49,7 +78,8 @@ export default function ProfilePage() {
         classhubPassword: btoa(classhubPassword), 
         classhubLinkedAt: new Date().toISOString()
       });
-      toast.success("Đã lưu thông tin liên kết ClassHub!");
+      toast.success("Đã lưu thông tin, đang kiểm tra kết nối...");
+      await verifyClassHubConnection();
     } catch (error) {
       console.error("Error saving ClassHub credentials:", error);
       toast.error("Có lỗi xảy ra khi lưu thiết lập.");
@@ -100,6 +130,12 @@ export default function ProfilePage() {
                     <LinkIcon className="w-5 h-5 text-indigo-600" />
                   </div>
                   <h3 className="text-lg font-semibold text-slate-800">Liên kết Hệ thống ClassHub (idcloud.vn)</h3>
+                </div>
+                <div>
+                  {classhubStatus === "CONNECTED" && <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">Đã kết nối</span>}
+                  {classhubStatus === "ERROR" && <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800">Lỗi kết nối</span>}
+                  {classhubStatus === "VERIFYING" && <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800"><Loader2 className="w-3 h-3 mr-1 animate-spin" /> Đang kiểm tra...</span>}
+                  {classhubStatus === "NONE" && <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-slate-100 text-slate-800">Chưa liên kết</span>}
                 </div>
               </div>
               

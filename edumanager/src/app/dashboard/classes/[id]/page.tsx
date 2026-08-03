@@ -19,7 +19,7 @@ import * as XLSX from "xlsx";
 export default function ClassDetailsPage({ params }: { params: Promise<{ id: string }> }) {
   const resolvedParams = use(params);
   const classId = resolvedParams.id;
-  const { profile } = useAuth();
+  const { profile, user } = useAuth();
   const router = useRouter();
 
   const [classData, setClassData] = useState<ClassData | null>(null);
@@ -35,6 +35,7 @@ export default function ClassDetailsPage({ params }: { params: Promise<{ id: str
   const [isStudentModalOpen, setIsStudentModalOpen] = useState(false);
   const [isAssignmentModalOpen, setIsAssignmentModalOpen] = useState(false);
   const [editingStudent, setEditingStudent] = useState<StudentData | null>(null);
+  const [isSyncingAttendance, setIsSyncingAttendance] = useState(false);
 
   const isAdminOrBGH = profile?.role === "ADMIN" || profile?.role === "SUPER_ADMIN" || profile?.role === "BGH";
   const isGVCN = assignments.some(a => a.teacherId === profile?.id && (a.role === "GVCN" || a.role === "PCN"));
@@ -106,6 +107,39 @@ export default function ClassDetailsPage({ params }: { params: Promise<{ id: str
       fetchAllData();
     } catch (error) {
       toast.error("Lỗi khi xóa");
+    }
+  };
+
+  const handleAutoAttendance = async () => {
+    // Tạm thời yêu cầu nhập ID lớp học trên ClassHub (ví dụ: 84305)
+    const chClassId = prompt("Nhập ID lớp học trên ClassHub (ví dụ: 84305, xem trên URL của ClassHub):");
+    if (!chClassId) return;
+
+    try {
+      setIsSyncingAttendance(true);
+      const toastId = toast.loading("Bot đang xử lý điểm danh trên ClassHub (khoảng 10-15s)...");
+      
+      const res = await fetch("/api/classhub/sync/attendance", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${await user?.getIdToken()}`
+        },
+        body: JSON.stringify({ classId: chClassId })
+      });
+      
+      const data = await res.json();
+      
+      if (res.ok) {
+        toast.success(data.message || "Điểm danh thành công!", { id: toastId });
+      } else {
+        toast.error(data.error || "Có lỗi xảy ra", { id: toastId });
+      }
+    } catch (error) {
+      console.error("Sync error:", error);
+      toast.error("Lỗi kết nối tới Server");
+    } finally {
+      setIsSyncingAttendance(false);
     }
   };
 
@@ -196,10 +230,20 @@ export default function ClassDetailsPage({ params }: { params: Promise<{ id: str
           >
             <ArrowLeft size={20} className="text-gray-600" />
           </button>
-          <div>
+          <div className="flex-1">
             <h1 className="text-3xl font-bold text-gray-800">Lớp {classData.name}</h1>
             <p className="text-gray-500 mt-1">Khối {classData.grade} • Năm học: {classData.academicYear} • Sĩ số: {students.length}</p>
           </div>
+          {canManageStudents && (profile?.role === "SUPER_ADMIN" || profile?.canUseAutoAttendance === true) && (
+            <button
+              onClick={handleAutoAttendance}
+              disabled={isSyncingAttendance}
+              className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg font-medium transition-colors disabled:opacity-50"
+            >
+              {isSyncingAttendance ? <Loader2 className="w-5 h-5 animate-spin" /> : <i className="fa fa-refresh" />}
+              <span className="hidden sm:inline">Auto Điểm Danh (ClassHub)</span>
+            </button>
+          )}
         </div>
 
         {/* Tabs */}

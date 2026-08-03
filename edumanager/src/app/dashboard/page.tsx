@@ -9,6 +9,7 @@ import Link from "next/link";
 import { Loader2 } from "lucide-react";
 import { PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer } from "recharts";
 import * as XLSX from 'xlsx';
+import toast from "react-hot-toast";
 
 interface TeacherKPI {
   uid: string;
@@ -23,11 +24,12 @@ interface TeacherKPI {
 }
 
 export default function DashboardPage() {
-  const { profile } = useAuth();
+  const { profile, user } = useAuth();
   const [teachersData, setTeachersData] = useState<TeacherKPI[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [viewMode, setViewMode] = useState<"ALL" | "DEPARTMENT">("ALL");
+  const [isSyncingAttendance, setIsSyncingAttendance] = useState(false);
 
   useEffect(() => {
     if (profile?.role === "TTCM" || profile?.role === "TPCM") {
@@ -137,6 +139,35 @@ export default function DashboardPage() {
     XLSX.writeFile(workbook, fileName);
   };
 
+  const handleAutoAttendance = async () => {
+    try {
+      setIsSyncingAttendance(true);
+      const toastId = toast.loading("Đang quét toàn bộ danh sách lớp của bạn để điểm danh (Khoảng 30s-1p)...");
+      
+      const res = await fetch("/api/classhub/sync/attendance", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${await user?.getIdToken()}`
+        },
+        body: JSON.stringify({})
+      });
+      
+      const data = await res.json();
+      
+      if (res.ok) {
+        toast.success(data.message || "Điểm danh 1-Chạm thành công!", { id: toastId, duration: 6000 });
+      } else {
+        toast.error(data.error || "Có lỗi xảy ra khi điểm danh", { id: toastId, duration: 5000 });
+      }
+    } catch (error) {
+      console.error("Sync error:", error);
+      toast.error("Lỗi kết nối tới Server. Vui lòng thử lại sau.");
+    } finally {
+      setIsSyncingAttendance(false);
+    }
+  };
+
   const totalTeachers = teachersData.length;
   const avgScore = totalTeachers > 0 ? Math.round(teachersData.reduce((acc, curr) => acc + curr.finalScore, 0) / totalTeachers) : 1000;
 
@@ -182,13 +213,31 @@ export default function DashboardPage() {
   const isTeacher = profile?.role === "TEACHER";
   const myData = isTeacher ? (teachersData.find(t => t.uid === profile.id) || { finalScore: 1000, kudosScore: 0, penaltyScore: 0, evalCount: 0 }) : null;
 
+  const canShowAutoAttendance = profile?.role === "SUPER_ADMIN" || profile?.canUseAutoAttendance === true;
+
   return (
     <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500 pb-10">
       
+      {/* Quick Actions (Always visible) */}
+      {canShowAutoAttendance && (
+        <div className="flex justify-end mt-4 md:mt-0">
+          <button
+            onClick={handleAutoAttendance}
+            disabled={isSyncingAttendance}
+            className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-3 rounded-xl font-bold shadow-lg shadow-indigo-200 transition-all transform hover:-translate-y-1 hover:scale-105 disabled:opacity-50 disabled:transform-none whitespace-nowrap border-2 border-white"
+          >
+            {isSyncingAttendance ? <Loader2 className="w-5 h-5 animate-spin" /> : <i className="fa fa-magic" />}
+            <span>Điểm danh 1-Chạm (ClassHub)</span>
+          </button>
+        </div>
+      )}
+
       {/* Teacher's Personal Overview */}
       {isTeacher && myData && (
         <div className="mb-10">
-          <h1 className="text-3xl font-bold text-slate-800 mb-6">Tổng quan điểm số của tôi</h1>
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
+            <h1 className="text-3xl font-bold text-slate-800">Tổng quan điểm số của tôi</h1>
+          </div>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             <div className="bg-gradient-to-br from-blue-500 to-blue-600 p-6 rounded-3xl shadow-lg shadow-blue-500/20 text-white flex flex-col items-center justify-center text-center transform transition-transform hover:scale-105">
               <div className="w-16 h-16 bg-white/20 rounded-full flex items-center justify-center mb-4 backdrop-blur-sm">

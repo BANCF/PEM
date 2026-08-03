@@ -14,6 +14,7 @@ export interface UserProfile {
   role: Role;
   departmentId?: string;
   department?: string;
+  canUseAutoAttendance?: boolean;
 }
 
 interface AuthContextType {

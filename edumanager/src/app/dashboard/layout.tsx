@@ -13,6 +13,7 @@ import { useState, useEffect } from "react";
 import Notifications from "@/components/Notifications";
 import { doc, onSnapshot } from "firebase/firestore";
 import { BookOpen } from "lucide-react";
+import { useClassAlarm } from "@/hooks/useClassAlarm";
 
 export default function DashboardLayout({
   children,
@@ -24,6 +25,9 @@ export default function DashboardLayout({
   const pathname = usePathname();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [isFrozen, setIsFrozen] = useState(false);
+  
+  // Kích hoạt chuông báo tiết học
+  useClassAlarm();
   const [features, setFeatures] = useState<Record<string, boolean>>({
     classes: true,
     grades: true,
@@ -151,6 +155,7 @@ export default function DashboardLayout({
           <div className="flex-1 overflow-y-auto py-6 px-4 space-y-2">
             <p className="px-3 text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Quản lý chung</p>
             <NavLink href="/dashboard" icon={Home}>Tổng quan KPI</NavLink>
+            <NavLink href="/dashboard/profile" icon={User}>Hồ sơ cá nhân</NavLink>
             <NavLink href="/dashboard/classes" icon={GraduationCap} locked={!features.classes && actualProfile?.role !== "ADMIN" && actualProfile?.role !== "SUPER_ADMIN"}>Quản lý Lớp học</NavLink>
             <NavLink href="/dashboard/grades" icon={BookOpen} locked={!features.grades && actualProfile?.role !== "ADMIN" && actualProfile?.role !== "SUPER_ADMIN"}>Sổ điểm</NavLink>
             <NavLink href="/dashboard/evaluations" icon={FileText} locked={!features.evaluations && actualProfile?.role !== "ADMIN" && actualProfile?.role !== "SUPER_ADMIN"}>Phiếu Đánh giá</NavLink>
