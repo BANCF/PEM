@@ -126,7 +126,7 @@ export async function generateClassTimetablePdf(
     });
 
     const pdfOutputBytes = await pdfDoc.save();
-    return new Blob([pdfOutputBytes], { type: 'application/pdf' });
+    return new Blob([pdfOutputBytes as any], { type: 'application/pdf' });
 
   } catch (error) {
     console.error("Error generating PDF:", error);
