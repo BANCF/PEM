@@ -9,6 +9,7 @@ import { db } from "@/lib/firebase/client";
 import { doc, updateDoc } from "firebase/firestore";
 import { Calendar, Printer, Download, User, Users } from "lucide-react";
 import toast from "react-hot-toast";
+import { generateClassTimetablePdf } from "@/lib/services/pdf.service";
 
 // Helper component to render a schedule grid
 const ScheduleGrid = ({ scheduleData, title }: { scheduleData: Record<string, ScheduleClassInfo[]>, title: string }) => {
@@ -203,8 +204,45 @@ export default function SchedulePage() {
     fetchData();
   }, [profile]);
 
-  const handlePrint = () => {
-    window.print();
+  const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
+
+  const handlePrint = async () => {
+    if (activeTab.startsWith("homeroom-") && schedule) {
+      const className = activeTab.split("-")[1];
+      const classSched = schedule.classes[className];
+      if (!classSched) {
+        toast.error("Không có dữ liệu thời khóa biểu để in.");
+        return;
+      }
+
+      setIsGeneratingPdf(true);
+      const toastId = toast.loading("Đang tạo file PDF...");
+      try {
+        const teacherName = profile?.fullName || "Giáo viên";
+        const applicationDate = schedule.weekName || new Date(schedule.updatedAt).toLocaleDateString("vi-VN");
+        
+        const blob = await generateClassTimetablePdf(classSched, className, teacherName, applicationDate);
+        
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = `TKB_Lop_${className}.pdf`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+        
+        toast.success("Tạo file PDF thành công!", { id: toastId });
+      } catch (error) {
+        console.error("Error generating PDF:", error);
+        toast.error("Có lỗi xảy ra khi tạo PDF.", { id: toastId });
+      } finally {
+        setIsGeneratingPdf(false);
+      }
+    } else {
+      // Default browser print for personal schedule
+      window.print();
+    }
   };
 
   const handleNameChange = async (newName: string) => {
@@ -249,10 +287,15 @@ export default function SchedulePage() {
         
         <button 
           onClick={handlePrint}
-          className="flex items-center gap-2 bg-slate-800 hover:bg-slate-900 text-white px-5 py-2.5 rounded-xl font-medium transition-colors"
+          disabled={isGeneratingPdf}
+          className="flex items-center gap-2 bg-slate-800 hover:bg-slate-900 text-white px-5 py-2.5 rounded-xl font-medium transition-colors disabled:opacity-50"
         >
-          <Printer size={18} />
-          <span>In / Lưu PDF</span>
+          {isGeneratingPdf ? (
+            <div className="animate-spin h-5 w-5 border-2 border-white rounded-full border-t-transparent"></div>
+          ) : (
+            <Printer size={18} />
+          )}
+          <span>{isGeneratingPdf ? "Đang tạo..." : "In / Lưu PDF"}</span>
         </button>
       </div>
 
