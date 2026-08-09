@@ -10,7 +10,6 @@ import {
   saveDutySchedule, 
   WeeklyScheduleData, 
   DutyScheduleData,
-  WeeklyPlan,
   DutyMonth
 } from "@/lib/services/workSchedule.service";
 
