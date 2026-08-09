@@ -7,6 +7,20 @@ import toast from "react-hot-toast";
 import { useAuth } from "@/contexts/AuthContext";
 import { saveSchedule, FullScheduleData } from "@/lib/services/schedule.service";
 
+const TEACHER_ALIASES: Record<string, string> = {
+  "Linh": "Vũ Linh",
+  "M Hiếu": "Mạnh Hiếu",
+  "K.Huyền": "Khánh Huyền",
+  "Trọng": "Xuân Trọng",
+  "Nguyệt": "Minh Nguyệt",
+};
+
+const normalizeTeacherNames = (rawName: string): string[] => {
+  if (!rawName) return [];
+  const parts = rawName.split(/[\/,]/).map(t => t.trim()).filter(t => t);
+  return parts.map(p => TEACHER_ALIASES[p] || p);
+};
+
 export default function ScheduleSettingsPage() {
   const { profile } = useAuth();
   const [file, setFile] = useState<File | null>(null);
@@ -110,6 +124,7 @@ export default function ScheduleSettingsPage() {
 
             const existingClassPeriod = classesSchedule[className][currentDay].find((p: any) => p.period === periodClean);
             if (!existingClassPeriod) {
+              const normalizedTeachers = teacherStr ? normalizeTeacherNames(teacherStr.toString()) : [];
               classesSchedule[className][currentDay].push({
                 period: periodClean,
                 time: timeClean,
@@ -136,8 +151,10 @@ export default function ScheduleSettingsPage() {
             const row = gvData[r];
             if (!row || !row[1]) continue;
 
-            const teacherName = row[1].toString().trim();
-            if (!teacherName || teacherName.toLowerCase() === 'tên gv') continue;
+            const rawTeacherName = row[1].toString().trim();
+            if (!rawTeacherName || rawTeacherName.toLowerCase() === 'tên gv') continue;
+
+            const teacherNames = normalizeTeacherNames(rawTeacherName);
 
             let curDay = '2';
             for (let c = 2; c < row.length; c++) {
@@ -156,9 +173,6 @@ export default function ScheduleSettingsPage() {
               const className = row[c] ? row[c].toString().trim() : "";
               if (!className || className === '0') continue;
 
-              if (!teachersSchedule[teacherName]) teachersSchedule[teacherName] = {};
-              if (!teachersSchedule[teacherName][curDay]) teachersSchedule[teacherName][curDay] = [];
-
               // Tra cứu Tên môn và Khung giờ từ TKB của lớp
               let subject = "Giảng dạy";
               let time = "";
@@ -171,14 +185,20 @@ export default function ScheduleSettingsPage() {
                 }
               }
 
-              const existingT = teachersSchedule[teacherName][curDay].find((p: any) => p.period === periodClean);
-              if (!existingT) {
-                teachersSchedule[teacherName][curDay].push({
-                  period: periodClean,
-                  time,
-                  className,
-                  subject
-                });
+              for (const tName of teacherNames) {
+                if (!teachersSchedule[tName]) teachersSchedule[tName] = {};
+                if (!teachersSchedule[tName][curDay]) teachersSchedule[tName][curDay] = [];
+
+                const existingT = teachersSchedule[tName][curDay].find((p: any) => p.period === periodClean);
+                if (!existingT) {
+                  teachersSchedule[tName][curDay].push({
+                    period: periodClean,
+                    time,
+                    className,
+                    subject,
+                    teacher: rawTeacherName
+                  });
+                }
               }
             }
           }

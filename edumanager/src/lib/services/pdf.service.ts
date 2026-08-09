@@ -6,7 +6,9 @@ export async function generateClassTimetablePdf(
   classSched: Record<string, ScheduleClassInfo[]>,
   className: string,
   teacherName: string,
-  applicationDate: string
+  applicationDate: string,
+  secondaryClassSched?: Record<string, ScheduleClassInfo[]>,
+  secondaryClassName?: string
 ): Promise<Blob> {
   try {
     // Fetch the PDF template and font
@@ -79,7 +81,8 @@ export async function generateClassTimetablePdf(
     });
 
     // 2. Draw new header text
-    drawText(`CLASS ${className} TIMETABLE / THỜI KHÓA BIỂU LỚP ${className}`, 275, 545, 14, rgb(0, 0.4, 0.8), true); // Blue-ish title and bold
+    const displayClassName = secondaryClassName ? `${className} & ${secondaryClassName}` : className;
+    drawText(`CLASS ${displayClassName} TIMETABLE / THỜI KHÓA BIỂU LỚP ${displayClassName}`, 275, 545, 14, rgb(0, 0.4, 0.8), true); // Blue-ish title and bold
     
     // Parse applicationDate from filename if needed, or use as is
     let cleanDate = applicationDate;
@@ -110,17 +113,53 @@ export async function generateClassTimetablePdf(
     days.forEach((day, dayIndex) => {
       const colCenter = colCenters[dayIndex];
       const dayData = classSched[day] || [];
+      const secondaryDayData = secondaryClassSched ? secondaryClassSched[day] || [] : [];
       
+      const drawTextCenteredFit = (text: string, centerX: number, y: number, maxFontSize: number, maxWidth: number, color = rgb(0.1, 0.1, 0.1)) => {
+        let size = maxFontSize;
+        let textWidth = customFont.widthOfTextAtSize(text, size);
+        
+        while (textWidth > maxWidth && size > 6) {
+          size -= 0.5;
+          textWidth = customFont.widthOfTextAtSize(text, size);
+        }
+        
+        const textX = centerX - (textWidth / 2);
+        drawText(text, textX, y, size, color);
+      };
+
       Object.keys(rowYs).forEach(period => {
         const y = rowYs[period];
         const cellData = dayData.find(item => item.period.toString() === period);
+        const secondaryCellData = secondaryDayData.find(item => item.period.toString() === period);
         
-        if (cellData && cellData.subject) {
-          const fontSize = 13.5;
-          const textWidth = customFont.widthOfTextAtSize(cellData.subject, fontSize);
-          const textX = colCenter - (textWidth / 2);
-          
-          drawText(cellData.subject, textX, y, fontSize, rgb(0.1, 0.1, 0.1));
+        const hasSecondaryData = secondaryCellData && secondaryCellData.subject;
+        const hasPrimaryData = cellData && cellData.subject;
+
+        if (hasSecondaryData) {
+          // SPLIT CELL
+          // True cell boundaries are y + 26.5 (top) and y - 16.5 (bottom)
+          // because y is the text baseline, which is 5 points below the geometric center.
+          page.drawLine({
+            start: { x: colCenter, y: y + 26.5 },
+            end: { x: colCenter, y: y - 16.5 },
+            thickness: 1,
+            color: rgb(0, 0, 0)
+          });
+
+          // Draw Primary Subject on the Left (Black)
+          if (hasPrimaryData) {
+            drawTextCenteredFit(cellData.subject, colCenter - 28.5, y, 11, 52, rgb(0.1, 0.1, 0.1));
+          }
+
+          // Draw Secondary Subject on the Right (Red)
+          if (hasSecondaryData) {
+            drawTextCenteredFit(secondaryCellData.subject, colCenter + 28.5, y, 11, 52, rgb(0.9, 0.1, 0.1));
+          }
+
+        } else if (hasPrimaryData) {
+          // NORMAL CELL (Center)
+          drawTextCenteredFit(cellData.subject, colCenter, y, 13.5, 108, rgb(0.1, 0.1, 0.1));
         }
       });
     });

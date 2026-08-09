@@ -1,0 +1,928 @@
+<!DOCTYPE html>
+<html lang="en" translate="no">
+<head>
+  <title>Classroom (Pro)</title>
+<meta charset="utf-8">
+<meta http-equiv="X-UA-Compatible" content="IE=100"/>
+<meta name="copyright" content="OHKE"/>
+<meta name="author" content="OHKE"/>
+<meta name="robots" content="index,follow"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="MobileOptimized" content="320"/>
+<meta name="HandheldFriendly" content="true"/>
+<meta name="format-detection" content="telephone=no">
+  <link href="/appstart/student-classroom_pro-1.0/public/app_icon.png?8adecd48" rel="shortcut icon">
+
+  <!-- CORE CSS -->
+  <link href="/appstart/resource/common/css/w3.css?v=1.0.257" rel="stylesheet">
+  <link href="/appstart/resource/common/css/font-awesome.min.css?v=1.0.257" rel="stylesheet">
+
+  <!-- THEME -->
+  <link href="/appstart/resource/palette/COLOR-0000007.css?v=1776310477" rel="stylesheet">
+  <link href="/appstart/resource/look/default_look_and_feel/z-index.css?v=1785579999" rel="stylesheet">
+  <link href="/appstart/resource/look/default_look_and_feel/ohke.css?v=1785579999" rel="stylesheet">
+  <link href="/appstart/resource/look/default_look_and_feel/inno-button.css?v=1785579999" rel="stylesheet">
+  <link href="/appstart/resource/look/default_look_and_feel/job.css?v=1785579999" rel="stylesheet">
+  <link href="/appstart/resource/look/default_look_and_feel/id-layout.css?v=1785579999" rel="stylesheet">
+  <link href="/appstart/resource/look/default_look_and_feel/g-app.css?v=1785579999" rel="stylesheet">
+  <link href="/appstart/resource/look/default_look_and_feel/ohke-wizard.css?v=1785579999" rel="stylesheet">
+  <link href="/appstart/resource/look/default_look_and_feel/ohke-switch.css?v=1785579999" rel="stylesheet">
+  <link href="/appstart/resource/look/default_look_and_feel/ohke-adv-combo.css?v=1785579999" rel="stylesheet">
+  <link href="/appstart/resource/look/default_look_and_feel/ohke-mc-combo.css?v=1785579999" rel="stylesheet">
+  <link href="/appstart/resource/look/default_look_and_feel/sidebar.css?v=1785579999" rel="stylesheet">
+  <link href="/appstart/resource/look/default_look_and_feel/tooltip.css?v=1785579999" rel="stylesheet">
+  <link href="/appstart/resource/look/default_look_and_feel/chosen.ext.css?v=1785579999" rel="stylesheet">
+  <link href="/appstart/resource/look/default_look_and_feel/date-picker.css?v=1785579999" rel="stylesheet">
+  <link href="/appstart/resource/look/default_look_and_feel/ohke-color-picker.css?v=1785579999" rel="stylesheet">
+  <link href="/appstart/resource/look/default_look_and_feel/ohke-slideshow.css?v=1785579999" rel="stylesheet">
+  <link href="/appstart/resource/look/default_look_and_feel/ohke-tab.css?v=1785579999" rel="stylesheet">
+  <link href="/appstart/resource/look/default_look_and_feel/media.css?v=1785579999" rel="stylesheet">
+  <link href="/appstart/resource/look/default_look_and_feel/calendar.css?v=1785579999" rel="stylesheet">
+  <link href="/appstart/resource/look/default_look_and_feel/list-header-x.css?v=1785579999" rel="stylesheet">
+  <link href="/appstart/resource/look/default_look_and_feel/floating-toolbar.css?v=1785579999" rel="stylesheet">
+  <link href="/appstart/resource/look/default_look_and_feel/katex-math.css?v=1785579999" rel="stylesheet">
+  <link href="/appstart/resource/look/default_look_and_feel/inno.geo.css?v=1785579999" rel="stylesheet">
+  <link href="/appstart/resource/look/default_look_and_feel/filter.css?v=1785579999" rel="stylesheet">
+  <link href="/appstart/resource/look/default_look_and_feel/chunk-uploader.css?v=1785579999" rel="stylesheet">
+  <link href="/appstart/resource/look/default_look_and_feel/video.css?v=1785579999" rel="stylesheet">
+  <link href="/appstart/resource/look/default_look_and_feel/payment-qr.css?v=1785579999" rel="stylesheet">
+
+<template id="ohke_popup_tmpl">
+  <div class="w3-modal ohke_popup_instance">
+    <div class="w3-modal-content w3-animate-zoom ohke-popup">
+      <div class="ohke-popup-header {type}">
+        <i class="ohke-popup-icon fa {type_icon}"></i>
+        <a class="close-btn">
+          <i class="fa fa-2x fa-close"></i>
+        </a>
+        <h4>
+          {header}
+        </h4>
+      </div>
+      <form class="ohke-popup-body" onsubmit="return false">
+        {body}
+      </form>
+      <div class="ohke-popup-footer">
+      </div>
+    </div>
+  </div>
+</template>
+<template id="ohke_loading_tmpl">
+  <div class="ohke-content-loading">
+    <i class="fa fa-cog fa-spin"></i> {message}
+  </div>
+</template>
+<template id="ohke_file_viewer_tmpl">
+  <div class="w3-modal ohke-file-viewer w3-show w3-animate-zoom">
+    <div class="w3-modal-content">
+      <div class="ohke-header">
+        <div class="action">
+          <a onclick="Ohke.modal.close(this)" class="close-btn">
+            <i class="fa fa-2x fa-close"></i></a>
+        </div>
+        <div class="title">
+          <i class="fa fa-eye"></i>
+          <span>{title}</span>
+        </div>
+      </div>
+      <div class="ohke-content">
+        <file-viewer filename="{name}" url="{url}"></file-viewer>
+      </div>
+    </div>
+  </div>
+</template>
+<template id="ohke_general_modal_tmpl">
+  <div class="w3-modal w3-show w3-animate-zoom form-modal modal-{size} {size} {top}">
+    <div class="w3-modal-content">
+      <div class="ohke-header">
+        <div class="action">
+          <a onclick="Ohke.modal.close(this)" class="close-btn">
+            <i class="fa fa-2x fa-close"></i></a>
+        </div>
+        <div class="title">
+          <span>{title}</span>
+        </div>
+      </div>
+      <div class="ohke-content padding-4">
+        {body}
+      </div>
+    </div>
+  </div>
+</template>
+
+  <!-- COMMON CSS -->
+  <link href="/appstart/resource/common/css/svg-file-type.min.css?v=1.0.257" rel="stylesheet">
+  <link href="/appstart/resource/common/css/svg-background.min.css?v=1.0.257" rel="stylesheet">
+
+  <!-- CORE JS -->
+  <script src="/appstart/resource/common/js/plugin/es6-supported.min.js?v=1.1.136"></script>
+  <script src="/appstart/resource/common/js/plugin/support-detector.min.js?v=1.1.136"></script>
+  <script src="/appstart/resource/vendor/jquery-3.2.1.min.js?v=172259d5"></script>
+  <script src="/appstart/resource/vendor/moment-2.18.1.min.js?v=172259d5"></script>
+  <script src="/appstart/resource/vendor/tinymce-v5.2.0/tinymce.min.js?v=172259d5"></script>
+  <script src="/appstart/resource/vendor/sha256.min.js?v=172259d5"></script>
+  <script src="/appstart/resource/common/js/ohke.min.js?v=1.1.136"></script>
+  <script src="/appstart/resource/common/js/locale/en.js?v=172259d5"></script>
+
+  <!-- LEGACY OHKE -->
+  <script>
+    Ohke.version = '1.1.136';
+    Ohke.canTranslate = '';
+    Ohke.worker = {"id":"47880","member_of_site_id":"32282","user_id":"23579","username":"phamvanbang@pas.edu.vn","name":"Ph\u1ea1m V\u0103n B\u1eb1ng","device_key":"cms.idcloud.vnnaee4hbf0v777ukjalneclion6","session_id":"1761320","lang":"en","avatar":null,"site_name":"[47880] Ph\u1ea1m V\u0103n B\u1eb1ng","site_model_name":"PEOPLE","permission_codes":"INSTR,AUTH,ANON","update_timestamp":"1749484305"};
+    Ohke.SITE = {"id":"47817","name":"PASCAL 2025-2026","code":"PASCAL.2025","name_en":"PASCAL 2025-2026","site_model_name":"STUDY_ACADEMIC_YEAR","site_model_type":"ORG","avatar":"https:\/\/idcloud.vn\/47817\/appstart\/reader\/QXFmckRRT0VCTXdheGxWdEtad2c2b1BrTlJ2cncxWmQ3bE5TZVg2SWRFND0=\/0\/0-0\/logo_pascal_bb49cd3.png","update_timestamp":"1764297899","base_currency":"VND","currency_symbol":"\u20ab","owner_site_id":"47809","working_site_id":"47817","parent_id":"32282","lang":"en","look_code":"DEFAULT_LOOK_AND_FEEL","color_palette":"COLOR-0000007","having":{"environment":"development","google_api_key":null,"site_copyright":""},"closing_status":"UNSP","closing_type":1};
+    Ohke.BASE_URL = '/47817/appstart';
+    Ohke.APP_URL = '/47817/appstart/classroom_pro';
+    Ohke.API_URL = 'https://idcloud.vn';
+    window.ojs = {};
+  </script>
+
+<script>
+window.inno = window.inno || {};
+window.inno.asset = window.inno.asset || {};
+window.inno.asset.cfg = {"assetVersion":"172259d5","cssVersion":"1.0.257","jsVersion":"1.1.136","cssUri":"/appstart/resource/look/default_look_and_feel","cssTs":"1785579999"};
+window.inno.env = Object.assign(window.inno.env || {}, {"baseUrl":"/47817/appstart","appUrl":"/47817/appstart/classroom_pro","appAccessibleHash":"734e1e91","jobHeartbeatCsrf":"b5bd71063d2acb7bf8c80d560daa536e"})
+</script>
+<script src="/appstart/resource/bundle/prod/inno-main-d3425898ddc9da1c5949.js"></script>
+  <!-- PLUGINS -->
+  <script src="/appstart/resource/common/js/plugin/ohke-dom-remove.min.js?v=1.1.136"></script>
+  <script src="/appstart/resource/common/js/plugin/ohke-dom-movable.min.js?v=1.1.136"></script>
+  <script src="/appstart/resource/common/js/plugin/ohke-floating-header.min.js?v=1.1.136"></script>
+  <script src="/appstart/resource/common/js/plugin/jquery.binarytransport.js?v=1.1.136"></script>
+  <link href="/appstart/resource/common/js/plugin/inno-drawing/inno-drawing.min.css?v=172259d5" rel="stylesheet">
+  <script src="/appstart/resource/common/js/plugin/inno-drawing/inno-drawing.min.js?v=172259d5"></script>
+  <link href="/appstart/resource/common/js/plugin/agent-list-slideshow.min.css?v=172259d5" rel="stylesheet">
+  <script src="/appstart/resource/common/js/plugin/agent-list-slideshow.min.js?v=172259d5"></script>
+  <link href="/appstart/resource/common/js/plugin/id-ratio.min.css?v=172259d5" rel="stylesheet">
+  <script src="/appstart/resource/common/js/plugin/id-ratio.min.js?v=172259d5"></script>
+
+  <link href="/appstart/resource/common/js/chosen_v1.8.7/chosen.min.css?v=172259d5" rel="stylesheet">
+  <script src="/appstart/resource/common/js/chosen_v1.8.7/chosen.jquery.ext.min.js?v=172259d5"></script>
+  <script src="/appstart/resource/common/js/sidebar/sidebar.min.js?v=1.1.136"></script>
+  <script src="/appstart/resource/common/js/chunk_upload.min.js?v=1.1.136"></script>
+  <script src="/appstart/resource/common/js/plugin/id-rpc.min.js?v=1.1.136"></script>
+
+  <script src="/appstart/resource/common/js/widget/ohke-agent-field.min.js?v=1.1.136"></script>
+  <script src="/appstart/resource/common/js/widget/limit-date.min.js?v=1.1.136"></script>
+  <script src="/appstart/resource/common/js/widget/filter-list.min.js?v=1.1.136"></script>
+  <script src="/appstart/resource/common/js/widget/ohke-switch.min.js?v=1.1.136"></script>
+  <script src="/appstart/resource/common/js/widget/ohke-adv-combo.min.js?v=1.1.136"></script>
+  <script src="/appstart/resource/common/js/widget/ohke-mc-combo.min.js?v=1.1.136"></script>
+  <script src="/appstart/resource/common/js/widget/ohke-color-picker.min.js?v=1.1.136"></script>
+  <script src="/appstart/resource/common/js/widget/ohke-slideshow.min.js?v=1.1.136"></script>
+  <script src="/appstart/resource/common/js/widget/ohke-popup.min.js?v=1.1.136"></script>
+  <script src="/appstart/resource/common/js/widget/ohke-help.min.js?v=1.1.136"></script>
+  <script src="/appstart/resource/common/js/widget/ohke-inline-editor.min.js?v=1.1.136"></script>
+  <script src="/appstart/resource/common/js/widget/ohke-mobile.min.js?v=1.1.136"></script>
+  <script src="/appstart/resource/common/js/widget/ohke-hover.min.js?v=1.1.136"></script>
+
+<script defer src="/appstart/resource/vendor/katex-v0.16.9/katex.min.js?v=172259d5"></script>
+<script defer src="/appstart/resource/common/js/plugin/id-math.min.js?v=1.1.136"></script>
+<link href="/appstart/resource/vendor/katex-v0.16.9/katex.min.css?v=172259d5" rel="stylesheet">
+<link href="/appstart/resource/common/js/plugin/id-math.min.css?v=1.0.257" rel="stylesheet"><script src="/appstart/resource/common/js/plugin/id-pivot-table.min.js?v=1.1.136"></script><script src="/appstart/resource/vendor/twig.js-1.16.0/twig.min.js?v=172259d5"></script>
+<link href="/appstart/resource/vendor/codemirror-5.52.2/lib/codemirror.css?v=172259d5" rel="stylesheet">
+<link href="/appstart/resource/vendor/codemirror-5.52.2/addon/dialog/dialog.css?v=172259d5" rel="stylesheet">
+<link href="/appstart/resource/vendor/codemirror-5.52.2/addon/search/matchesonscrollbar.css?v=172259d5" rel="stylesheet">
+<script src="/appstart/resource/vendor/codemirror-5.52.2/lib/codemirror.js?v=172259d5"></script>
+<script src="/appstart/resource/vendor/codemirror-5.52.2/mode/xml/xml.js?v=172259d5"></script>
+<script src="/appstart/resource/vendor/codemirror-5.52.2/mode/javascript/javascript.js?v=172259d5"></script>
+<script src="/appstart/resource/vendor/codemirror-5.52.2/mode/css/css.js?v=172259d5"></script>
+<script src="/appstart/resource/vendor/codemirror-5.52.2/mode/php/php.js?v=172259d5"></script>
+<script src="/appstart/resource/vendor/codemirror-5.52.2/mode/sql/sql.js?v=172259d5"></script>
+
+<script src="/appstart/resource/vendor/codemirror-5.52.2/addon/edit/matchbrackets.js?v=172259d5"></script>
+<script src="/appstart/resource/vendor/codemirror-5.52.2/addon/display/placeholder.js?v=172259d5"></script>
+<script src="/appstart/resource/vendor/codemirror-5.52.2/addon/dialog/dialog.js?v=172259d5"></script>
+<script src="/appstart/resource/vendor/codemirror-5.52.2/addon/mode/multiplex.js?v=172259d5"></script>
+<script src="/appstart/resource/vendor/codemirror-5.52.2/addon/mode/overlay.js?v=172259d5"></script>
+<script src="/appstart/resource/vendor/codemirror-5.52.2/addon/search/searchcursor.js?v=172259d5"></script>
+<script src="/appstart/resource/vendor/codemirror-5.52.2/addon/search/search.js?v=172259d5"></script>
+<script src="/appstart/resource/vendor/codemirror-5.52.2/addon/search/matchesonscrollbar.js?v=172259d5"></script>
+<script src="/appstart/resource/vendor/codemirror-5.52.2/addon/scroll/annotatescrollbar.js?v=172259d5"></script>
+<script src="/appstart/resource/vendor/codemirror-5.52.2/addon/fold/foldcode.js?v=172259d5"></script>
+<script src="/appstart/resource/vendor/codemirror-5.52.2/addon/fold/foldgutter.js?v=172259d5"></script>
+<script src="/appstart/resource/vendor/codemirror-5.52.2/addon/fold/brace-fold.js?v=172259d5"></script>
+<script src="/appstart/resource/vendor/codemirror-5.52.2/addon/fold/comment-fold.js?v=172259d5"></script>
+<script src="/appstart/resource/vendor/codemirror-5.52.2/addon/fold/xml-fold.js?v=172259d5"></script>
+<link href="/appstart/resource/vendor/codemirror-5.52.2/addon/fold/foldgutter.css?v=172259d5" rel="stylesheet">
+
+  <script src="/appstart/resource/common/js/plugin/inno-code-mirror.min.js?v=1.1.136"></script>
+
+<link href="/appstart/resource/look/default_look_and_feel/ohke-codemirror.css?v=1785579999" rel="stylesheet">
+
+<link href="/appstart/resource/vendor/chartjs-2.9.3/Chart.min.css?v=172259d5" rel="stylesheet">
+<script src="/appstart/resource/vendor/chartjs-2.9.3/Chart.min.js?v=172259d5"></script>
+<script src="/appstart/resource/common/js/plugin/chart.js-2.9.3-label-plugin.min.js?v=1.1.136"></script>
+
+<script>
+  Chart.defaults.global.defaultFontSize = 8;
+  Chart.defaults.global.defaultFontFamily = "Arial, sans-serif";
+</script><script src="/appstart/resource/vendor/file-viewer-v1.2.0/loader.js?v=172259d5"></script>
+
+<link href="/appstart/resource/common/js/plugin/id-applicator.min.css?v=1.0.257" rel="stylesheet">
+<script src="/appstart/resource/vendor/hammer.min.js?v=172259d5"></script>
+<script src="/appstart/resource/common/js/plugin/id-applicator.min.js?v=172259d5"></script>
+  <style>body{
+      --sidebar-width:100px !important;
+      --topbar-height:58px !important;
+  }</style>
+</head>
+<body>
+<noscript>
+  <h3 class="w3-center">Vui lòng bật Javascript trong trình duyệt của bạn để tiếp tục!</h3>
+  <h3 class="w3-center">Please enable Javascript in your browser to continue!</h3>
+</noscript>
+<div class="g-app agent-container agent-id-1369 agent-uri-classroom-pro w3-hide" id="inno-g-app">
+  <div class="g-sidebar">
+<div class="dynamic-content subform-container 
+ V-sidebar 
+ "
+     id="field-rkabebuu6j" data-field-name="sidebar"
+     data-env="&lbrace;&quot;ohke&lowbar;prefix&quot;&colon;&quot;field-rkabebuu6j&quot;&comma;&quot;master&lowbar;key&quot;&colon;null&comma;&quot;master&lowbar;object&lowbar;class&lowbar;name&quot;&colon;&quot;study&lowbar;class&quot;&comma;&quot;master&lowbar;object&lowbar;class&lowbar;code&quot;&colon;&quot;DOCTYPE-525&quot;&comma;&quot;data&lowbar;query&lowbar;id&quot;&colon;null&comma;&quot;&colon;field&lowbar;subform&lowbar;id&quot;&colon;1&comma;&quot;&colon;master&lowbar;readonly&quot;&colon;null&comma;&quot;father&lowbar;master&lowbar;key&quot;&colon;null&comma;&quot;media&quot;&colon;&quot;screen&quot;&rcub;" data-field-domain=""
+     data-load-form="ojs['field-rkabebuu6j'].LoadForm"
+     data-load-form-when=""
+     data-reload-on-show=""
+     data-load-order=""
+>
+  <div class="agent-body w3-hide">
+  </div>
+  <div class="agent-loader w3-hide">
+  </div>
+  <div class="agent-loader-template w3-hide">
+      </div>
+</div>
+<script>
+  ojs['field-rkabebuu6j'] = {
+    LoadForm:function(){
+              let url = `${inno.env.appUrl}/xSB_Viewer`;
+        let $container = $('#field-rkabebuu6j');
+      let data = inno.form.buildPayload($container, arguments);
+
+  
+      let cfg = {
+        loading: 'HIDDEN',
+        error: 'SELF',
+                        data,
+              };
+      return $container.agentLoad(url, cfg);
+    },
+  };
+  $(() => {
+        ojs['field-rkabebuu6j'].LoadForm();
+      })
+</script>
+  </div>
+  <div class="g-main">
+    <div class="g-topbar">
+<div class="dynamic-content subform-container 
+ V-topbar 
+ "
+     id="field-pbvgl6gdbf" data-field-name="topbar"
+     data-env="&lbrace;&quot;ohke&lowbar;prefix&quot;&colon;&quot;field-pbvgl6gdbf&quot;&comma;&quot;master&lowbar;key&quot;&colon;null&comma;&quot;master&lowbar;object&lowbar;class&lowbar;name&quot;&colon;&quot;study&lowbar;class&quot;&comma;&quot;master&lowbar;object&lowbar;class&lowbar;code&quot;&colon;&quot;DOCTYPE-525&quot;&comma;&quot;data&lowbar;query&lowbar;id&quot;&colon;null&comma;&quot;&colon;field&lowbar;subform&lowbar;id&quot;&colon;1&comma;&quot;&colon;master&lowbar;readonly&quot;&colon;null&comma;&quot;father&lowbar;master&lowbar;key&quot;&colon;null&comma;&quot;media&quot;&colon;&quot;screen&quot;&rcub;" data-field-domain=""
+     data-load-form="ojs['field-pbvgl6gdbf'].LoadForm"
+     data-load-form-when=""
+     data-reload-on-show=""
+     data-load-order=""
+>
+  <div class="agent-body w3-hide">
+  </div>
+  <div class="agent-loader w3-hide">
+  </div>
+  <div class="agent-loader-template w3-hide">
+      </div>
+</div>
+<script>
+  ojs['field-pbvgl6gdbf'] = {
+    LoadForm:function(){
+              let url = `${inno.env.appUrl}/xTB_Viewer`;
+        let $container = $('#field-pbvgl6gdbf');
+      let data = inno.form.buildPayload($container, arguments);
+
+  
+      let cfg = {
+        loading: 'HIDDEN',
+        error: 'SELF',
+                        data,
+              };
+      return $container.agentLoad(url, cfg);
+    },
+  };
+  $(() => {
+        ojs['field-pbvgl6gdbf'].LoadForm();
+      })
+</script>
+    </div>
+<div class="g-in-app main-container">
+<div class="agent-container agent-id-1369 agent-uri-classroom-pro" data-search-id="a559_" id="agent-bsj626jvpn" data-ag-form-id="L1369">
+  <!--L1369-->
+    <div class="ohke-header list-mode header-x x3">
+    <form method="post" class="filter-form" id="form-bsj626jvpn" data-found="11" data-total="11">
+      <!--L1369-->
+      <div class="title-bar">
+                    <div class="w3-hide-large w3-hide-medium mobile-action w3-hide">
+          <a class="ohke-btn dropdown-btn">
+            <i class="fa fa-list"></i>
+          </a>
+          <div class="dropdown-menu">
+                    <a class="ohke-btn js-agent-click" data-action="export">
+        <i class="fa fa-table"></i>
+        <span class="title-dropdown">Export</span>
+      </a>
+          <!--list action-->
+                      </div>
+        </div>
+      </div>
+                    <div class="search ohke-group no-title">
+                        <a class="ohke-btn btn-adv-search js-agent-click" data-action="open-adv-search"
+     title="Search Settings" ><i class="fa fa-filter"></i></a>
+  <div class="search-box search3">
+    <div class="name w3-hide"></div>
+    <a class="btn btn-clear"><div><i class="fa fa-close"></i></div></a>
+    <input type="hidden" name="filter_name" value="">
+    <input type="hidden" name="filter_data" value="">
+    <input class="w3-input agent-filter" type="text" name="filter_text"
+           placeholder="Filter by Id&comma; Student Class Name&comma; Module Name&comma; Code&comma; Study Class Name&comma; Study Module&comma; Number Of Students&comma; Lecturer" value="">
+    <div class="total">
+      <span class="f">11</span>/<span class="t">11</span>
+    </div>
+    <div class="finding w3-hide"><i class="fa fa-refresh fa-spin"></i></div>
+  </div>
+                                <div class='state-filter-2 w3-hide-small'>
+<select class='w3-input inp-state' name='study_class_status'>
+<option value=''>[ Activity Class ]</option>
+<option value='STUDY_CLASS_STATUS_DRAFT' >Draft (0)</option>
+<option value='STUDY_CLASS_STATUS_PENDING' >Pending (0)</option>
+<option value='STUDY_CLASS_STATUS_ACCEPTED' selected>ACTIVE (11)</option>
+<option value='STUDY_CLASS_STATUS_REJECTED' >Rejected (0)</option>
+<option value='STUDY_CLASS_STATUS_IN_TRASH' >In trash (0)</option>
+<option value='STUDY_CLASS_STATUS_CLOSED' >CLOSED (0)</option>
+</select>
+</div>                              <a class="ohke-btn btn-search">
+            <i class="fa fa-search-plus"></i>
+            <span class="title-action">Search</span>
+          </a>
+                  </div>
+     <div class='state-filter-2 w3-hide-medium w3-hide-large'>
+<select class='w3-input inp-state-mobile' data-name='study_class_status'>
+<option value=''>[ Activity Class ]</option>
+<option value='STUDY_CLASS_STATUS_DRAFT' >Draft (0)</option>
+<option value='STUDY_CLASS_STATUS_PENDING' >Pending (0)</option>
+<option value='STUDY_CLASS_STATUS_ACCEPTED' selected>ACTIVE (11)</option>
+<option value='STUDY_CLASS_STATUS_REJECTED' >Rejected (0)</option>
+<option value='STUDY_CLASS_STATUS_IN_TRASH' >In trash (0)</option>
+<option value='STUDY_CLASS_STATUS_CLOSED' >CLOSED (0)</option>
+</select>
+</div>            <div class="action">
+                                    <a class="ohke-btn js-agent-click" data-action="export">
+        <i class="fa fa-table"></i>
+        <span class="title-action">Export</span>
+      </a>
+          <!--list action-->
+      </div>
+    </form>
+  </div>
+  <div class="ohke-content  no-padding">
+          <style>
+.teacher-avatar-wrapper {
+  width: 72px;
+  height: 72px;
+  border-radius: 50%;
+  overflow: hidden;
+  margin: auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: #f1f1f1;
+}
+.innodigi-avatar-input {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.innodigi-avatar-input img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 50%;
+}
+</style>
+      <style id="style-bsj626jvpn">#agent-bsj626jvpn .STUDY_CLASS_STATUS_DRAFT{background-color:#000000;color:#ffffff;}
+#agent-bsj626jvpn .STUDY_CLASS_STATUS_PENDING{background-color:#fffecc;color:#000000;}
+#agent-bsj626jvpn .STUDY_CLASS_STATUS_ACCEPTED{background-color:#63c688;color:#ffffff;}
+#agent-bsj626jvpn .STUDY_CLASS_STATUS_REJECTED{background-color:#ff0000;color:#fffecc;}
+#agent-bsj626jvpn .STUDY_CLASS_STATUS_IN_TRASH{background-color:#4f4f4f;color:#ffffff;}
+#agent-bsj626jvpn .STUDY_CLASS_STATUS_CLOSED{background-color:#000000;color:#f2e63e;}</style><div class="w3-row-padding w3-padding">
+<div class="agent-list list-bsj626jvpn" data-search-id="a559_">
+    <div class="list-item item-bsj626jvpn list-a559_ " id="item-bsj626jvpn-84305" data-entity="&lbrace;&quot;id&quot;&colon;&quot;84305&quot;&comma;&quot;working&lowbar;site&lowbar;id&quot;&colon;&quot;47817&quot;&comma;&quot;&lowbar;&lowbar;working&lowbar;site&lowbar;id&quot;&colon;&quot;&lbrack;47817&rsqb; PASCAL 2025-2026&quot;&comma;&quot;color&quot;&colon;&quot;&num;add8e6&quot;&comma;&quot;student&lowbar;class&lowbar;name&quot;&colon;&quot; 3A&quot;&comma;&quot;module&lowbar;name&quot;&colon;&quot;Tin học lớp 3&quot;&comma;&quot;code&quot;&colon;&quot;TIN3&lowbar;3A&quot;&comma;&quot;study&lowbar;class&lowbar;name&quot;&colon;&quot;TIN3 of 3A&quot;&comma;&quot;study&lowbar;module&lowbar;code&quot;&colon;&quot;TIN3&quot;&comma;&quot;&lowbar;&lowbar;study&lowbar;module&lowbar;code&quot;&colon;&quot;&lbrack;TIN3&rsqb; Tin học lớp 3&quot;&comma;&quot;student&lowbar;class&lowbar;id&quot;&colon;&quot;4988&quot;&comma;&quot;&lowbar;&lowbar;student&lowbar;class&lowbar;id&quot;&colon;&quot;&lbrack;4988&rsqb; 3A&quot;&comma;&quot;start&lowbar;date&quot;&colon;&quot;2025-08-01&quot;&comma;&quot;end&lowbar;date&quot;&colon;&quot;2026-05-31&quot;&comma;&quot;instructor&lowbar;site&lowbar;ids&quot;&colon;&quot;47880&quot;&comma;&quot;create&lowbar;site&lowbar;id&quot;&colon;&quot;47813&quot;&comma;&quot;&lowbar;&lowbar;create&lowbar;site&lowbar;id&quot;&colon;&quot;Tạ Thị T&acirc;m Anh&quot;&comma;&quot;create&lowbar;time&quot;&colon;&quot;2025-08-19 21&colon;57&colon;21&quot;&comma;&quot;update&lowbar;site&lowbar;id&quot;&colon;&quot;47880&quot;&comma;&quot;&lowbar;&lowbar;update&lowbar;site&lowbar;id&quot;&colon;&quot;Phạm V&abreve;n Bằng&quot;&comma;&quot;update&lowbar;time&quot;&colon;&quot;2026-05-04 09&colon;27&colon;15&quot;&comma;&quot;number&lowbar;of&lowbar;students&quot;&colon;&quot;23&quot;&comma;&quot;study&lowbar;program&lowbar;type&quot;&colon;&quot;ACAD&quot;&comma;&quot;lecturer&lowbar;site&lowbar;id&quot;&colon;&quot;47880&quot;&comma;&quot;&lowbar;&lowbar;lecturer&lowbar;site&lowbar;id&quot;&colon;&quot;&quot;&comma;&quot;is&lowbar;active&lowbar;classroom&quot;&colon;&quot;0&quot;&comma;&quot;study&lowbar;class&lowbar;status&quot;&colon;&quot;STUDY&lowbar;CLASS&lowbar;STATUS&lowbar;ACCEPTED&quot;&comma;&quot;&lowbar;&lowbar;study&lowbar;class&lowbar;status&quot;&colon;&quot;ACTIVE&quot;&comma;&quot;star&lowbar;id&quot;&colon;&quot;1&quot;&comma;&quot;optional&lowbar;join&lowbar;deadline&lowbar;date&quot;&colon;null&comma;&quot;max&lowbar;number&lowbar;of&lowbar;student&quot;&colon;null&comma;&quot;min&lowbar;number&lowbar;of&lowbar;student&quot;&colon;null&comma;&quot;class&lowbar;hour&lowbar;template&lowbar;id&quot;&colon;null&comma;&quot;open&lowbar;for&lowbar;study&lowbar;domain&lowbar;codes&quot;&colon;null&comma;&quot;open&lowbar;for&lowbar;study&lowbar;course&lowbar;ids&quot;&colon;&quot;1359&quot;&comma;&quot;allow&lowbar;subscription&lowbar;types&quot;&colon;null&comma;&quot;room&lowbar;id&quot;&colon;null&comma;&quot;study&lowbar;curriculum&lowbar;id&quot;&colon;null&comma;&quot;study&lowbar;program&lowbar;id&quot;&colon;&quot;2653&quot;&comma;&quot;study&lowbar;course&lowbar;id&quot;&colon;&quot;1359&quot;&comma;&quot;enrollment&lowbar;type&quot;&colon;&quot;CE&quot;&comma;&quot;study&lowbar;assessment&lowbar;id&quot;&colon;null&comma;&quot;study&lowbar;assessment&lowbar;plan&lowbar;id&quot;&colon;null&comma;&quot;study&lowbar;program&lowbar;eval&lowbar;campaign&lowbar;id&quot;&colon;null&comma;&quot;access&lowbar;control&lowbar;list&lowbar;site&lowbar;ids&quot;&colon;null&comma;&quot;require&lowbar;teacher&lowbar;attendance&quot;&colon;&quot;F&quot;&comma;&quot;require&lowbar;student&lowbar;attendance&quot;&colon;&quot;F&quot;&comma;&quot;study&lowbar;grade&lowbar;code&quot;&colon;null&comma;&quot;background&lowbar;color&quot;&colon;null&comma;&quot;text&lowbar;color&quot;&colon;null&comma;&quot;allow&lowbar;proctor&lowbar;to&lowbar;mark&lowbar;teacher&lowbar;attendance&quot;&colon;&quot;0&quot;&comma;&quot;allow&lowbar;proctor&lowbar;to&lowbar;mark&lowbar;student&lowbar;attendance&quot;&colon;&quot;0&quot;&comma;&quot;title&quot;&colon;&quot;TIN3&lowbar;3A&quot;&comma;&quot;sub&lowbar;study&lowbar;module&lowbar;code&quot;&colon;null&comma;&quot;student&lowbar;class&lowbar;ids&quot;&colon;null&comma;&quot;display&lowbar;transferred&lowbar;students&lowbar;in&lowbar;grade&lowbar;book&quot;&colon;&quot;0&quot;&comma;&quot;open&lowbar;for&lowbar;genders&quot;&colon;&quot;&quot;&comma;&quot;study&lowbar;domain&lowbar;code&quot;&colon;&quot;TIMA&quot;&comma;&quot;study&lowbar;evaluation&lowbar;template&lowbar;id&quot;&colon;0&comma;&quot;&lowbar;&lowbar;study&lowbar;domain&lowbar;code&quot;&colon;&quot;&lbrack;TIMA&rsqb; Text &amp; Information Management &bsol;&sol; Tin Học&quot;&comma;&quot;&lowbar;&lowbar;instructor&lowbar;site&lowbar;ids&quot;&colon;&lbrace;&quot;47880&quot;&colon;&quot;&lbrack;47880&rsqb; Phạm V&abreve;n Bằng&quot;&rcub;&rcub;" data-search-key="" data-update-time="2026-05-04 09:27:15" data-id="84305" >
+  <div class="list-item-inner" >
+    <form method="post" class="item-form-bsj626jvpn js-form-init no-padding no-margin" >
+    <!--L1369-->
+  <!-- Mỗi classroom card -->
+  <div class="w3-col s12 m6 l4 w3-margin-bottom w3-padding">
+    <div class="w3-card w3-round-large"
+         style="background-color:
+                #add8e6; color:
+                #191970; height: 250px; display: flex; flex-direction: column; justify-content: space-between; box-shadow: 0 2px 6px rgba(0,0,0,0.2);">
+      <!-- Phần nội dung chính -->
+      <div class="w3-padding">
+        <h5 class="w3-xlarge" style="font-weight: bold;">
+                Tin học lớp 3</h5>
+        <div class="w3-medium">
+                 3A</div>
+        <div class="teacher-avatar-wrapper">
+          <div class="innodigi-avatar-input">
+                <div class="ohke-v-box ohke-control no-padding sf-l-1369-lecturer_site_id list-field-search sf-l-1369-lecturer_site_id">
+              <input type="hidden" value="47880" name="lecturer_site_id">
+<div class="ws-avatar">
+  <div class="ws-inner">
+    <div class="avatar circle" style="width:72px;height:72px"><div><a class="prevent-click" href="/47880/appstart?source=deeplink" title="[47880] Phạm Văn Bằng" target="_top"><img src="/appstart/resource/common/images/default-icon-individual.png" alt="avatar-47880" title="[47880] Phạm Văn Bằng"></a></div></div>
+  </div>
+  
+</div>    </div>
+</div>
+        </div>
+        <div class="w3-small">
+ students</div>
+      </div>
+      <!-- Phần dưới cùng -->
+      <div class="w3-padding w3-border-top">
+        <div class="w3-small w3-opacity">UPCOMING ASSIGNMENTS</div>
+        <div class="w3-small">No assignments</div>
+      </div>
+    </div>
+  </div>
+    </form>
+  </div>
+  </div>
+  <div class="list-item item-bsj626jvpn list-a559_ " id="item-bsj626jvpn-84333" data-entity="&lbrace;&quot;id&quot;&colon;&quot;84333&quot;&comma;&quot;working&lowbar;site&lowbar;id&quot;&colon;&quot;47817&quot;&comma;&quot;&lowbar;&lowbar;working&lowbar;site&lowbar;id&quot;&colon;&quot;&lbrack;47817&rsqb; PASCAL 2025-2026&quot;&comma;&quot;color&quot;&colon;&quot;&num;add8e6&quot;&comma;&quot;student&lowbar;class&lowbar;name&quot;&colon;&quot; 3C&quot;&comma;&quot;module&lowbar;name&quot;&colon;&quot;Tin học lớp 3&quot;&comma;&quot;code&quot;&colon;&quot;TIN3&lowbar;3C&quot;&comma;&quot;study&lowbar;class&lowbar;name&quot;&colon;&quot;TIN3 of 3C&quot;&comma;&quot;study&lowbar;module&lowbar;code&quot;&colon;&quot;TIN3&quot;&comma;&quot;&lowbar;&lowbar;study&lowbar;module&lowbar;code&quot;&colon;&quot;&lbrack;TIN3&rsqb; Tin học lớp 3&quot;&comma;&quot;student&lowbar;class&lowbar;id&quot;&colon;&quot;4989&quot;&comma;&quot;&lowbar;&lowbar;student&lowbar;class&lowbar;id&quot;&colon;&quot;&lbrack;4989&rsqb; 3C&quot;&comma;&quot;start&lowbar;date&quot;&colon;&quot;2025-08-01&quot;&comma;&quot;end&lowbar;date&quot;&colon;&quot;2026-05-31&quot;&comma;&quot;instructor&lowbar;site&lowbar;ids&quot;&colon;&quot;47880&quot;&comma;&quot;create&lowbar;site&lowbar;id&quot;&colon;&quot;47813&quot;&comma;&quot;&lowbar;&lowbar;create&lowbar;site&lowbar;id&quot;&colon;&quot;Tạ Thị T&acirc;m Anh&quot;&comma;&quot;create&lowbar;time&quot;&colon;&quot;2025-08-19 22&colon;07&colon;14&quot;&comma;&quot;update&lowbar;site&lowbar;id&quot;&colon;&quot;47813&quot;&comma;&quot;&lowbar;&lowbar;update&lowbar;site&lowbar;id&quot;&colon;&quot;Tạ Thị T&acirc;m Anh&quot;&comma;&quot;update&lowbar;time&quot;&colon;&quot;2025-08-22 11&colon;54&colon;03&quot;&comma;&quot;number&lowbar;of&lowbar;students&quot;&colon;&quot;25&quot;&comma;&quot;study&lowbar;program&lowbar;type&quot;&colon;&quot;ACAD&quot;&comma;&quot;lecturer&lowbar;site&lowbar;id&quot;&colon;&quot;47880&quot;&comma;&quot;&lowbar;&lowbar;lecturer&lowbar;site&lowbar;id&quot;&colon;&quot;&quot;&comma;&quot;is&lowbar;active&lowbar;classroom&quot;&colon;&quot;0&quot;&comma;&quot;study&lowbar;class&lowbar;status&quot;&colon;&quot;STUDY&lowbar;CLASS&lowbar;STATUS&lowbar;ACCEPTED&quot;&comma;&quot;&lowbar;&lowbar;study&lowbar;class&lowbar;status&quot;&colon;&quot;ACTIVE&quot;&comma;&quot;star&lowbar;id&quot;&colon;&quot;1&quot;&comma;&quot;optional&lowbar;join&lowbar;deadline&lowbar;date&quot;&colon;null&comma;&quot;max&lowbar;number&lowbar;of&lowbar;student&quot;&colon;null&comma;&quot;min&lowbar;number&lowbar;of&lowbar;student&quot;&colon;null&comma;&quot;class&lowbar;hour&lowbar;template&lowbar;id&quot;&colon;null&comma;&quot;open&lowbar;for&lowbar;study&lowbar;domain&lowbar;codes&quot;&colon;null&comma;&quot;open&lowbar;for&lowbar;study&lowbar;course&lowbar;ids&quot;&colon;&quot;1359&quot;&comma;&quot;allow&lowbar;subscription&lowbar;types&quot;&colon;null&comma;&quot;room&lowbar;id&quot;&colon;null&comma;&quot;study&lowbar;curriculum&lowbar;id&quot;&colon;null&comma;&quot;study&lowbar;program&lowbar;id&quot;&colon;&quot;2654&quot;&comma;&quot;study&lowbar;course&lowbar;id&quot;&colon;&quot;1359&quot;&comma;&quot;enrollment&lowbar;type&quot;&colon;&quot;CE&quot;&comma;&quot;study&lowbar;assessment&lowbar;id&quot;&colon;null&comma;&quot;study&lowbar;assessment&lowbar;plan&lowbar;id&quot;&colon;null&comma;&quot;study&lowbar;program&lowbar;eval&lowbar;campaign&lowbar;id&quot;&colon;null&comma;&quot;access&lowbar;control&lowbar;list&lowbar;site&lowbar;ids&quot;&colon;null&comma;&quot;require&lowbar;teacher&lowbar;attendance&quot;&colon;&quot;F&quot;&comma;&quot;require&lowbar;student&lowbar;attendance&quot;&colon;&quot;F&quot;&comma;&quot;study&lowbar;grade&lowbar;code&quot;&colon;null&comma;&quot;background&lowbar;color&quot;&colon;null&comma;&quot;text&lowbar;color&quot;&colon;null&comma;&quot;allow&lowbar;proctor&lowbar;to&lowbar;mark&lowbar;teacher&lowbar;attendance&quot;&colon;&quot;0&quot;&comma;&quot;allow&lowbar;proctor&lowbar;to&lowbar;mark&lowbar;student&lowbar;attendance&quot;&colon;&quot;0&quot;&comma;&quot;title&quot;&colon;&quot;TIN3&lowbar;3C&quot;&comma;&quot;sub&lowbar;study&lowbar;module&lowbar;code&quot;&colon;null&comma;&quot;student&lowbar;class&lowbar;ids&quot;&colon;null&comma;&quot;display&lowbar;transferred&lowbar;students&lowbar;in&lowbar;grade&lowbar;book&quot;&colon;&quot;0&quot;&comma;&quot;open&lowbar;for&lowbar;genders&quot;&colon;&quot;&quot;&comma;&quot;study&lowbar;domain&lowbar;code&quot;&colon;&quot;TIMA&quot;&comma;&quot;study&lowbar;evaluation&lowbar;template&lowbar;id&quot;&colon;0&comma;&quot;&lowbar;&lowbar;study&lowbar;domain&lowbar;code&quot;&colon;&quot;&lbrack;TIMA&rsqb; Text &amp; Information Management &bsol;&sol; Tin Học&quot;&comma;&quot;&lowbar;&lowbar;instructor&lowbar;site&lowbar;ids&quot;&colon;&lbrace;&quot;47880&quot;&colon;&quot;&lbrack;47880&rsqb; Phạm V&abreve;n Bằng&quot;&rcub;&rcub;" data-search-key="" data-update-time="2025-08-22 11:54:03" data-id="84333" >
+  <div class="list-item-inner" >
+    <form method="post" class="item-form-bsj626jvpn js-form-init no-padding no-margin" >
+    <!--L1369-->
+  <!-- Mỗi classroom card -->
+  <div class="w3-col s12 m6 l4 w3-margin-bottom w3-padding">
+    <div class="w3-card w3-round-large"
+         style="background-color:
+                #add8e6; color:
+                #191970; height: 250px; display: flex; flex-direction: column; justify-content: space-between; box-shadow: 0 2px 6px rgba(0,0,0,0.2);">
+      <!-- Phần nội dung chính -->
+      <div class="w3-padding">
+        <h5 class="w3-xlarge" style="font-weight: bold;">
+                Tin học lớp 3</h5>
+        <div class="w3-medium">
+                 3C</div>
+        <div class="teacher-avatar-wrapper">
+          <div class="innodigi-avatar-input">
+                <div class="ohke-v-box ohke-control no-padding sf-l-1369-lecturer_site_id list-field-search sf-l-1369-lecturer_site_id">
+              <input type="hidden" value="47880" name="lecturer_site_id">
+<div class="ws-avatar">
+  <div class="ws-inner">
+    <div class="avatar circle" style="width:72px;height:72px"><div><a class="prevent-click" href="/47880/appstart?source=deeplink" title="[47880] Phạm Văn Bằng" target="_top"><img src="/appstart/resource/common/images/default-icon-individual.png" alt="avatar-47880" title="[47880] Phạm Văn Bằng"></a></div></div>
+  </div>
+  
+</div>    </div>
+</div>
+        </div>
+        <div class="w3-small">
+ students</div>
+      </div>
+      <!-- Phần dưới cùng -->
+      <div class="w3-padding w3-border-top">
+        <div class="w3-small w3-opacity">UPCOMING ASSIGNMENTS</div>
+        <div class="w3-small">No assignments</div>
+      </div>
+    </div>
+  </div>
+    </form>
+  </div>
+  </div>
+  <div class="list-item item-bsj626jvpn list-a559_ " id="item-bsj626jvpn-84389" data-entity="&lbrace;&quot;id&quot;&colon;&quot;84389&quot;&comma;&quot;working&lowbar;site&lowbar;id&quot;&colon;&quot;47817&quot;&comma;&quot;&lowbar;&lowbar;working&lowbar;site&lowbar;id&quot;&colon;&quot;&lbrack;47817&rsqb; PASCAL 2025-2026&quot;&comma;&quot;color&quot;&colon;&quot;&num;add8e6&quot;&comma;&quot;student&lowbar;class&lowbar;name&quot;&colon;&quot; 4A&quot;&comma;&quot;module&lowbar;name&quot;&colon;&quot;Tin học lớp 4&quot;&comma;&quot;code&quot;&colon;&quot;TIN4&lowbar;4A&quot;&comma;&quot;study&lowbar;class&lowbar;name&quot;&colon;&quot;TIN4 of 4A&quot;&comma;&quot;study&lowbar;module&lowbar;code&quot;&colon;&quot;TIN4&quot;&comma;&quot;&lowbar;&lowbar;study&lowbar;module&lowbar;code&quot;&colon;&quot;&lbrack;TIN4&rsqb; Tin học lớp 4&quot;&comma;&quot;student&lowbar;class&lowbar;id&quot;&colon;&quot;4990&quot;&comma;&quot;&lowbar;&lowbar;student&lowbar;class&lowbar;id&quot;&colon;&quot;&lbrack;4990&rsqb; 4A&quot;&comma;&quot;start&lowbar;date&quot;&colon;&quot;2025-08-01&quot;&comma;&quot;end&lowbar;date&quot;&colon;&quot;2026-05-31&quot;&comma;&quot;instructor&lowbar;site&lowbar;ids&quot;&colon;&quot;47880&quot;&comma;&quot;create&lowbar;site&lowbar;id&quot;&colon;&quot;47813&quot;&comma;&quot;&lowbar;&lowbar;create&lowbar;site&lowbar;id&quot;&colon;&quot;Tạ Thị T&acirc;m Anh&quot;&comma;&quot;create&lowbar;time&quot;&colon;&quot;2025-08-19 22&colon;24&colon;01&quot;&comma;&quot;update&lowbar;site&lowbar;id&quot;&colon;&quot;47813&quot;&comma;&quot;&lowbar;&lowbar;update&lowbar;site&lowbar;id&quot;&colon;&quot;Tạ Thị T&acirc;m Anh&quot;&comma;&quot;update&lowbar;time&quot;&colon;&quot;2025-08-22 17&colon;42&colon;29&quot;&comma;&quot;number&lowbar;of&lowbar;students&quot;&colon;&quot;29&quot;&comma;&quot;study&lowbar;program&lowbar;type&quot;&colon;&quot;ACAD&quot;&comma;&quot;lecturer&lowbar;site&lowbar;id&quot;&colon;&quot;47880&quot;&comma;&quot;&lowbar;&lowbar;lecturer&lowbar;site&lowbar;id&quot;&colon;&quot;&quot;&comma;&quot;is&lowbar;active&lowbar;classroom&quot;&colon;&quot;0&quot;&comma;&quot;study&lowbar;class&lowbar;status&quot;&colon;&quot;STUDY&lowbar;CLASS&lowbar;STATUS&lowbar;ACCEPTED&quot;&comma;&quot;&lowbar;&lowbar;study&lowbar;class&lowbar;status&quot;&colon;&quot;ACTIVE&quot;&comma;&quot;star&lowbar;id&quot;&colon;&quot;1&quot;&comma;&quot;optional&lowbar;join&lowbar;deadline&lowbar;date&quot;&colon;null&comma;&quot;max&lowbar;number&lowbar;of&lowbar;student&quot;&colon;null&comma;&quot;min&lowbar;number&lowbar;of&lowbar;student&quot;&colon;null&comma;&quot;class&lowbar;hour&lowbar;template&lowbar;id&quot;&colon;null&comma;&quot;open&lowbar;for&lowbar;study&lowbar;domain&lowbar;codes&quot;&colon;null&comma;&quot;open&lowbar;for&lowbar;study&lowbar;course&lowbar;ids&quot;&colon;&quot;1361&quot;&comma;&quot;allow&lowbar;subscription&lowbar;types&quot;&colon;null&comma;&quot;room&lowbar;id&quot;&colon;null&comma;&quot;study&lowbar;curriculum&lowbar;id&quot;&colon;null&comma;&quot;study&lowbar;program&lowbar;id&quot;&colon;&quot;2656&quot;&comma;&quot;study&lowbar;course&lowbar;id&quot;&colon;&quot;1361&quot;&comma;&quot;enrollment&lowbar;type&quot;&colon;&quot;CE&quot;&comma;&quot;study&lowbar;assessment&lowbar;id&quot;&colon;null&comma;&quot;study&lowbar;assessment&lowbar;plan&lowbar;id&quot;&colon;null&comma;&quot;study&lowbar;program&lowbar;eval&lowbar;campaign&lowbar;id&quot;&colon;null&comma;&quot;access&lowbar;control&lowbar;list&lowbar;site&lowbar;ids&quot;&colon;null&comma;&quot;require&lowbar;teacher&lowbar;attendance&quot;&colon;&quot;F&quot;&comma;&quot;require&lowbar;student&lowbar;attendance&quot;&colon;&quot;F&quot;&comma;&quot;study&lowbar;grade&lowbar;code&quot;&colon;null&comma;&quot;background&lowbar;color&quot;&colon;null&comma;&quot;text&lowbar;color&quot;&colon;null&comma;&quot;allow&lowbar;proctor&lowbar;to&lowbar;mark&lowbar;teacher&lowbar;attendance&quot;&colon;&quot;0&quot;&comma;&quot;allow&lowbar;proctor&lowbar;to&lowbar;mark&lowbar;student&lowbar;attendance&quot;&colon;&quot;0&quot;&comma;&quot;title&quot;&colon;&quot;TIN4&lowbar;4A&quot;&comma;&quot;sub&lowbar;study&lowbar;module&lowbar;code&quot;&colon;null&comma;&quot;student&lowbar;class&lowbar;ids&quot;&colon;null&comma;&quot;display&lowbar;transferred&lowbar;students&lowbar;in&lowbar;grade&lowbar;book&quot;&colon;&quot;0&quot;&comma;&quot;open&lowbar;for&lowbar;genders&quot;&colon;&quot;&quot;&comma;&quot;study&lowbar;domain&lowbar;code&quot;&colon;&quot;TIMA&quot;&comma;&quot;study&lowbar;evaluation&lowbar;template&lowbar;id&quot;&colon;0&comma;&quot;&lowbar;&lowbar;study&lowbar;domain&lowbar;code&quot;&colon;&quot;&lbrack;TIMA&rsqb; Text &amp; Information Management &bsol;&sol; Tin Học&quot;&comma;&quot;&lowbar;&lowbar;instructor&lowbar;site&lowbar;ids&quot;&colon;&lbrace;&quot;47880&quot;&colon;&quot;&lbrack;47880&rsqb; Phạm V&abreve;n Bằng&quot;&rcub;&rcub;" data-search-key="" data-update-time="2025-08-22 17:42:29" data-id="84389" >
+  <div class="list-item-inner" >
+    <form method="post" class="item-form-bsj626jvpn js-form-init no-padding no-margin" >
+    <!--L1369-->
+  <!-- Mỗi classroom card -->
+  <div class="w3-col s12 m6 l4 w3-margin-bottom w3-padding">
+    <div class="w3-card w3-round-large"
+         style="background-color:
+                #add8e6; color:
+                #191970; height: 250px; display: flex; flex-direction: column; justify-content: space-between; box-shadow: 0 2px 6px rgba(0,0,0,0.2);">
+      <!-- Phần nội dung chính -->
+      <div class="w3-padding">
+        <h5 class="w3-xlarge" style="font-weight: bold;">
+                Tin học lớp 4</h5>
+        <div class="w3-medium">
+                 4A</div>
+        <div class="teacher-avatar-wrapper">
+          <div class="innodigi-avatar-input">
+                <div class="ohke-v-box ohke-control no-padding sf-l-1369-lecturer_site_id list-field-search sf-l-1369-lecturer_site_id">
+              <input type="hidden" value="47880" name="lecturer_site_id">
+<div class="ws-avatar">
+  <div class="ws-inner">
+    <div class="avatar circle" style="width:72px;height:72px"><div><a class="prevent-click" href="/47880/appstart?source=deeplink" title="[47880] Phạm Văn Bằng" target="_top"><img src="/appstart/resource/common/images/default-icon-individual.png" alt="avatar-47880" title="[47880] Phạm Văn Bằng"></a></div></div>
+  </div>
+  
+</div>    </div>
+</div>
+        </div>
+        <div class="w3-small">
+ students</div>
+      </div>
+      <!-- Phần dưới cùng -->
+      <div class="w3-padding w3-border-top">
+        <div class="w3-small w3-opacity">UPCOMING ASSIGNMENTS</div>
+        <div class="w3-small">No assignments</div>
+      </div>
+    </div>
+  </div>
+    </form>
+  </div>
+  </div>
+  <div class="list-item item-bsj626jvpn list-a559_ " id="item-bsj626jvpn-84418" data-entity="&lbrace;&quot;id&quot;&colon;&quot;84418&quot;&comma;&quot;working&lowbar;site&lowbar;id&quot;&colon;&quot;47817&quot;&comma;&quot;&lowbar;&lowbar;working&lowbar;site&lowbar;id&quot;&colon;&quot;&lbrack;47817&rsqb; PASCAL 2025-2026&quot;&comma;&quot;color&quot;&colon;&quot;&num;add8e6&quot;&comma;&quot;student&lowbar;class&lowbar;name&quot;&colon;&quot; 4C&quot;&comma;&quot;module&lowbar;name&quot;&colon;&quot;Tin học lớp 4&quot;&comma;&quot;code&quot;&colon;&quot;TIN4&lowbar;4C&quot;&comma;&quot;study&lowbar;class&lowbar;name&quot;&colon;&quot;TIN4 of 4C&quot;&comma;&quot;study&lowbar;module&lowbar;code&quot;&colon;&quot;TIN4&quot;&comma;&quot;&lowbar;&lowbar;study&lowbar;module&lowbar;code&quot;&colon;&quot;&lbrack;TIN4&rsqb; Tin học lớp 4&quot;&comma;&quot;student&lowbar;class&lowbar;id&quot;&colon;&quot;4991&quot;&comma;&quot;&lowbar;&lowbar;student&lowbar;class&lowbar;id&quot;&colon;&quot;&lbrack;4991&rsqb; 4C&quot;&comma;&quot;start&lowbar;date&quot;&colon;&quot;2025-08-01&quot;&comma;&quot;end&lowbar;date&quot;&colon;&quot;2026-05-31&quot;&comma;&quot;instructor&lowbar;site&lowbar;ids&quot;&colon;&quot;47880&quot;&comma;&quot;create&lowbar;site&lowbar;id&quot;&colon;&quot;47813&quot;&comma;&quot;&lowbar;&lowbar;create&lowbar;site&lowbar;id&quot;&colon;&quot;Tạ Thị T&acirc;m Anh&quot;&comma;&quot;create&lowbar;time&quot;&colon;&quot;2025-08-19 22&colon;35&colon;58&quot;&comma;&quot;update&lowbar;site&lowbar;id&quot;&colon;&quot;47813&quot;&comma;&quot;&lowbar;&lowbar;update&lowbar;site&lowbar;id&quot;&colon;&quot;Tạ Thị T&acirc;m Anh&quot;&comma;&quot;update&lowbar;time&quot;&colon;&quot;2025-08-22 17&colon;19&colon;14&quot;&comma;&quot;number&lowbar;of&lowbar;students&quot;&colon;&quot;32&quot;&comma;&quot;study&lowbar;program&lowbar;type&quot;&colon;&quot;ACAD&quot;&comma;&quot;lecturer&lowbar;site&lowbar;id&quot;&colon;&quot;47880&quot;&comma;&quot;&lowbar;&lowbar;lecturer&lowbar;site&lowbar;id&quot;&colon;&quot;&quot;&comma;&quot;is&lowbar;active&lowbar;classroom&quot;&colon;&quot;0&quot;&comma;&quot;study&lowbar;class&lowbar;status&quot;&colon;&quot;STUDY&lowbar;CLASS&lowbar;STATUS&lowbar;ACCEPTED&quot;&comma;&quot;&lowbar;&lowbar;study&lowbar;class&lowbar;status&quot;&colon;&quot;ACTIVE&quot;&comma;&quot;star&lowbar;id&quot;&colon;&quot;1&quot;&comma;&quot;optional&lowbar;join&lowbar;deadline&lowbar;date&quot;&colon;null&comma;&quot;max&lowbar;number&lowbar;of&lowbar;student&quot;&colon;null&comma;&quot;min&lowbar;number&lowbar;of&lowbar;student&quot;&colon;null&comma;&quot;class&lowbar;hour&lowbar;template&lowbar;id&quot;&colon;null&comma;&quot;open&lowbar;for&lowbar;study&lowbar;domain&lowbar;codes&quot;&colon;null&comma;&quot;open&lowbar;for&lowbar;study&lowbar;course&lowbar;ids&quot;&colon;&quot;1361&quot;&comma;&quot;allow&lowbar;subscription&lowbar;types&quot;&colon;null&comma;&quot;room&lowbar;id&quot;&colon;null&comma;&quot;study&lowbar;curriculum&lowbar;id&quot;&colon;null&comma;&quot;study&lowbar;program&lowbar;id&quot;&colon;&quot;2657&quot;&comma;&quot;study&lowbar;course&lowbar;id&quot;&colon;&quot;1361&quot;&comma;&quot;enrollment&lowbar;type&quot;&colon;&quot;CE&quot;&comma;&quot;study&lowbar;assessment&lowbar;id&quot;&colon;null&comma;&quot;study&lowbar;assessment&lowbar;plan&lowbar;id&quot;&colon;null&comma;&quot;study&lowbar;program&lowbar;eval&lowbar;campaign&lowbar;id&quot;&colon;null&comma;&quot;access&lowbar;control&lowbar;list&lowbar;site&lowbar;ids&quot;&colon;null&comma;&quot;require&lowbar;teacher&lowbar;attendance&quot;&colon;&quot;F&quot;&comma;&quot;require&lowbar;student&lowbar;attendance&quot;&colon;&quot;F&quot;&comma;&quot;study&lowbar;grade&lowbar;code&quot;&colon;null&comma;&quot;background&lowbar;color&quot;&colon;null&comma;&quot;text&lowbar;color&quot;&colon;null&comma;&quot;allow&lowbar;proctor&lowbar;to&lowbar;mark&lowbar;teacher&lowbar;attendance&quot;&colon;&quot;0&quot;&comma;&quot;allow&lowbar;proctor&lowbar;to&lowbar;mark&lowbar;student&lowbar;attendance&quot;&colon;&quot;0&quot;&comma;&quot;title&quot;&colon;&quot;TIN4&lowbar;4C&quot;&comma;&quot;sub&lowbar;study&lowbar;module&lowbar;code&quot;&colon;null&comma;&quot;student&lowbar;class&lowbar;ids&quot;&colon;null&comma;&quot;display&lowbar;transferred&lowbar;students&lowbar;in&lowbar;grade&lowbar;book&quot;&colon;&quot;0&quot;&comma;&quot;open&lowbar;for&lowbar;genders&quot;&colon;&quot;&quot;&comma;&quot;study&lowbar;domain&lowbar;code&quot;&colon;&quot;TIMA&quot;&comma;&quot;study&lowbar;evaluation&lowbar;template&lowbar;id&quot;&colon;0&comma;&quot;&lowbar;&lowbar;study&lowbar;domain&lowbar;code&quot;&colon;&quot;&lbrack;TIMA&rsqb; Text &amp; Information Management &bsol;&sol; Tin Học&quot;&comma;&quot;&lowbar;&lowbar;instructor&lowbar;site&lowbar;ids&quot;&colon;&lbrace;&quot;47880&quot;&colon;&quot;&lbrack;47880&rsqb; Phạm V&abreve;n Bằng&quot;&rcub;&rcub;" data-search-key="" data-update-time="2025-08-22 17:19:14" data-id="84418" >
+  <div class="list-item-inner" >
+    <form method="post" class="item-form-bsj626jvpn js-form-init no-padding no-margin" >
+    <!--L1369-->
+  <!-- Mỗi classroom card -->
+  <div class="w3-col s12 m6 l4 w3-margin-bottom w3-padding">
+    <div class="w3-card w3-round-large"
+         style="background-color:
+                #add8e6; color:
+                #191970; height: 250px; display: flex; flex-direction: column; justify-content: space-between; box-shadow: 0 2px 6px rgba(0,0,0,0.2);">
+      <!-- Phần nội dung chính -->
+      <div class="w3-padding">
+        <h5 class="w3-xlarge" style="font-weight: bold;">
+                Tin học lớp 4</h5>
+        <div class="w3-medium">
+                 4C</div>
+        <div class="teacher-avatar-wrapper">
+          <div class="innodigi-avatar-input">
+                <div class="ohke-v-box ohke-control no-padding sf-l-1369-lecturer_site_id list-field-search sf-l-1369-lecturer_site_id">
+              <input type="hidden" value="47880" name="lecturer_site_id">
+<div class="ws-avatar">
+  <div class="ws-inner">
+    <div class="avatar circle" style="width:72px;height:72px"><div><a class="prevent-click" href="/47880/appstart?source=deeplink" title="[47880] Phạm Văn Bằng" target="_top"><img src="/appstart/resource/common/images/default-icon-individual.png" alt="avatar-47880" title="[47880] Phạm Văn Bằng"></a></div></div>
+  </div>
+  
+</div>    </div>
+</div>
+        </div>
+        <div class="w3-small">
+ students</div>
+      </div>
+      <!-- Phần dưới cùng -->
+      <div class="w3-padding w3-border-top">
+        <div class="w3-small w3-opacity">UPCOMING ASSIGNMENTS</div>
+        <div class="w3-small">No assignments</div>
+      </div>
+    </div>
+  </div>
+    </form>
+  </div>
+  </div>
+  <div class="list-item item-bsj626jvpn list-a559_ " id="item-bsj626jvpn-84864" data-entity="&lbrace;&quot;id&quot;&colon;&quot;84864&quot;&comma;&quot;working&lowbar;site&lowbar;id&quot;&colon;&quot;47817&quot;&comma;&quot;&lowbar;&lowbar;working&lowbar;site&lowbar;id&quot;&colon;&quot;&lbrack;47817&rsqb; PASCAL 2025-2026&quot;&comma;&quot;color&quot;&colon;&quot;&num;add8e6&quot;&comma;&quot;student&lowbar;class&lowbar;name&quot;&colon;&quot; 5A1&quot;&comma;&quot;module&lowbar;name&quot;&colon;&quot;Tin học lớp 5&quot;&comma;&quot;code&quot;&colon;&quot;TIN5&lowbar;5A1&quot;&comma;&quot;study&lowbar;class&lowbar;name&quot;&colon;&quot;TIN5 of 5A1&quot;&comma;&quot;study&lowbar;module&lowbar;code&quot;&colon;&quot;TIN5&quot;&comma;&quot;&lowbar;&lowbar;study&lowbar;module&lowbar;code&quot;&colon;&quot;&lbrack;TIN5&rsqb; Tin học lớp 5&quot;&comma;&quot;student&lowbar;class&lowbar;id&quot;&colon;&quot;4993&quot;&comma;&quot;&lowbar;&lowbar;student&lowbar;class&lowbar;id&quot;&colon;&quot;&lbrack;4993&rsqb; 5A1&quot;&comma;&quot;start&lowbar;date&quot;&colon;&quot;2025-08-01&quot;&comma;&quot;end&lowbar;date&quot;&colon;&quot;2026-05-31&quot;&comma;&quot;instructor&lowbar;site&lowbar;ids&quot;&colon;&quot;47880&quot;&comma;&quot;create&lowbar;site&lowbar;id&quot;&colon;&quot;47809&quot;&comma;&quot;&lowbar;&lowbar;create&lowbar;site&lowbar;id&quot;&colon;&quot;L&ecirc; Quốc Long&quot;&comma;&quot;create&lowbar;time&quot;&colon;&quot;2025-08-21 10&colon;33&colon;58&quot;&comma;&quot;update&lowbar;site&lowbar;id&quot;&colon;&quot;47813&quot;&comma;&quot;&lowbar;&lowbar;update&lowbar;site&lowbar;id&quot;&colon;&quot;Tạ Thị T&acirc;m Anh&quot;&comma;&quot;update&lowbar;time&quot;&colon;&quot;2025-08-25 10&colon;09&colon;48&quot;&comma;&quot;number&lowbar;of&lowbar;students&quot;&colon;&quot;17&quot;&comma;&quot;study&lowbar;program&lowbar;type&quot;&colon;&quot;ACAD&quot;&comma;&quot;lecturer&lowbar;site&lowbar;id&quot;&colon;&quot;47880&quot;&comma;&quot;&lowbar;&lowbar;lecturer&lowbar;site&lowbar;id&quot;&colon;&quot;&quot;&comma;&quot;is&lowbar;active&lowbar;classroom&quot;&colon;&quot;0&quot;&comma;&quot;study&lowbar;class&lowbar;status&quot;&colon;&quot;STUDY&lowbar;CLASS&lowbar;STATUS&lowbar;ACCEPTED&quot;&comma;&quot;&lowbar;&lowbar;study&lowbar;class&lowbar;status&quot;&colon;&quot;ACTIVE&quot;&comma;&quot;star&lowbar;id&quot;&colon;&quot;1&quot;&comma;&quot;optional&lowbar;join&lowbar;deadline&lowbar;date&quot;&colon;null&comma;&quot;max&lowbar;number&lowbar;of&lowbar;student&quot;&colon;null&comma;&quot;min&lowbar;number&lowbar;of&lowbar;student&quot;&colon;null&comma;&quot;class&lowbar;hour&lowbar;template&lowbar;id&quot;&colon;null&comma;&quot;open&lowbar;for&lowbar;study&lowbar;domain&lowbar;codes&quot;&colon;null&comma;&quot;open&lowbar;for&lowbar;study&lowbar;course&lowbar;ids&quot;&colon;&quot;1363&quot;&comma;&quot;allow&lowbar;subscription&lowbar;types&quot;&colon;null&comma;&quot;room&lowbar;id&quot;&colon;null&comma;&quot;study&lowbar;curriculum&lowbar;id&quot;&colon;null&comma;&quot;study&lowbar;program&lowbar;id&quot;&colon;&quot;2658&quot;&comma;&quot;study&lowbar;course&lowbar;id&quot;&colon;&quot;1363&quot;&comma;&quot;enrollment&lowbar;type&quot;&colon;&quot;CE&quot;&comma;&quot;study&lowbar;assessment&lowbar;id&quot;&colon;null&comma;&quot;study&lowbar;assessment&lowbar;plan&lowbar;id&quot;&colon;null&comma;&quot;study&lowbar;program&lowbar;eval&lowbar;campaign&lowbar;id&quot;&colon;null&comma;&quot;access&lowbar;control&lowbar;list&lowbar;site&lowbar;ids&quot;&colon;null&comma;&quot;require&lowbar;teacher&lowbar;attendance&quot;&colon;&quot;F&quot;&comma;&quot;require&lowbar;student&lowbar;attendance&quot;&colon;&quot;F&quot;&comma;&quot;study&lowbar;grade&lowbar;code&quot;&colon;null&comma;&quot;background&lowbar;color&quot;&colon;null&comma;&quot;text&lowbar;color&quot;&colon;null&comma;&quot;allow&lowbar;proctor&lowbar;to&lowbar;mark&lowbar;teacher&lowbar;attendance&quot;&colon;&quot;0&quot;&comma;&quot;allow&lowbar;proctor&lowbar;to&lowbar;mark&lowbar;student&lowbar;attendance&quot;&colon;&quot;0&quot;&comma;&quot;title&quot;&colon;&quot;TIN5&lowbar;5A1&quot;&comma;&quot;sub&lowbar;study&lowbar;module&lowbar;code&quot;&colon;null&comma;&quot;student&lowbar;class&lowbar;ids&quot;&colon;null&comma;&quot;display&lowbar;transferred&lowbar;students&lowbar;in&lowbar;grade&lowbar;book&quot;&colon;&quot;0&quot;&comma;&quot;open&lowbar;for&lowbar;genders&quot;&colon;&quot;&quot;&comma;&quot;study&lowbar;domain&lowbar;code&quot;&colon;&quot;TIMA&quot;&comma;&quot;study&lowbar;evaluation&lowbar;template&lowbar;id&quot;&colon;0&comma;&quot;&lowbar;&lowbar;study&lowbar;domain&lowbar;code&quot;&colon;&quot;&lbrack;TIMA&rsqb; Text &amp; Information Management &bsol;&sol; Tin Học&quot;&comma;&quot;&lowbar;&lowbar;instructor&lowbar;site&lowbar;ids&quot;&colon;&lbrace;&quot;47880&quot;&colon;&quot;&lbrack;47880&rsqb; Phạm V&abreve;n Bằng&quot;&rcub;&rcub;" data-search-key="" data-update-time="2025-08-25 10:09:48" data-id="84864" >
+  <div class="list-item-inner" >
+    <form method="post" class="item-form-bsj626jvpn js-form-init no-padding no-margin" >
+    <!--L1369-->
+  <!-- Mỗi classroom card -->
+  <div class="w3-col s12 m6 l4 w3-margin-bottom w3-padding">
+    <div class="w3-card w3-round-large"
+         style="background-color:
+                #add8e6; color:
+                #191970; height: 250px; display: flex; flex-direction: column; justify-content: space-between; box-shadow: 0 2px 6px rgba(0,0,0,0.2);">
+      <!-- Phần nội dung chính -->
+      <div class="w3-padding">
+        <h5 class="w3-xlarge" style="font-weight: bold;">
+                Tin học lớp 5</h5>
+        <div class="w3-medium">
+                 5A1</div>
+        <div class="teacher-avatar-wrapper">
+          <div class="innodigi-avatar-input">
+                <div class="ohke-v-box ohke-control no-padding sf-l-1369-lecturer_site_id list-field-search sf-l-1369-lecturer_site_id">
+              <input type="hidden" value="47880" name="lecturer_site_id">
+<div class="ws-avatar">
+  <div class="ws-inner">
+    <div class="avatar circle" style="width:72px;height:72px"><div><a class="prevent-click" href="/47880/appstart?source=deeplink" title="[47880] Phạm Văn Bằng" target="_top"><img src="/appstart/resource/common/images/default-icon-individual.png" alt="avatar-47880" title="[47880] Phạm Văn Bằng"></a></div></div>
+  </div>
+  
+</div>    </div>
+</div>
+        </div>
+        <div class="w3-small">
+ students</div>
+      </div>
+      <!-- Phần dưới cùng -->
+      <div class="w3-padding w3-border-top">
+        <div class="w3-small w3-opacity">UPCOMING ASSIGNMENTS</div>
+        <div class="w3-small">No assignments</div>
+      </div>
+    </div>
+  </div>
+    </form>
+  </div>
+  </div>
+  <div class="list-item item-bsj626jvpn list-a559_ " id="item-bsj626jvpn-84880" data-entity="&lbrace;&quot;id&quot;&colon;&quot;84880&quot;&comma;&quot;working&lowbar;site&lowbar;id&quot;&colon;&quot;47817&quot;&comma;&quot;&lowbar;&lowbar;working&lowbar;site&lowbar;id&quot;&colon;&quot;&lbrack;47817&rsqb; PASCAL 2025-2026&quot;&comma;&quot;color&quot;&colon;&quot;&num;add8e6&quot;&comma;&quot;student&lowbar;class&lowbar;name&quot;&colon;&quot; 5A2&quot;&comma;&quot;module&lowbar;name&quot;&colon;&quot;Tin học lớp 5&quot;&comma;&quot;code&quot;&colon;&quot;TIN5&lowbar;5A2&quot;&comma;&quot;study&lowbar;class&lowbar;name&quot;&colon;&quot;TIN5 of 5A2&quot;&comma;&quot;study&lowbar;module&lowbar;code&quot;&colon;&quot;TIN5&quot;&comma;&quot;&lowbar;&lowbar;study&lowbar;module&lowbar;code&quot;&colon;&quot;&lbrack;TIN5&rsqb; Tin học lớp 5&quot;&comma;&quot;student&lowbar;class&lowbar;id&quot;&colon;&quot;4994&quot;&comma;&quot;&lowbar;&lowbar;student&lowbar;class&lowbar;id&quot;&colon;&quot;&lbrack;4994&rsqb; 5A2&quot;&comma;&quot;start&lowbar;date&quot;&colon;&quot;2025-08-01&quot;&comma;&quot;end&lowbar;date&quot;&colon;&quot;2026-05-31&quot;&comma;&quot;instructor&lowbar;site&lowbar;ids&quot;&colon;&quot;47880&quot;&comma;&quot;create&lowbar;site&lowbar;id&quot;&colon;&quot;47809&quot;&comma;&quot;&lowbar;&lowbar;create&lowbar;site&lowbar;id&quot;&colon;&quot;L&ecirc; Quốc Long&quot;&comma;&quot;create&lowbar;time&quot;&colon;&quot;2025-08-21 10&colon;34&colon;30&quot;&comma;&quot;update&lowbar;site&lowbar;id&quot;&colon;&quot;47813&quot;&comma;&quot;&lowbar;&lowbar;update&lowbar;site&lowbar;id&quot;&colon;&quot;Tạ Thị T&acirc;m Anh&quot;&comma;&quot;update&lowbar;time&quot;&colon;&quot;2025-08-25 11&colon;37&colon;03&quot;&comma;&quot;number&lowbar;of&lowbar;students&quot;&colon;&quot;19&quot;&comma;&quot;study&lowbar;program&lowbar;type&quot;&colon;&quot;ACAD&quot;&comma;&quot;lecturer&lowbar;site&lowbar;id&quot;&colon;&quot;47880&quot;&comma;&quot;&lowbar;&lowbar;lecturer&lowbar;site&lowbar;id&quot;&colon;&quot;&quot;&comma;&quot;is&lowbar;active&lowbar;classroom&quot;&colon;&quot;0&quot;&comma;&quot;study&lowbar;class&lowbar;status&quot;&colon;&quot;STUDY&lowbar;CLASS&lowbar;STATUS&lowbar;ACCEPTED&quot;&comma;&quot;&lowbar;&lowbar;study&lowbar;class&lowbar;status&quot;&colon;&quot;ACTIVE&quot;&comma;&quot;star&lowbar;id&quot;&colon;&quot;1&quot;&comma;&quot;optional&lowbar;join&lowbar;deadline&lowbar;date&quot;&colon;null&comma;&quot;max&lowbar;number&lowbar;of&lowbar;student&quot;&colon;null&comma;&quot;min&lowbar;number&lowbar;of&lowbar;student&quot;&colon;null&comma;&quot;class&lowbar;hour&lowbar;template&lowbar;id&quot;&colon;null&comma;&quot;open&lowbar;for&lowbar;study&lowbar;domain&lowbar;codes&quot;&colon;null&comma;&quot;open&lowbar;for&lowbar;study&lowbar;course&lowbar;ids&quot;&colon;&quot;1363&quot;&comma;&quot;allow&lowbar;subscription&lowbar;types&quot;&colon;null&comma;&quot;room&lowbar;id&quot;&colon;null&comma;&quot;study&lowbar;curriculum&lowbar;id&quot;&colon;null&comma;&quot;study&lowbar;program&lowbar;id&quot;&colon;&quot;2658&quot;&comma;&quot;study&lowbar;course&lowbar;id&quot;&colon;&quot;1363&quot;&comma;&quot;enrollment&lowbar;type&quot;&colon;&quot;CE&quot;&comma;&quot;study&lowbar;assessment&lowbar;id&quot;&colon;null&comma;&quot;study&lowbar;assessment&lowbar;plan&lowbar;id&quot;&colon;null&comma;&quot;study&lowbar;program&lowbar;eval&lowbar;campaign&lowbar;id&quot;&colon;null&comma;&quot;access&lowbar;control&lowbar;list&lowbar;site&lowbar;ids&quot;&colon;null&comma;&quot;require&lowbar;teacher&lowbar;attendance&quot;&colon;&quot;F&quot;&comma;&quot;require&lowbar;student&lowbar;attendance&quot;&colon;&quot;F&quot;&comma;&quot;study&lowbar;grade&lowbar;code&quot;&colon;null&comma;&quot;background&lowbar;color&quot;&colon;null&comma;&quot;text&lowbar;color&quot;&colon;null&comma;&quot;allow&lowbar;proctor&lowbar;to&lowbar;mark&lowbar;teacher&lowbar;attendance&quot;&colon;&quot;0&quot;&comma;&quot;allow&lowbar;proctor&lowbar;to&lowbar;mark&lowbar;student&lowbar;attendance&quot;&colon;&quot;0&quot;&comma;&quot;title&quot;&colon;&quot;TIN5&lowbar;5A2&quot;&comma;&quot;sub&lowbar;study&lowbar;module&lowbar;code&quot;&colon;null&comma;&quot;student&lowbar;class&lowbar;ids&quot;&colon;null&comma;&quot;display&lowbar;transferred&lowbar;students&lowbar;in&lowbar;grade&lowbar;book&quot;&colon;&quot;0&quot;&comma;&quot;open&lowbar;for&lowbar;genders&quot;&colon;&quot;&quot;&comma;&quot;study&lowbar;domain&lowbar;code&quot;&colon;&quot;TIMA&quot;&comma;&quot;study&lowbar;evaluation&lowbar;template&lowbar;id&quot;&colon;0&comma;&quot;&lowbar;&lowbar;study&lowbar;domain&lowbar;code&quot;&colon;&quot;&lbrack;TIMA&rsqb; Text &amp; Information Management &bsol;&sol; Tin Học&quot;&comma;&quot;&lowbar;&lowbar;instructor&lowbar;site&lowbar;ids&quot;&colon;&lbrace;&quot;47880&quot;&colon;&quot;&lbrack;47880&rsqb; Phạm V&abreve;n Bằng&quot;&rcub;&rcub;" data-search-key="" data-update-time="2025-08-25 11:37:03" data-id="84880" >
+  <div class="list-item-inner" >
+    <form method="post" class="item-form-bsj626jvpn js-form-init no-padding no-margin" >
+    <!--L1369-->
+  <!-- Mỗi classroom card -->
+  <div class="w3-col s12 m6 l4 w3-margin-bottom w3-padding">
+    <div class="w3-card w3-round-large"
+         style="background-color:
+                #add8e6; color:
+                #191970; height: 250px; display: flex; flex-direction: column; justify-content: space-between; box-shadow: 0 2px 6px rgba(0,0,0,0.2);">
+      <!-- Phần nội dung chính -->
+      <div class="w3-padding">
+        <h5 class="w3-xlarge" style="font-weight: bold;">
+                Tin học lớp 5</h5>
+        <div class="w3-medium">
+                 5A2</div>
+        <div class="teacher-avatar-wrapper">
+          <div class="innodigi-avatar-input">
+                <div class="ohke-v-box ohke-control no-padding sf-l-1369-lecturer_site_id list-field-search sf-l-1369-lecturer_site_id">
+              <input type="hidden" value="47880" name="lecturer_site_id">
+<div class="ws-avatar">
+  <div class="ws-inner">
+    <div class="avatar circle" style="width:72px;height:72px"><div><a class="prevent-click" href="/47880/appstart?source=deeplink" title="[47880] Phạm Văn Bằng" target="_top"><img src="/appstart/resource/common/images/default-icon-individual.png" alt="avatar-47880" title="[47880] Phạm Văn Bằng"></a></div></div>
+  </div>
+  
+</div>    </div>
+</div>
+        </div>
+        <div class="w3-small">
+ students</div>
+      </div>
+      <!-- Phần dưới cùng -->
+      <div class="w3-padding w3-border-top">
+        <div class="w3-small w3-opacity">UPCOMING ASSIGNMENTS</div>
+        <div class="w3-small">No assignments</div>
+      </div>
+    </div>
+  </div>
+    </form>
+  </div>
+  </div>
+  <div class="list-item item-bsj626jvpn list-a559_ " id="item-bsj626jvpn-84446" data-entity="&lbrace;&quot;id&quot;&colon;&quot;84446&quot;&comma;&quot;working&lowbar;site&lowbar;id&quot;&colon;&quot;47817&quot;&comma;&quot;&lowbar;&lowbar;working&lowbar;site&lowbar;id&quot;&colon;&quot;&lbrack;47817&rsqb; PASCAL 2025-2026&quot;&comma;&quot;color&quot;&colon;&quot;&num;add8e6&quot;&comma;&quot;student&lowbar;class&lowbar;name&quot;&colon;&quot; 5C&quot;&comma;&quot;module&lowbar;name&quot;&colon;&quot;Tin học lớp 5&quot;&comma;&quot;code&quot;&colon;&quot;TIN5&lowbar;5C&quot;&comma;&quot;study&lowbar;class&lowbar;name&quot;&colon;&quot;TIN5 of 5C&quot;&comma;&quot;study&lowbar;module&lowbar;code&quot;&colon;&quot;TIN5&quot;&comma;&quot;&lowbar;&lowbar;study&lowbar;module&lowbar;code&quot;&colon;&quot;&lbrack;TIN5&rsqb; Tin học lớp 5&quot;&comma;&quot;student&lowbar;class&lowbar;id&quot;&colon;&quot;4992&quot;&comma;&quot;&lowbar;&lowbar;student&lowbar;class&lowbar;id&quot;&colon;&quot;&lbrack;4992&rsqb; 5C&quot;&comma;&quot;start&lowbar;date&quot;&colon;&quot;2025-08-01&quot;&comma;&quot;end&lowbar;date&quot;&colon;&quot;2026-05-31&quot;&comma;&quot;instructor&lowbar;site&lowbar;ids&quot;&colon;&quot;47880&quot;&comma;&quot;create&lowbar;site&lowbar;id&quot;&colon;&quot;47813&quot;&comma;&quot;&lowbar;&lowbar;create&lowbar;site&lowbar;id&quot;&colon;&quot;Tạ Thị T&acirc;m Anh&quot;&comma;&quot;create&lowbar;time&quot;&colon;&quot;2025-08-19 22&colon;43&colon;25&quot;&comma;&quot;update&lowbar;site&lowbar;id&quot;&colon;&quot;47813&quot;&comma;&quot;&lowbar;&lowbar;update&lowbar;site&lowbar;id&quot;&colon;&quot;Tạ Thị T&acirc;m Anh&quot;&comma;&quot;update&lowbar;time&quot;&colon;&quot;2025-08-25 11&colon;45&colon;52&quot;&comma;&quot;number&lowbar;of&lowbar;students&quot;&colon;&quot;23&quot;&comma;&quot;study&lowbar;program&lowbar;type&quot;&colon;&quot;ACAD&quot;&comma;&quot;lecturer&lowbar;site&lowbar;id&quot;&colon;&quot;47880&quot;&comma;&quot;&lowbar;&lowbar;lecturer&lowbar;site&lowbar;id&quot;&colon;&quot;&quot;&comma;&quot;is&lowbar;active&lowbar;classroom&quot;&colon;&quot;0&quot;&comma;&quot;study&lowbar;class&lowbar;status&quot;&colon;&quot;STUDY&lowbar;CLASS&lowbar;STATUS&lowbar;ACCEPTED&quot;&comma;&quot;&lowbar;&lowbar;study&lowbar;class&lowbar;status&quot;&colon;&quot;ACTIVE&quot;&comma;&quot;star&lowbar;id&quot;&colon;&quot;1&quot;&comma;&quot;optional&lowbar;join&lowbar;deadline&lowbar;date&quot;&colon;null&comma;&quot;max&lowbar;number&lowbar;of&lowbar;student&quot;&colon;null&comma;&quot;min&lowbar;number&lowbar;of&lowbar;student&quot;&colon;null&comma;&quot;class&lowbar;hour&lowbar;template&lowbar;id&quot;&colon;null&comma;&quot;open&lowbar;for&lowbar;study&lowbar;domain&lowbar;codes&quot;&colon;null&comma;&quot;open&lowbar;for&lowbar;study&lowbar;course&lowbar;ids&quot;&colon;&quot;1363&quot;&comma;&quot;allow&lowbar;subscription&lowbar;types&quot;&colon;null&comma;&quot;room&lowbar;id&quot;&colon;null&comma;&quot;study&lowbar;curriculum&lowbar;id&quot;&colon;null&comma;&quot;study&lowbar;program&lowbar;id&quot;&colon;&quot;2659&quot;&comma;&quot;study&lowbar;course&lowbar;id&quot;&colon;&quot;1363&quot;&comma;&quot;enrollment&lowbar;type&quot;&colon;&quot;CE&quot;&comma;&quot;study&lowbar;assessment&lowbar;id&quot;&colon;null&comma;&quot;study&lowbar;assessment&lowbar;plan&lowbar;id&quot;&colon;null&comma;&quot;study&lowbar;program&lowbar;eval&lowbar;campaign&lowbar;id&quot;&colon;null&comma;&quot;access&lowbar;control&lowbar;list&lowbar;site&lowbar;ids&quot;&colon;null&comma;&quot;require&lowbar;teacher&lowbar;attendance&quot;&colon;&quot;F&quot;&comma;&quot;require&lowbar;student&lowbar;attendance&quot;&colon;&quot;F&quot;&comma;&quot;study&lowbar;grade&lowbar;code&quot;&colon;null&comma;&quot;background&lowbar;color&quot;&colon;null&comma;&quot;text&lowbar;color&quot;&colon;null&comma;&quot;allow&lowbar;proctor&lowbar;to&lowbar;mark&lowbar;teacher&lowbar;attendance&quot;&colon;&quot;0&quot;&comma;&quot;allow&lowbar;proctor&lowbar;to&lowbar;mark&lowbar;student&lowbar;attendance&quot;&colon;&quot;0&quot;&comma;&quot;title&quot;&colon;&quot;TIN5&lowbar;5C&quot;&comma;&quot;sub&lowbar;study&lowbar;module&lowbar;code&quot;&colon;null&comma;&quot;student&lowbar;class&lowbar;ids&quot;&colon;null&comma;&quot;display&lowbar;transferred&lowbar;students&lowbar;in&lowbar;grade&lowbar;book&quot;&colon;&quot;0&quot;&comma;&quot;open&lowbar;for&lowbar;genders&quot;&colon;&quot;&quot;&comma;&quot;study&lowbar;domain&lowbar;code&quot;&colon;&quot;TIMA&quot;&comma;&quot;study&lowbar;evaluation&lowbar;template&lowbar;id&quot;&colon;0&comma;&quot;&lowbar;&lowbar;study&lowbar;domain&lowbar;code&quot;&colon;&quot;&lbrack;TIMA&rsqb; Text &amp; Information Management &bsol;&sol; Tin Học&quot;&comma;&quot;&lowbar;&lowbar;instructor&lowbar;site&lowbar;ids&quot;&colon;&lbrace;&quot;47880&quot;&colon;&quot;&lbrack;47880&rsqb; Phạm V&abreve;n Bằng&quot;&rcub;&rcub;" data-search-key="" data-update-time="2025-08-25 11:45:52" data-id="84446" >
+  <div class="list-item-inner" >
+    <form method="post" class="item-form-bsj626jvpn js-form-init no-padding no-margin" >
+    <!--L1369-->
+  <!-- Mỗi classroom card -->
+  <div class="w3-col s12 m6 l4 w3-margin-bottom w3-padding">
+    <div class="w3-card w3-round-large"
+         style="background-color:
+                #add8e6; color:
+                #191970; height: 250px; display: flex; flex-direction: column; justify-content: space-between; box-shadow: 0 2px 6px rgba(0,0,0,0.2);">
+      <!-- Phần nội dung chính -->
+      <div class="w3-padding">
+        <h5 class="w3-xlarge" style="font-weight: bold;">
+                Tin học lớp 5</h5>
+        <div class="w3-medium">
+                 5C</div>
+        <div class="teacher-avatar-wrapper">
+          <div class="innodigi-avatar-input">
+                <div class="ohke-v-box ohke-control no-padding sf-l-1369-lecturer_site_id list-field-search sf-l-1369-lecturer_site_id">
+              <input type="hidden" value="47880" name="lecturer_site_id">
+<div class="ws-avatar">
+  <div class="ws-inner">
+    <div class="avatar circle" style="width:72px;height:72px"><div><a class="prevent-click" href="/47880/appstart?source=deeplink" title="[47880] Phạm Văn Bằng" target="_top"><img src="/appstart/resource/common/images/default-icon-individual.png" alt="avatar-47880" title="[47880] Phạm Văn Bằng"></a></div></div>
+  </div>
+  
+</div>    </div>
+</div>
+        </div>
+        <div class="w3-small">
+ students</div>
+      </div>
+      <!-- Phần dưới cùng -->
+      <div class="w3-padding w3-border-top">
+        <div class="w3-small w3-opacity">UPCOMING ASSIGNMENTS</div>
+        <div class="w3-small">No assignments</div>
+      </div>
+    </div>
+  </div>
+    </form>
+  </div>
+  </div>
+  <div class="list-item item-bsj626jvpn list-a559_ " id="item-bsj626jvpn-86156" data-entity="&lbrace;&quot;id&quot;&colon;&quot;86156&quot;&comma;&quot;working&lowbar;site&lowbar;id&quot;&colon;&quot;47817&quot;&comma;&quot;&lowbar;&lowbar;working&lowbar;site&lowbar;id&quot;&colon;&quot;&lbrack;47817&rsqb; PASCAL 2025-2026&quot;&comma;&quot;color&quot;&colon;&quot;&num;add8e6&quot;&comma;&quot;student&lowbar;class&lowbar;name&quot;&colon;&quot; 6A&quot;&comma;&quot;module&lowbar;name&quot;&colon;&quot;Tin học 6&quot;&comma;&quot;code&quot;&colon;&quot;TIN6&lowbar;6A&quot;&comma;&quot;study&lowbar;class&lowbar;name&quot;&colon;&quot;TIN6 of 6A&quot;&comma;&quot;study&lowbar;module&lowbar;code&quot;&colon;&quot;TIN6&quot;&comma;&quot;&lowbar;&lowbar;study&lowbar;module&lowbar;code&quot;&colon;&quot;&lbrack;TIN6&rsqb; Tin học 6&quot;&comma;&quot;student&lowbar;class&lowbar;id&quot;&colon;&quot;5353&quot;&comma;&quot;&lowbar;&lowbar;student&lowbar;class&lowbar;id&quot;&colon;&quot;&lbrack;5353&rsqb; 6A&quot;&comma;&quot;start&lowbar;date&quot;&colon;&quot;2025-08-01&quot;&comma;&quot;end&lowbar;date&quot;&colon;&quot;2026-05-31&quot;&comma;&quot;instructor&lowbar;site&lowbar;ids&quot;&colon;&quot;47880&quot;&comma;&quot;create&lowbar;site&lowbar;id&quot;&colon;&quot;47909&quot;&comma;&quot;&lowbar;&lowbar;create&lowbar;site&lowbar;id&quot;&colon;&quot;Nguyễn Thị Diệu Th&uacute;y&quot;&comma;&quot;create&lowbar;time&quot;&colon;&quot;2025-09-10 17&colon;48&colon;30&quot;&comma;&quot;update&lowbar;site&lowbar;id&quot;&colon;&quot;47909&quot;&comma;&quot;&lowbar;&lowbar;update&lowbar;site&lowbar;id&quot;&colon;&quot;Nguyễn Thị Diệu Th&uacute;y&quot;&comma;&quot;update&lowbar;time&quot;&colon;&quot;2025-09-10 18&colon;02&colon;43&quot;&comma;&quot;number&lowbar;of&lowbar;students&quot;&colon;&quot;31&quot;&comma;&quot;study&lowbar;program&lowbar;type&quot;&colon;&quot;ACAD&quot;&comma;&quot;lecturer&lowbar;site&lowbar;id&quot;&colon;&quot;47880&quot;&comma;&quot;&lowbar;&lowbar;lecturer&lowbar;site&lowbar;id&quot;&colon;&quot;&quot;&comma;&quot;is&lowbar;active&lowbar;classroom&quot;&colon;&quot;0&quot;&comma;&quot;study&lowbar;class&lowbar;status&quot;&colon;&quot;STUDY&lowbar;CLASS&lowbar;STATUS&lowbar;ACCEPTED&quot;&comma;&quot;&lowbar;&lowbar;study&lowbar;class&lowbar;status&quot;&colon;&quot;ACTIVE&quot;&comma;&quot;star&lowbar;id&quot;&colon;&quot;1&quot;&comma;&quot;optional&lowbar;join&lowbar;deadline&lowbar;date&quot;&colon;null&comma;&quot;max&lowbar;number&lowbar;of&lowbar;student&quot;&colon;null&comma;&quot;min&lowbar;number&lowbar;of&lowbar;student&quot;&colon;null&comma;&quot;class&lowbar;hour&lowbar;template&lowbar;id&quot;&colon;null&comma;&quot;open&lowbar;for&lowbar;study&lowbar;domain&lowbar;codes&quot;&colon;null&comma;&quot;open&lowbar;for&lowbar;study&lowbar;course&lowbar;ids&quot;&colon;&quot;1364&quot;&comma;&quot;allow&lowbar;subscription&lowbar;types&quot;&colon;null&comma;&quot;room&lowbar;id&quot;&colon;null&comma;&quot;study&lowbar;curriculum&lowbar;id&quot;&colon;null&comma;&quot;study&lowbar;program&lowbar;id&quot;&colon;null&comma;&quot;study&lowbar;course&lowbar;id&quot;&colon;&quot;1364&quot;&comma;&quot;enrollment&lowbar;type&quot;&colon;&quot;CE&quot;&comma;&quot;study&lowbar;assessment&lowbar;id&quot;&colon;null&comma;&quot;study&lowbar;assessment&lowbar;plan&lowbar;id&quot;&colon;null&comma;&quot;study&lowbar;program&lowbar;eval&lowbar;campaign&lowbar;id&quot;&colon;null&comma;&quot;access&lowbar;control&lowbar;list&lowbar;site&lowbar;ids&quot;&colon;null&comma;&quot;require&lowbar;teacher&lowbar;attendance&quot;&colon;&quot;F&quot;&comma;&quot;require&lowbar;student&lowbar;attendance&quot;&colon;&quot;F&quot;&comma;&quot;study&lowbar;grade&lowbar;code&quot;&colon;null&comma;&quot;background&lowbar;color&quot;&colon;null&comma;&quot;text&lowbar;color&quot;&colon;null&comma;&quot;allow&lowbar;proctor&lowbar;to&lowbar;mark&lowbar;teacher&lowbar;attendance&quot;&colon;&quot;0&quot;&comma;&quot;allow&lowbar;proctor&lowbar;to&lowbar;mark&lowbar;student&lowbar;attendance&quot;&colon;&quot;0&quot;&comma;&quot;title&quot;&colon;&quot;TIN6&lowbar;6A&quot;&comma;&quot;sub&lowbar;study&lowbar;module&lowbar;code&quot;&colon;null&comma;&quot;student&lowbar;class&lowbar;ids&quot;&colon;null&comma;&quot;display&lowbar;transferred&lowbar;students&lowbar;in&lowbar;grade&lowbar;book&quot;&colon;&quot;0&quot;&comma;&quot;open&lowbar;for&lowbar;genders&quot;&colon;&quot;&quot;&comma;&quot;study&lowbar;domain&lowbar;code&quot;&colon;&quot;TIMA&quot;&comma;&quot;study&lowbar;evaluation&lowbar;template&lowbar;id&quot;&colon;0&comma;&quot;&lowbar;&lowbar;study&lowbar;domain&lowbar;code&quot;&colon;&quot;&lbrack;TIMA&rsqb; Text &amp; Information Management &bsol;&sol; Tin Học&quot;&comma;&quot;&lowbar;&lowbar;instructor&lowbar;site&lowbar;ids&quot;&colon;&lbrace;&quot;47880&quot;&colon;&quot;&lbrack;47880&rsqb; Phạm V&abreve;n Bằng&quot;&rcub;&rcub;" data-search-key="" data-update-time="2025-09-10 18:02:43" data-id="86156" >
+  <div class="list-item-inner" >
+    <form method="post" class="item-form-bsj626jvpn js-form-init no-padding no-margin" >
+    <!--L1369-->
+  <!-- Mỗi classroom card -->
+  <div class="w3-col s12 m6 l4 w3-margin-bottom w3-padding">
+    <div class="w3-card w3-round-large"
+         style="background-color:
+                #add8e6; color:
+                #191970; height: 250px; display: flex; flex-direction: column; justify-content: space-between; box-shadow: 0 2px 6px rgba(0,0,0,0.2);">
+      <!-- Phần nội dung chính -->
+      <div class="w3-padding">
+        <h5 class="w3-xlarge" style="font-weight: bold;">
+                Tin học 6</h5>
+        <div class="w3-medium">
+                 6A</div>
+        <div class="teacher-avatar-wrapper">
+          <div class="innodigi-avatar-input">
+                <div class="ohke-v-box ohke-control no-padding sf-l-1369-lecturer_site_id list-field-search sf-l-1369-lecturer_site_id">
+              <input type="hidden" value="47880" name="lecturer_site_id">
+<div class="ws-avatar">
+  <div class="ws-inner">
+    <div class="avatar circle" style="width:72px;height:72px"><div><a class="prevent-click" href="/47880/appstart?source=deeplink" title="[47880] Phạm Văn Bằng" target="_top"><img src="/appstart/resource/common/images/default-icon-individual.png" alt="avatar-47880" title="[47880] Phạm Văn Bằng"></a></div></div>
+  </div>
+  
+</div>    </div>
+</div>
+        </div>
+        <div class="w3-small">
+ students</div>
+      </div>
+      <!-- Phần dưới cùng -->
+      <div class="w3-padding w3-border-top">
+        <div class="w3-small w3-opacity">UPCOMING ASSIGNMENTS</div>
+        <div class="w3-small">No assignments</div>
+      </div>
+    </div>
+  </div>
+    </form>
+  </div>
+  </div>
+  <div class="list-item item-bsj626jvpn list-a559_ " id="item-bsj626jvpn-83779" data-entity="&lbrace;&quot;id&quot;&colon;&quot;83779&quot;&comma;&quot;working&lowbar;site&lowbar;id&quot;&colon;&quot;47817&quot;&comma;&quot;&lowbar;&lowbar;working&lowbar;site&lowbar;id&quot;&colon;&quot;&lbrack;47817&rsqb; PASCAL 2025-2026&quot;&comma;&quot;color&quot;&colon;&quot;&num;add8e6&quot;&comma;&quot;student&lowbar;class&lowbar;name&quot;&colon;&quot; 6C&quot;&comma;&quot;module&lowbar;name&quot;&colon;&quot;Tin học 6&quot;&comma;&quot;code&quot;&colon;&quot;TIN6&lowbar;6C&quot;&comma;&quot;study&lowbar;class&lowbar;name&quot;&colon;&quot;TIN6 of 6C&quot;&comma;&quot;study&lowbar;module&lowbar;code&quot;&colon;&quot;TIN6&quot;&comma;&quot;&lowbar;&lowbar;study&lowbar;module&lowbar;code&quot;&colon;&quot;&lbrack;TIN6&rsqb; Tin học 6&quot;&comma;&quot;student&lowbar;class&lowbar;id&quot;&colon;&quot;5420&quot;&comma;&quot;&lowbar;&lowbar;student&lowbar;class&lowbar;id&quot;&colon;&quot;&lbrack;5420&rsqb; 6C&quot;&comma;&quot;start&lowbar;date&quot;&colon;&quot;2025-08-01&quot;&comma;&quot;end&lowbar;date&quot;&colon;&quot;2026-05-31&quot;&comma;&quot;instructor&lowbar;site&lowbar;ids&quot;&colon;&quot;47880&quot;&comma;&quot;create&lowbar;site&lowbar;id&quot;&colon;&quot;47909&quot;&comma;&quot;&lowbar;&lowbar;create&lowbar;site&lowbar;id&quot;&colon;&quot;Nguyễn Thị Diệu Th&uacute;y&quot;&comma;&quot;create&lowbar;time&quot;&colon;&quot;2025-08-18 08&colon;49&colon;16&quot;&comma;&quot;update&lowbar;site&lowbar;id&quot;&colon;&quot;47909&quot;&comma;&quot;&lowbar;&lowbar;update&lowbar;site&lowbar;id&quot;&colon;&quot;Nguyễn Thị Diệu Th&uacute;y&quot;&comma;&quot;update&lowbar;time&quot;&colon;&quot;2025-08-26 17&colon;02&colon;31&quot;&comma;&quot;number&lowbar;of&lowbar;students&quot;&colon;&quot;17&quot;&comma;&quot;study&lowbar;program&lowbar;type&quot;&colon;&quot;ACAD&quot;&comma;&quot;lecturer&lowbar;site&lowbar;id&quot;&colon;&quot;47880&quot;&comma;&quot;&lowbar;&lowbar;lecturer&lowbar;site&lowbar;id&quot;&colon;&quot;&quot;&comma;&quot;is&lowbar;active&lowbar;classroom&quot;&colon;&quot;0&quot;&comma;&quot;study&lowbar;class&lowbar;status&quot;&colon;&quot;STUDY&lowbar;CLASS&lowbar;STATUS&lowbar;ACCEPTED&quot;&comma;&quot;&lowbar;&lowbar;study&lowbar;class&lowbar;status&quot;&colon;&quot;ACTIVE&quot;&comma;&quot;star&lowbar;id&quot;&colon;&quot;1&quot;&comma;&quot;optional&lowbar;join&lowbar;deadline&lowbar;date&quot;&colon;null&comma;&quot;max&lowbar;number&lowbar;of&lowbar;student&quot;&colon;null&comma;&quot;min&lowbar;number&lowbar;of&lowbar;student&quot;&colon;null&comma;&quot;class&lowbar;hour&lowbar;template&lowbar;id&quot;&colon;null&comma;&quot;open&lowbar;for&lowbar;study&lowbar;domain&lowbar;codes&quot;&colon;null&comma;&quot;open&lowbar;for&lowbar;study&lowbar;course&lowbar;ids&quot;&colon;&quot;1364&quot;&comma;&quot;allow&lowbar;subscription&lowbar;types&quot;&colon;null&comma;&quot;room&lowbar;id&quot;&colon;null&comma;&quot;study&lowbar;curriculum&lowbar;id&quot;&colon;null&comma;&quot;study&lowbar;program&lowbar;id&quot;&colon;&quot;2721&quot;&comma;&quot;study&lowbar;course&lowbar;id&quot;&colon;&quot;1364&quot;&comma;&quot;enrollment&lowbar;type&quot;&colon;&quot;CE&quot;&comma;&quot;study&lowbar;assessment&lowbar;id&quot;&colon;null&comma;&quot;study&lowbar;assessment&lowbar;plan&lowbar;id&quot;&colon;null&comma;&quot;study&lowbar;program&lowbar;eval&lowbar;campaign&lowbar;id&quot;&colon;null&comma;&quot;access&lowbar;control&lowbar;list&lowbar;site&lowbar;ids&quot;&colon;null&comma;&quot;require&lowbar;teacher&lowbar;attendance&quot;&colon;&quot;F&quot;&comma;&quot;require&lowbar;student&lowbar;attendance&quot;&colon;&quot;F&quot;&comma;&quot;study&lowbar;grade&lowbar;code&quot;&colon;null&comma;&quot;background&lowbar;color&quot;&colon;null&comma;&quot;text&lowbar;color&quot;&colon;null&comma;&quot;allow&lowbar;proctor&lowbar;to&lowbar;mark&lowbar;teacher&lowbar;attendance&quot;&colon;&quot;0&quot;&comma;&quot;allow&lowbar;proctor&lowbar;to&lowbar;mark&lowbar;student&lowbar;attendance&quot;&colon;&quot;0&quot;&comma;&quot;title&quot;&colon;&quot;TIN6&lowbar;6C&quot;&comma;&quot;sub&lowbar;study&lowbar;module&lowbar;code&quot;&colon;null&comma;&quot;student&lowbar;class&lowbar;ids&quot;&colon;null&comma;&quot;display&lowbar;transferred&lowbar;students&lowbar;in&lowbar;grade&lowbar;book&quot;&colon;&quot;0&quot;&comma;&quot;open&lowbar;for&lowbar;genders&quot;&colon;&quot;&quot;&comma;&quot;study&lowbar;domain&lowbar;code&quot;&colon;&quot;TIMA&quot;&comma;&quot;study&lowbar;evaluation&lowbar;template&lowbar;id&quot;&colon;0&comma;&quot;&lowbar;&lowbar;study&lowbar;domain&lowbar;code&quot;&colon;&quot;&lbrack;TIMA&rsqb; Text &amp; Information Management &bsol;&sol; Tin Học&quot;&comma;&quot;&lowbar;&lowbar;instructor&lowbar;site&lowbar;ids&quot;&colon;&lbrace;&quot;47880&quot;&colon;&quot;&lbrack;47880&rsqb; Phạm V&abreve;n Bằng&quot;&rcub;&rcub;" data-search-key="" data-update-time="2025-08-26 17:02:31" data-id="83779" >
+  <div class="list-item-inner" >
+    <form method="post" class="item-form-bsj626jvpn js-form-init no-padding no-margin" >
+    <!--L1369-->
+  <!-- Mỗi classroom card -->
+  <div class="w3-col s12 m6 l4 w3-margin-bottom w3-padding">
+    <div class="w3-card w3-round-large"
+         style="background-color:
+                #add8e6; color:
+                #191970; height: 250px; display: flex; flex-direction: column; justify-content: space-between; box-shadow: 0 2px 6px rgba(0,0,0,0.2);">
+      <!-- Phần nội dung chính -->
+      <div class="w3-padding">
+        <h5 class="w3-xlarge" style="font-weight: bold;">
+                Tin học 6</h5>
+        <div class="w3-medium">
+                 6C</div>
+        <div class="teacher-avatar-wrapper">
+          <div class="innodigi-avatar-input">
+                <div class="ohke-v-box ohke-control no-padding sf-l-1369-lecturer_site_id list-field-search sf-l-1369-lecturer_site_id">
+              <input type="hidden" value="47880" name="lecturer_site_id">
+<div class="ws-avatar">
+  <div class="ws-inner">
+    <div class="avatar circle" style="width:72px;height:72px"><div><a class="prevent-click" href="/47880/appstart?source=deeplink" title="[47880] Phạm Văn Bằng" target="_top"><img src="/appstart/resource/common/images/default-icon-individual.png" alt="avatar-47880" title="[47880] Phạm Văn Bằng"></a></div></div>
+  </div>
+  
+</div>    </div>
+</div>
+        </div>
+        <div class="w3-small">
+ students</div>
+      </div>
+      <!-- Phần dưới cùng -->
+      <div class="w3-padding w3-border-top">
+        <div class="w3-small w3-opacity">UPCOMING ASSIGNMENTS</div>
+        <div class="w3-small">No assignments</div>
+      </div>
+    </div>
+  </div>
+    </form>
+  </div>
+  </div>
+  <div class="list-item item-bsj626jvpn list-a559_ " id="item-bsj626jvpn-85045" data-entity="&lbrace;&quot;id&quot;&colon;&quot;85045&quot;&comma;&quot;working&lowbar;site&lowbar;id&quot;&colon;&quot;47817&quot;&comma;&quot;&lowbar;&lowbar;working&lowbar;site&lowbar;id&quot;&colon;&quot;&lbrack;47817&rsqb; PASCAL 2025-2026&quot;&comma;&quot;color&quot;&colon;&quot;&num;add8e6&quot;&comma;&quot;student&lowbar;class&lowbar;name&quot;&colon;&quot; 6G&quot;&comma;&quot;module&lowbar;name&quot;&colon;&quot;Tin học 6&quot;&comma;&quot;code&quot;&colon;&quot;TIN6&lowbar;6G&quot;&comma;&quot;study&lowbar;class&lowbar;name&quot;&colon;&quot;TIN6 of 6G&quot;&comma;&quot;study&lowbar;module&lowbar;code&quot;&colon;&quot;TIN6&quot;&comma;&quot;&lowbar;&lowbar;study&lowbar;module&lowbar;code&quot;&colon;&quot;&lbrack;TIN6&rsqb; Tin học 6&quot;&comma;&quot;student&lowbar;class&lowbar;id&quot;&colon;&quot;5421&quot;&comma;&quot;&lowbar;&lowbar;student&lowbar;class&lowbar;id&quot;&colon;&quot;&lbrack;5421&rsqb; 6G&quot;&comma;&quot;start&lowbar;date&quot;&colon;&quot;2025-08-01&quot;&comma;&quot;end&lowbar;date&quot;&colon;&quot;2026-05-31&quot;&comma;&quot;instructor&lowbar;site&lowbar;ids&quot;&colon;&quot;47880&quot;&comma;&quot;create&lowbar;site&lowbar;id&quot;&colon;&quot;47909&quot;&comma;&quot;&lowbar;&lowbar;create&lowbar;site&lowbar;id&quot;&colon;&quot;Nguyễn Thị Diệu Th&uacute;y&quot;&comma;&quot;create&lowbar;time&quot;&colon;&quot;2025-08-25 00&colon;51&colon;20&quot;&comma;&quot;update&lowbar;site&lowbar;id&quot;&colon;&quot;47909&quot;&comma;&quot;&lowbar;&lowbar;update&lowbar;site&lowbar;id&quot;&colon;&quot;Nguyễn Thị Diệu Th&uacute;y&quot;&comma;&quot;update&lowbar;time&quot;&colon;&quot;2025-08-25 21&colon;05&colon;49&quot;&comma;&quot;number&lowbar;of&lowbar;students&quot;&colon;&quot;24&quot;&comma;&quot;study&lowbar;program&lowbar;type&quot;&colon;&quot;ACAD&quot;&comma;&quot;lecturer&lowbar;site&lowbar;id&quot;&colon;&quot;47880&quot;&comma;&quot;&lowbar;&lowbar;lecturer&lowbar;site&lowbar;id&quot;&colon;&quot;&quot;&comma;&quot;is&lowbar;active&lowbar;classroom&quot;&colon;&quot;0&quot;&comma;&quot;study&lowbar;class&lowbar;status&quot;&colon;&quot;STUDY&lowbar;CLASS&lowbar;STATUS&lowbar;ACCEPTED&quot;&comma;&quot;&lowbar;&lowbar;study&lowbar;class&lowbar;status&quot;&colon;&quot;ACTIVE&quot;&comma;&quot;star&lowbar;id&quot;&colon;&quot;1&quot;&comma;&quot;optional&lowbar;join&lowbar;deadline&lowbar;date&quot;&colon;null&comma;&quot;max&lowbar;number&lowbar;of&lowbar;student&quot;&colon;null&comma;&quot;min&lowbar;number&lowbar;of&lowbar;student&quot;&colon;null&comma;&quot;class&lowbar;hour&lowbar;template&lowbar;id&quot;&colon;null&comma;&quot;open&lowbar;for&lowbar;study&lowbar;domain&lowbar;codes&quot;&colon;null&comma;&quot;open&lowbar;for&lowbar;study&lowbar;course&lowbar;ids&quot;&colon;&quot;1364&quot;&comma;&quot;allow&lowbar;subscription&lowbar;types&quot;&colon;null&comma;&quot;room&lowbar;id&quot;&colon;null&comma;&quot;study&lowbar;curriculum&lowbar;id&quot;&colon;null&comma;&quot;study&lowbar;program&lowbar;id&quot;&colon;&quot;2722&quot;&comma;&quot;study&lowbar;course&lowbar;id&quot;&colon;&quot;1364&quot;&comma;&quot;enrollment&lowbar;type&quot;&colon;&quot;CE&quot;&comma;&quot;study&lowbar;assessment&lowbar;id&quot;&colon;null&comma;&quot;study&lowbar;assessment&lowbar;plan&lowbar;id&quot;&colon;null&comma;&quot;study&lowbar;program&lowbar;eval&lowbar;campaign&lowbar;id&quot;&colon;null&comma;&quot;access&lowbar;control&lowbar;list&lowbar;site&lowbar;ids&quot;&colon;null&comma;&quot;require&lowbar;teacher&lowbar;attendance&quot;&colon;&quot;F&quot;&comma;&quot;require&lowbar;student&lowbar;attendance&quot;&colon;&quot;F&quot;&comma;&quot;study&lowbar;grade&lowbar;code&quot;&colon;null&comma;&quot;background&lowbar;color&quot;&colon;null&comma;&quot;text&lowbar;color&quot;&colon;null&comma;&quot;allow&lowbar;proctor&lowbar;to&lowbar;mark&lowbar;teacher&lowbar;attendance&quot;&colon;&quot;0&quot;&comma;&quot;allow&lowbar;proctor&lowbar;to&lowbar;mark&lowbar;student&lowbar;attendance&quot;&colon;&quot;0&quot;&comma;&quot;title&quot;&colon;&quot;TIN6&lowbar;6G&quot;&comma;&quot;sub&lowbar;study&lowbar;module&lowbar;code&quot;&colon;null&comma;&quot;student&lowbar;class&lowbar;ids&quot;&colon;null&comma;&quot;display&lowbar;transferred&lowbar;students&lowbar;in&lowbar;grade&lowbar;book&quot;&colon;&quot;0&quot;&comma;&quot;open&lowbar;for&lowbar;genders&quot;&colon;&quot;&quot;&comma;&quot;study&lowbar;domain&lowbar;code&quot;&colon;&quot;TIMA&quot;&comma;&quot;study&lowbar;evaluation&lowbar;template&lowbar;id&quot;&colon;0&comma;&quot;&lowbar;&lowbar;study&lowbar;domain&lowbar;code&quot;&colon;&quot;&lbrack;TIMA&rsqb; Text &amp; Information Management &bsol;&sol; Tin Học&quot;&comma;&quot;&lowbar;&lowbar;instructor&lowbar;site&lowbar;ids&quot;&colon;&lbrace;&quot;47880&quot;&colon;&quot;&lbrack;47880&rsqb; Phạm V&abreve;n Bằng&quot;&rcub;&rcub;" data-search-key="" data-update-time="2025-08-25 21:05:49" data-id="85045" >
+  <div class="list-item-inner" >
+    <form method="post" class="item-form-bsj626jvpn js-form-init no-padding no-margin" >
+    <!--L1369-->
+  <!-- Mỗi classroom card -->
+  <div class="w3-col s12 m6 l4 w3-margin-bottom w3-padding">
+    <div class="w3-card w3-round-large"
+         style="background-color:
+                #add8e6; color:
+                #191970; height: 250px; display: flex; flex-direction: column; justify-content: space-between; box-shadow: 0 2px 6px rgba(0,0,0,0.2);">
+      <!-- Phần nội dung chính -->
+      <div class="w3-padding">
+        <h5 class="w3-xlarge" style="font-weight: bold;">
+                Tin học 6</h5>
+        <div class="w3-medium">
+                 6G</div>
+        <div class="teacher-avatar-wrapper">
+          <div class="innodigi-avatar-input">
+                <div class="ohke-v-box ohke-control no-padding sf-l-1369-lecturer_site_id list-field-search sf-l-1369-lecturer_site_id">
+              <input type="hidden" value="47880" name="lecturer_site_id">
+<div class="ws-avatar">
+  <div class="ws-inner">
+    <div class="avatar circle" style="width:72px;height:72px"><div><a class="prevent-click" href="/47880/appstart?source=deeplink" title="[47880] Phạm Văn Bằng" target="_top"><img src="/appstart/resource/common/images/default-icon-individual.png" alt="avatar-47880" title="[47880] Phạm Văn Bằng"></a></div></div>
+  </div>
+  
+</div>    </div>
+</div>
+        </div>
+        <div class="w3-small">
+ students</div>
+      </div>
+      <!-- Phần dưới cùng -->
+      <div class="w3-padding w3-border-top">
+        <div class="w3-small w3-opacity">UPCOMING ASSIGNMENTS</div>
+        <div class="w3-small">No assignments</div>
+      </div>
+    </div>
+  </div>
+    </form>
+  </div>
+  </div>
+  <div class="list-item item-bsj626jvpn list-a559_ " id="item-bsj626jvpn-83828" data-entity="&lbrace;&quot;id&quot;&colon;&quot;83828&quot;&comma;&quot;working&lowbar;site&lowbar;id&quot;&colon;&quot;47817&quot;&comma;&quot;&lowbar;&lowbar;working&lowbar;site&lowbar;id&quot;&colon;&quot;&lbrack;47817&rsqb; PASCAL 2025-2026&quot;&comma;&quot;color&quot;&colon;&quot;&num;add8e6&quot;&comma;&quot;student&lowbar;class&lowbar;name&quot;&colon;&quot; 6M&quot;&comma;&quot;module&lowbar;name&quot;&colon;&quot;Tin học 6&quot;&comma;&quot;code&quot;&colon;&quot;TIN6&lowbar;6M&quot;&comma;&quot;study&lowbar;class&lowbar;name&quot;&colon;&quot;TIN6 of 6M&quot;&comma;&quot;study&lowbar;module&lowbar;code&quot;&colon;&quot;TIN6&quot;&comma;&quot;&lowbar;&lowbar;study&lowbar;module&lowbar;code&quot;&colon;&quot;&lbrack;TIN6&rsqb; Tin học 6&quot;&comma;&quot;student&lowbar;class&lowbar;id&quot;&colon;&quot;5352&quot;&comma;&quot;&lowbar;&lowbar;student&lowbar;class&lowbar;id&quot;&colon;&quot;&lbrack;5352&rsqb; 6M&quot;&comma;&quot;start&lowbar;date&quot;&colon;&quot;2025-08-01&quot;&comma;&quot;end&lowbar;date&quot;&colon;&quot;2026-05-31&quot;&comma;&quot;instructor&lowbar;site&lowbar;ids&quot;&colon;&quot;47880&quot;&comma;&quot;create&lowbar;site&lowbar;id&quot;&colon;&quot;47909&quot;&comma;&quot;&lowbar;&lowbar;create&lowbar;site&lowbar;id&quot;&colon;&quot;Nguyễn Thị Diệu Th&uacute;y&quot;&comma;&quot;create&lowbar;time&quot;&colon;&quot;2025-08-18 08&colon;52&colon;50&quot;&comma;&quot;update&lowbar;site&lowbar;id&quot;&colon;&quot;47909&quot;&comma;&quot;&lowbar;&lowbar;update&lowbar;site&lowbar;id&quot;&colon;&quot;Nguyễn Thị Diệu Th&uacute;y&quot;&comma;&quot;update&lowbar;time&quot;&colon;&quot;2025-08-27 09&colon;53&colon;50&quot;&comma;&quot;number&lowbar;of&lowbar;students&quot;&colon;&quot;30&quot;&comma;&quot;study&lowbar;program&lowbar;type&quot;&colon;&quot;ACAD&quot;&comma;&quot;lecturer&lowbar;site&lowbar;id&quot;&colon;&quot;47880&quot;&comma;&quot;&lowbar;&lowbar;lecturer&lowbar;site&lowbar;id&quot;&colon;&quot;&quot;&comma;&quot;is&lowbar;active&lowbar;classroom&quot;&colon;&quot;0&quot;&comma;&quot;study&lowbar;class&lowbar;status&quot;&colon;&quot;STUDY&lowbar;CLASS&lowbar;STATUS&lowbar;ACCEPTED&quot;&comma;&quot;&lowbar;&lowbar;study&lowbar;class&lowbar;status&quot;&colon;&quot;ACTIVE&quot;&comma;&quot;star&lowbar;id&quot;&colon;&quot;1&quot;&comma;&quot;optional&lowbar;join&lowbar;deadline&lowbar;date&quot;&colon;null&comma;&quot;max&lowbar;number&lowbar;of&lowbar;student&quot;&colon;null&comma;&quot;min&lowbar;number&lowbar;of&lowbar;student&quot;&colon;null&comma;&quot;class&lowbar;hour&lowbar;template&lowbar;id&quot;&colon;null&comma;&quot;open&lowbar;for&lowbar;study&lowbar;domain&lowbar;codes&quot;&colon;null&comma;&quot;open&lowbar;for&lowbar;study&lowbar;course&lowbar;ids&quot;&colon;&quot;1364&quot;&comma;&quot;allow&lowbar;subscription&lowbar;types&quot;&colon;null&comma;&quot;room&lowbar;id&quot;&colon;null&comma;&quot;study&lowbar;curriculum&lowbar;id&quot;&colon;null&comma;&quot;study&lowbar;program&lowbar;id&quot;&colon;&quot;2617&quot;&comma;&quot;study&lowbar;course&lowbar;id&quot;&colon;&quot;1364&quot;&comma;&quot;enrollment&lowbar;type&quot;&colon;&quot;CE&quot;&comma;&quot;study&lowbar;assessment&lowbar;id&quot;&colon;null&comma;&quot;study&lowbar;assessment&lowbar;plan&lowbar;id&quot;&colon;null&comma;&quot;study&lowbar;program&lowbar;eval&lowbar;campaign&lowbar;id&quot;&colon;null&comma;&quot;access&lowbar;control&lowbar;list&lowbar;site&lowbar;ids&quot;&colon;null&comma;&quot;require&lowbar;teacher&lowbar;attendance&quot;&colon;&quot;F&quot;&comma;&quot;require&lowbar;student&lowbar;attendance&quot;&colon;&quot;F&quot;&comma;&quot;study&lowbar;grade&lowbar;code&quot;&colon;null&comma;&quot;background&lowbar;color&quot;&colon;null&comma;&quot;text&lowbar;color&quot;&colon;null&comma;&quot;allow&lowbar;proctor&lowbar;to&lowbar;mark&lowbar;teacher&lowbar;attendance&quot;&colon;&quot;0&quot;&comma;&quot;allow&lowbar;proctor&lowbar;to&lowbar;mark&lowbar;student&lowbar;attendance&quot;&colon;&quot;0&quot;&comma;&quot;title&quot;&colon;&quot;TIN6&lowbar;6M&quot;&comma;&quot;sub&lowbar;study&lowbar;module&lowbar;code&quot;&colon;null&comma;&quot;student&lowbar;class&lowbar;ids&quot;&colon;null&comma;&quot;display&lowbar;transferred&lowbar;students&lowbar;in&lowbar;grade&lowbar;book&quot;&colon;&quot;0&quot;&comma;&quot;open&lowbar;for&lowbar;genders&quot;&colon;&quot;&quot;&comma;&quot;study&lowbar;domain&lowbar;code&quot;&colon;&quot;TIMA&quot;&comma;&quot;study&lowbar;evaluation&lowbar;template&lowbar;id&quot;&colon;0&comma;&quot;&lowbar;&lowbar;study&lowbar;domain&lowbar;code&quot;&colon;&quot;&lbrack;TIMA&rsqb; Text &amp; Information Management &bsol;&sol; Tin Học&quot;&comma;&quot;&lowbar;&lowbar;instructor&lowbar;site&lowbar;ids&quot;&colon;&lbrace;&quot;47880&quot;&colon;&quot;&lbrack;47880&rsqb; Phạm V&abreve;n Bằng&quot;&rcub;&rcub;" data-search-key="" data-update-time="2025-08-27 09:53:50" data-id="83828" >
+  <div class="list-item-inner" >
+    <form method="post" class="item-form-bsj626jvpn js-form-init no-padding no-margin" >
+    <!--L1369-->
+  <!-- Mỗi classroom card -->
+  <div class="w3-col s12 m6 l4 w3-margin-bottom w3-padding">
+    <div class="w3-card w3-round-large"
+         style="background-color:
+                #add8e6; color:
+                #191970; height: 250px; display: flex; flex-direction: column; justify-content: space-between; box-shadow: 0 2px 6px rgba(0,0,0,0.2);">
+      <!-- Phần nội dung chính -->
+      <div class="w3-padding">
+        <h5 class="w3-xlarge" style="font-weight: bold;">
+                Tin học 6</h5>
+        <div class="w3-medium">
+                 6M</div>
+        <div class="teacher-avatar-wrapper">
+          <div class="innodigi-avatar-input">
+                <div class="ohke-v-box ohke-control no-padding sf-l-1369-lecturer_site_id list-field-search sf-l-1369-lecturer_site_id">
+              <input type="hidden" value="47880" name="lecturer_site_id">
+<div class="ws-avatar">
+  <div class="ws-inner">
+    <div class="avatar circle" style="width:72px;height:72px"><div><a class="prevent-click" href="/47880/appstart?source=deeplink" title="[47880] Phạm Văn Bằng" target="_top"><img src="/appstart/resource/common/images/default-icon-individual.png" alt="avatar-47880" title="[47880] Phạm Văn Bằng"></a></div></div>
+  </div>
+  
+</div>    </div>
+</div>
+        </div>
+        <div class="w3-small">
+ students</div>
+      </div>
+      <!-- Phần dưới cùng -->
+      <div class="w3-padding w3-border-top">
+        <div class="w3-small w3-opacity">UPCOMING ASSIGNMENTS</div>
+        <div class="w3-small">No assignments</div>
+      </div>
+    </div>
+  </div>
+    </form>
+  </div>
+  </div>
+</div>
+  </div>
+        </div>
+  <script type="application/json" id="env-bsj626jvpn">{"id":0,"ohke_prefix":null,"master_object_class_name":null,"master_object_class_code":null,":field_subform_id":null,"data_query_id":"b4xjhib6y5t5",":master_readonly":null,"master_key":null,"father_master_key":null,"params":[]}</script>
+</div>
+<script>
+  ojs['agent-bsj626jvpn'] = $.createList({
+  actionPrefix: '',
+  viewId: 'bsj626jvpn',
+  agentSelector: '#agent-bsj626jvpn',
+  formSelector: '#form-bsj626jvpn',
+  formDomain: 'a559_',
+  inlineSelector: 0,
+  isSubform: 0,
+  isListNavigator: 0,
+  itemActionDefault: 'IV',
+  editorInModal: 0,
+  viewerInModal: 0,
+  creatorInModal: 0,
+  hasCreator: 0,
+  hasViewer: 1,
+  hasEditor: 0,
+  title: 'Study Class',
+  hasListPrint: 0,
+  formContainer: '',
+  forInputType: '',
+  floatingItemAction: 0,
+  showSeriesColumn: 1,
+  allowClientFilter: 0,
+  statistic: {found:11,total:11,fullTotal:11},
+  switchFields: {
+  },
+});
+ojs['agent-bsj626jvpn'].ready()
+  .then(() => {
+    const agentId = 'agent-bsj626jvpn';
+    const agentSelector = '#agent-bsj626jvpn';
+    Ohke.form.registerChild(agentSelector);
+  let me = ojs[agentId];
+  let $agent = $(agentSelector).closest('.agent-container');
+  $('#table-bsj626jvpn').children('thead').ohkeHelp();
+  $agent.find('form.item-form-bsj626jvpn.js-form-init')
+    .removeClass('js-form-init')
+    .each((i,o) => inno.form.init(o));
+  Ohke.initFocus();
+  })
+  .then(() => {
+  const agentId = 'agent-bsj626jvpn';
+  let me = ojs[agentId];
+	let $rootAgent = $('#agent-bsj626jvpn');
+  $rootAgent.agentInitListener();
+  $rootAgent.ohkeColorPicker();
+  let PAC = $rootAgent.data('pac-event');
+  if (PAC) PAC.self('after_load');
+    })
+</script>
+</div>
+  </div>
+</div>
+</body>
+</html>

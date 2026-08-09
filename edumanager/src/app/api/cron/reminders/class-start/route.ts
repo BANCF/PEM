@@ -45,44 +45,65 @@ export async function GET(request: Request) {
     }
 
     const teachersSchedule = scheduleData.teachers;
-    const teachersToNotify: { teacherId: string, className: string, subject: string }[] = [];
+    const teachersToNotify: { teacherName: string, className: string, subject: string }[] = [];
+
+    const targetH = targetTime.getHours();
+    const targetM = targetTime.getMinutes();
 
     // Lặp qua lịch của tất cả giáo viên
-    for (const [teacherId, teacherDays] of Object.entries(teachersSchedule)) {
+    for (const [teacherName, teacherDays] of Object.entries(teachersSchedule)) {
       const todayClasses: any[] = (teacherDays as any)[scheduleDay] || [];
       
       for (const cls of todayClasses) {
         if (!cls.time) continue;
-        // time format typically "08:00 - 08:45"
+        // time format typically "7h45 - 8h20" or "8h25' - 8h55'" or "08:00 - 08:45"
         const startTimeStr = cls.time.split('-')[0].trim();
         
-        if (startTimeStr === targetTimeString) {
-          teachersToNotify.push({
-            teacherId,
-            className: cls.className,
-            subject: cls.subject
-          });
+        const match = startTimeStr.match(/(\d{1,2})[h:](\d{1,2})?/);
+        if (match) {
+          const h = parseInt(match[1]);
+          const m = match[2] ? parseInt(match[2]) : 0;
+          
+          if (h === targetH && m === targetM) {
+            teachersToNotify.push({
+              teacherName,
+              className: cls.className,
+              subject: cls.subject
+            });
+          }
         }
       }
     }
 
     if (teachersToNotify.length === 0) {
-      return NextResponse.json({ success: true, message: `No classes starting at ${targetTimeString}` });
+      return NextResponse.json({ success: true, message: `No classes starting at ${targetHours}:${targetMinutes}` });
     }
+
+    // Map users by scheduleName or fullName to get FCM tokens efficiently
+    const usersSnapshot = await adminDb.collection('users').get();
+    const userTokensMap: Record<string, string[]> = {};
+    usersSnapshot.forEach(doc => {
+      const data = doc.data();
+      const fcmTokens = data.fcmTokens || [];
+      if (fcmTokens.length > 0) {
+        if (data.scheduleName) {
+          userTokensMap[data.scheduleName] = fcmTokens;
+        } else if (data.fullName) {
+          userTokensMap[data.fullName] = fcmTokens;
+        }
+      }
+    });
 
     const messaging = getMessaging();
     let successCount = 0;
     let failureCount = 0;
+    const notifiedList: string[] = [];
 
     // Send notifications to these teachers
     for (const notificationInfo of teachersToNotify) {
-      const userDoc = await adminDb.collection('users').doc(notificationInfo.teacherId).get();
-      if (!userDoc.exists) continue;
+      const fcmTokens = userTokensMap[notificationInfo.teacherName];
       
-      const userData = userDoc.data();
-      const fcmTokens = userData?.fcmTokens || [];
-      
-      if (fcmTokens.length > 0) {
+      if (fcmTokens && fcmTokens.length > 0) {
         const message = {
           notification: {
             title: `🔔 Nhắc nhở vào tiết: Lớp ${notificationInfo.className}`,
@@ -92,19 +113,35 @@ export async function GET(request: Request) {
             url: '/dashboard/schedule',
             type: 'class_start_reminder'
           },
+          android: {
+            priority: 'high' as const,
+            notification: {
+              sound: 'default',
+            },
+          },
+          apns: {
+            payload: {
+              aps: {
+                sound: 'default',
+                badge: 1,
+              }
+            }
+          },
           tokens: fcmTokens,
         };
 
         const response = await messaging.sendEachForMulticast(message);
         successCount += response.successCount;
         failureCount += response.failureCount;
+        notifiedList.push(notificationInfo.teacherName);
       }
     }
 
     return NextResponse.json({ 
       success: true, 
-      message: `Sent reminders for classes at ${targetTimeString}`, 
+      message: `Sent reminders for classes at ${targetHours}:${targetMinutes}`, 
       notifiedTeachers: teachersToNotify.length,
+      notifiedList,
       successCount,
       failureCount
     });

@@ -4,6 +4,7 @@ import React, { useState, useEffect } from "react";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import { useAuth } from "@/contexts/AuthContext";
 import { ClassData, classService } from "@/lib/services/class.service";
+import { assignmentService } from "@/lib/services/assignment.service";
 import ClassModal from "@/components/classes/ClassModal";
 import { useRouter } from "next/navigation";
 import toast from "react-hot-toast";
@@ -19,11 +20,23 @@ export default function ClassesManagementPage() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedClass, setSelectedClass] = useState<ClassData | null>(null);
 
+  const isAdminOrBGH = profile?.role === "ADMIN" || profile?.role === "SUPER_ADMIN" || profile?.role === "BGH";
+
   const fetchClasses = async () => {
     try {
       setLoading(true);
       const data = await classService.getAllClasses();
-      setClasses(data);
+      
+      if (isAdminOrBGH) {
+        setClasses(data);
+      } else if (profile?.id) {
+        const assignments = await assignmentService.getAssignmentsByTeacherId(profile.id);
+        const assignedClassIds = new Set(assignments.map(a => a.classId));
+        const filteredClasses = data.filter(cls => cls.id && assignedClassIds.has(cls.id));
+        setClasses(filteredClasses);
+      } else {
+        setClasses([]);
+      }
     } catch (error) {
       console.error("Error fetching classes:", error);
       toast.error("Lỗi tải danh sách lớp học.");
@@ -33,8 +46,10 @@ export default function ClassesManagementPage() {
   };
 
   useEffect(() => {
-    fetchClasses();
-  }, []);
+    if (profile) {
+      fetchClasses();
+    }
+  }, [profile]);
 
   const handleOpenModal = (classItem: ClassData | null = null) => {
     setSelectedClass(classItem);
@@ -60,8 +75,6 @@ export default function ClassesManagementPage() {
       toast.error("Lỗi khi xóa lớp");
     }
   };
-
-  const isAdminOrBGH = profile?.role === "ADMIN" || profile?.role === "SUPER_ADMIN" || profile?.role === "BGH";
 
   return (
     <ProtectedRoute allowedRoles={["ADMIN", "SUPER_ADMIN", "BGH", "TEACHER", "TTCM", "TPCM"]}>

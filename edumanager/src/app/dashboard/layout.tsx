@@ -3,7 +3,7 @@
 import React from "react";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import { useAuth } from "@/contexts/AuthContext";
-import { LogOut, Home, FileText, Settings, Users, Menu, X, Bell, Building2, ShieldAlert, GraduationCap, Calendar, Award, User } from "lucide-react";
+import { LogOut, Home, FileText, Settings, Users, Menu, X, Bell, Building2, ShieldAlert, GraduationCap, Calendar, Award, User, ClipboardList } from "lucide-react";
 import { auth, db } from "@/lib/firebase/client";
 import { signOut } from "firebase/auth";
 import toast from "react-hot-toast";
@@ -160,6 +160,7 @@ export default function DashboardLayout({
             <NavLink href="/dashboard/grades" icon={BookOpen} locked={!features.grades && actualProfile?.role !== "ADMIN" && actualProfile?.role !== "SUPER_ADMIN"}>Sổ điểm</NavLink>
             <NavLink href="/dashboard/evaluations" icon={FileText} locked={!features.evaluations && actualProfile?.role !== "ADMIN" && actualProfile?.role !== "SUPER_ADMIN"}>Phiếu Đánh giá</NavLink>
             <NavLink href="/dashboard/schedule" icon={Calendar} locked={!features.schedule && actualProfile?.role !== "ADMIN" && actualProfile?.role !== "SUPER_ADMIN"}>Thời khóa biểu</NavLink>
+            <NavLink href="/dashboard/work-schedule" icon={ClipboardList}>Lịch làm việc</NavLink>
             <NavLink href="/dashboard/certificates" icon={Award} locked={!features.certificates && actualProfile?.role !== "ADMIN" && actualProfile?.role !== "SUPER_ADMIN"}>Giấy Khen & Chứng Nhận</NavLink>
             
             {(profile?.role === "ADMIN" || profile?.role === "BGH" || profile?.role === "SUPER_ADMIN") && (
@@ -169,6 +170,7 @@ export default function DashboardLayout({
                 </div>
                 <NavLink href="/dashboard/rules" icon={Settings}>Quy định (Rules)</NavLink>
                 <NavLink href="/dashboard/settings/schedule" icon={Calendar}>Upload Thời Khóa Biểu</NavLink>
+                <NavLink href="/dashboard/settings/work-schedule" icon={ClipboardList}>Upload Lịch Làm Việc</NavLink>
               </>
             )}
             

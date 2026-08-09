@@ -10,11 +10,36 @@ import { doc, updateDoc } from "firebase/firestore";
 import { Calendar, Printer, Download, User, Users } from "lucide-react";
 import toast from "react-hot-toast";
 import { generateClassTimetablePdf } from "@/lib/services/pdf.service";
+import SwapSearchModal from "@/components/schedule/SwapSearchModal";
 
 // Helper component to render a schedule grid
-const ScheduleGrid = ({ scheduleData, title }: { scheduleData: Record<string, ScheduleClassInfo[]>, title: string }) => {
+const ScheduleGrid = ({ 
+  scheduleData, 
+  title, 
+  fullSchedule, 
+  currentTeacherName 
+}: { 
+  scheduleData: Record<string, ScheduleClassInfo[]>, 
+  title: string,
+  fullSchedule?: FullScheduleData,
+  currentTeacherName?: string
+}) => {
   const days = ["2", "3", "4", "5", "6"];
   const [activeMobileDay, setActiveMobileDay] = useState("2");
+  
+  // Modal state
+  const [swapModalState, setSwapModalState] = useState<{
+    isOpen: boolean;
+    day: string;
+    period: string;
+    cellData: ScheduleClassInfo | null;
+  }>({ isOpen: false, day: "", period: "", cellData: null });
+
+  const handleCellClick = (day: string, period: string, cellData: ScheduleClassInfo) => {
+    if (fullSchedule && currentTeacherName) {
+      setSwapModalState({ isOpen: true, day, period, cellData });
+    }
+  };
 
   const allPeriodsSet = new Set<string>();
   Object.values(scheduleData).forEach(dayArr => {
@@ -63,7 +88,11 @@ const ScheduleGrid = ({ scheduleData, title }: { scheduleData: Record<string, Sc
                   return (
                     <td key={`${day}-${period}`} className="border border-slate-300 py-3 px-2">
                       {cellData ? (
-                        <div className="flex flex-col items-center justify-center space-y-1">
+                        <div 
+                          onClick={() => handleCellClick(day, period, cellData)}
+                          className={`flex flex-col items-center justify-center space-y-1 ${fullSchedule && currentTeacherName ? 'cursor-pointer hover:bg-blue-50 p-2 rounded-lg transition-colors' : ''}`}
+                          title={fullSchedule && currentTeacherName ? "Bấm vào để tra cứu giáo viên đổi tiết/dạy thay" : undefined}
+                        >
                           <span className="font-bold text-blue-700 text-sm">{cellData.subject}</span>
                           <span className="text-xs font-medium px-2 py-0.5 bg-slate-100 text-slate-600 rounded-md border border-slate-200">
                             {cellData.className}
@@ -121,7 +150,10 @@ const ScheduleGrid = ({ scheduleData, title }: { scheduleData: Record<string, Sc
 
                 <div className="flex-1 min-w-0">
                   {cellData ? (
-                    <div>
+                    <div 
+                      onClick={() => handleCellClick(activeMobileDay, period, cellData)}
+                      className={fullSchedule && currentTeacherName ? "cursor-pointer" : ""}
+                    >
                       <div className="flex items-center gap-2">
                         <h4 className="font-bold text-slate-800 text-base">{cellData.subject}</h4>
                         <span className="text-xs font-bold bg-blue-50 text-blue-700 px-2 py-0.5 rounded border border-blue-200">
@@ -146,6 +178,18 @@ const ScheduleGrid = ({ scheduleData, title }: { scheduleData: Record<string, Sc
           })}
         </div>
       </div>
+
+      {swapModalState.cellData && fullSchedule && currentTeacherName && (
+        <SwapSearchModal
+          isOpen={swapModalState.isOpen}
+          onClose={() => setSwapModalState(s => ({ ...s, isOpen: false }))}
+          day={swapModalState.day}
+          period={swapModalState.period}
+          cellData={swapModalState.cellData}
+          schedule={fullSchedule}
+          teacherName={currentTeacherName}
+        />
+      )}
     </div>
   );
 };
@@ -221,7 +265,22 @@ export default function SchedulePage() {
         const teacherName = profile?.fullName || "Giáo viên";
         const applicationDate = schedule.weekName || new Date(schedule.updatedAt).toLocaleDateString("vi-VN");
         
-        const blob = await generateClassTimetablePdf(classSched, className, teacherName, applicationDate);
+        let secondaryClassSched;
+        let secondaryClassName;
+        
+        if (className === '9C' && schedule.classes['9A-C']) {
+          secondaryClassSched = schedule.classes['9A-C'];
+          secondaryClassName = '9A-C';
+        }
+
+        const blob = await generateClassTimetablePdf(
+          classSched, 
+          className, 
+          teacherName, 
+          applicationDate,
+          secondaryClassSched,
+          secondaryClassName
+        );
         
         const url = URL.createObjectURL(blob);
         const link = document.createElement("a");
@@ -364,6 +423,8 @@ export default function SchedulePage() {
             <ScheduleGrid 
               scheduleData={personalSchedule} 
               title={`Thời Khóa Biểu Giảng Dạy - GV: ${selectedTeacherName}`} 
+              fullSchedule={schedule}
+              currentTeacherName={selectedTeacherName}
             />
           ) : (
             <div className="text-center p-8 bg-white rounded-xl border border-slate-200 text-slate-500">
