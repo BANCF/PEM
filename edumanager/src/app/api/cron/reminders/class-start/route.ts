@@ -82,7 +82,7 @@ export async function GET(request: Request) {
     // Map users by scheduleName or fullName to get FCM tokens efficiently
     const usersSnapshot = await adminDb.collection('users').get();
     const userTokensMap: Record<string, string[]> = {};
-    usersSnapshot.forEach(doc => {
+    usersSnapshot.forEach((doc: any) => {
       const data = doc.data();
       const fcmTokens = data.fcmTokens || [];
       if (fcmTokens.length > 0) {
