@@ -5,6 +5,8 @@ import ProtectedRoute from "@/components/ProtectedRoute";
 import { studentService, StudentData } from "@/lib/services/student.service";
 import { classService, ClassData } from "@/lib/services/class.service";
 import { gradeService, GradeData } from "@/lib/services/grade.service";
+import { assignmentService, ClassAssignmentData } from "@/lib/services/assignment.service";
+import MonthlyEvaluationsTab from "@/components/classes/MonthlyEvaluationsTab";
 import { useAuth } from "@/contexts/AuthContext";
 import { useSearchParams, useRouter } from "next/navigation";
 import { Loader2, ArrowLeft, Save, Upload, Download, Calculator } from "lucide-react";
@@ -29,6 +31,8 @@ export default function GradeInputPage({ params }: { params: Promise<{ classId: 
   const [semester, setSemester] = useState<number>(1);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [activeTab, setActiveTab] = useState<"grades" | "evaluations">("grades");
+  const [assignments, setAssignments] = useState<ClassAssignmentData[]>([]);
 
   useEffect(() => {
     if (!subject || !academicYear) {
@@ -46,6 +50,9 @@ export default function GradeInputPage({ params }: { params: Promise<{ classId: 
 
         const stds = await studentService.getStudentsByClassId(classId);
         setStudents(stds);
+
+        const assigns = await assignmentService.getAssignmentsByClassId(classId);
+        setAssignments(assigns);
 
         await loadGrades(classId, subject, academicYear, stds);
       } catch (error: any) {
@@ -368,7 +375,8 @@ export default function GradeInputPage({ params }: { params: Promise<{ classId: 
             <p className="text-slate-500 ml-12">Lớp {classData?.name} • Năm học: {academicYear}</p>
           </div>
 
-          <div className="flex flex-wrap items-center gap-3">
+          {activeTab === "grades" && (
+            <div className="flex flex-wrap items-center gap-3">
             <div className="bg-slate-100 p-1 rounded-lg flex mr-2">
               <button
                 onClick={() => setSemester(1)}
@@ -425,9 +433,36 @@ export default function GradeInputPage({ params }: { params: Promise<{ classId: 
               <span>Lưu điểm</span>
             </button>
           </div>
+          )}
         </div>
 
-        {/* Info Alert */}
+        {/* Tabs */}
+        <div className="flex border-b border-gray-200 mb-6">
+          <button
+            onClick={() => setActiveTab("grades")}
+            className={`px-6 py-3 font-medium text-sm transition-colors border-b-2 ${
+              activeTab === "grades" 
+                ? "border-blue-600 text-blue-600" 
+                : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
+            }`}
+          >
+            Nhập điểm môn {subject}
+          </button>
+          <button
+            onClick={() => setActiveTab("evaluations")}
+            className={`px-6 py-3 font-medium text-sm transition-colors border-b-2 ${
+              activeTab === "evaluations" 
+                ? "border-blue-600 text-blue-600" 
+                : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
+            }`}
+          >
+            Đánh giá hằng tháng
+          </button>
+        </div>
+
+        {activeTab === "grades" && (
+          <>
+            {/* Info Alert */}
         <div className="bg-blue-50 border border-blue-100 text-blue-800 p-4 rounded-xl mb-6 flex flex-col md:flex-row items-start gap-3">
           <Calculator className="mt-0.5 shrink-0" size={20} />
           <div className="text-sm">
@@ -652,7 +687,17 @@ export default function GradeInputPage({ params }: { params: Promise<{ classId: 
             )}
           </div>
         </div>
+          </>
+        )}
 
+        {activeTab === "evaluations" && (
+          <MonthlyEvaluationsTab
+            classData={classData}
+            students={students}
+            assignments={assignments}
+            profile={profile}
+          />
+        )}
       </div>
     </ProtectedRoute>
   );

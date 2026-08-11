@@ -40,6 +40,7 @@ export default function TeacherKPIHistoryPage() {
   const [evaluations, setEvaluations] = useState<Evaluation[]>([]);
   const [loading, setLoading] = useState(true);
   const [chartMode, setChartMode] = useState<"WEEK" | "MONTH">("MONTH");
+  const [monthlySnapshots, setMonthlySnapshots] = useState<any[]>([]);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -63,6 +64,16 @@ export default function TeacherKPIHistoryPage() {
         // Sắp xếp giảm dần theo thời gian (mới nhất lên đầu)
         evals.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
         setEvaluations(evals);
+
+        // 3. Fetch monthly snapshots for this teacher
+        const snapQ = query(
+          collection(db, "monthly_kpi_snapshots"),
+          where("teacherId", "==", teacherId)
+        );
+        const snapsData = await getDocs(snapQ);
+        const sList: any[] = [];
+        snapsData.forEach(d => sList.push(d.data()));
+        setMonthlySnapshots(sList);
 
       } catch (error) {
         console.error("Error fetching teacher details:", error);
@@ -100,7 +111,15 @@ export default function TeacherKPIHistoryPage() {
   let kudosScore = 0;
   let penaltyScore = 0;
 
+  const now = new Date();
+  const currentMonth = now.getMonth();
+  const currentYear = now.getFullYear();
+
   evaluations.forEach(ev => {
+    const evDate = new Date(ev.createdAt);
+    if (evDate.getMonth() !== currentMonth || evDate.getFullYear() !== currentYear) {
+      return;
+    }
     if (ev.status !== "REJECTED") {
       if (ev.type === "KUDOS") kudosScore += ev.ruleScore;
       if (ev.type === "PENALTY") penaltyScore += ev.ruleScore;
@@ -110,45 +129,62 @@ export default function TeacherKPIHistoryPage() {
   const finalScore = baseScore + kudosScore + penaltyScore;
 
   // Chuẩn bị dữ liệu cho biểu đồ (Chart Data)
-  const groupData: Record<string, { label: string; kudos: number; penalty: number; total: number }> = {};
-  
-  // Helper to get week number
-  const getWeekNumber = (d: Date) => {
-    const date = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
-    const dayNum = date.getUTCDay() || 7;
-    date.setUTCDate(date.getUTCDate() + 4 - dayNum);
-    const yearStart = new Date(Date.UTC(date.getUTCFullYear(),0,1));
-    return Math.ceil((((date.getTime() - yearStart.getTime()) / 86400000) + 1)/7);
-  };
+  let chartData: any[] = [];
 
-  [...evaluations].reverse().forEach(ev => {
-    if (ev.status !== "REJECTED") {
+  if (chartMode === "MONTH") {
+    // Sort snapshots by year and month
+    const sortedSnaps = [...monthlySnapshots].sort((a, b) => {
+      if (a.year !== b.year) return a.year - b.year;
+      return parseInt(a.month) - parseInt(b.month);
+    });
+    
+    chartData = sortedSnaps.map(s => ({
+      label: `T${parseInt(s.month)}/${s.year}`,
+      kudos: s.kudosScore || 0,
+      penalty: s.penaltyScore || 0,
+      total: s.finalScore || 1000
+    }));
+
+    // Add current month
+    chartData.push({
+      label: `T${currentMonth + 1}/${currentYear} (HT)`,
+      kudos: kudosScore,
+      penalty: penaltyScore,
+      total: finalScore
+    });
+
+  } else {
+    // Original week logic but ONLY for current month
+    const groupData: Record<string, { label: string; kudos: number; penalty: number; total: number }> = {};
+    const getWeekNumber = (d: Date) => {
+      const date = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+      const dayNum = date.getUTCDay() || 7;
+      date.setUTCDate(date.getUTCDate() + 4 - dayNum);
+      const yearStart = new Date(Date.UTC(date.getUTCFullYear(),0,1));
+      return Math.ceil((((date.getTime() - yearStart.getTime()) / 86400000) + 1)/7);
+    };
+
+    [...evaluations].reverse().forEach(ev => {
       const date = new Date(ev.createdAt);
-      let key = "";
-      if (chartMode === "MONTH") {
-        key = `T${date.getMonth() + 1}/${date.getFullYear()}`;
-      } else {
-        key = `Tuần ${getWeekNumber(date)}, ${date.getFullYear()}`;
+      if (date.getMonth() !== currentMonth || date.getFullYear() !== currentYear) return;
+      if (ev.status !== "REJECTED") {
+        const key = `Tuần ${getWeekNumber(date)}, ${date.getFullYear()}`;
+        if (!groupData[key]) groupData[key] = { label: key, kudos: 0, penalty: 0, total: 0 };
+        if (ev.type === "KUDOS") groupData[key].kudos += ev.ruleScore;
+        if (ev.type === "PENALTY") groupData[key].penalty += ev.ruleScore;
       }
-      
-      if (!groupData[key]) {
-        groupData[key] = { label: key, kudos: 0, penalty: 0, total: 0 };
-      }
-      if (ev.type === "KUDOS") groupData[key].kudos += ev.ruleScore;
-      if (ev.type === "PENALTY") groupData[key].penalty += ev.ruleScore;
+    });
+
+    let currentKPI = 1000;
+    chartData = Object.values(groupData).map(d => {
+      currentKPI += d.kudos + d.penalty;
+      return { ...d, total: currentKPI };
+    });
+
+    if (chartData.length === 0) {
+      const defaultKey = `Tuần ${getWeekNumber(now)}, ${now.getFullYear()}`;
+      chartData.push({ label: defaultKey, kudos: 0, penalty: 0, total: 1000 });
     }
-  });
-
-  let currentKPI = 1000;
-  const chartData = Object.values(groupData).map(d => {
-    currentKPI += d.kudos + d.penalty;
-    return { ...d, total: currentKPI };
-  });
-
-  if (chartData.length === 0) {
-    const d = new Date();
-    const defaultKey = chartMode === "MONTH" ? `T${d.getMonth() + 1}/${d.getFullYear()}` : `Tuần ${getWeekNumber(d)}, ${d.getFullYear()}`;
-    chartData.push({ label: defaultKey, kudos: 0, penalty: 0, total: 1000 });
   }
 
   const getStatusBadge = (status: string) => {

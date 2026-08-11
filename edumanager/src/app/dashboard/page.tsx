@@ -21,6 +21,7 @@ interface TeacherKPI {
   penaltyScore: number;
   finalScore: number;
   evalCount: number;
+  prevMonthScore?: number;
 }
 
 export default function DashboardPage() {
@@ -65,10 +66,19 @@ export default function DashboardPage() {
         
         let pendingCount = 0; // Để đếm số phiếu chờ xử lý cho Admin/BGH
         
+        const now = new Date();
+        const currentMonth = now.getMonth();
+        const currentYear = now.getFullYear();
+
         evalSnap.forEach(doc => {
           const ev = doc.data();
           if (ev.status === "PENDING_APPEAL" || ev.status === "APPEALED") {
             pendingCount++;
+          }
+          
+          const evDate = new Date(ev.createdAt);
+          if (evDate.getMonth() !== currentMonth || evDate.getFullYear() !== currentYear) {
+            return; // Chỉ tính điểm của tháng hiện tại
           }
           
           if (ev.status === "APPROVED" || ev.status === "PENDING_APPEAL" || ev.status === "APPEALED") {
@@ -86,6 +96,24 @@ export default function DashboardPage() {
               }
             }
           }
+        });
+
+        // 3. Fetch prev month score
+        const prevMonth = currentMonth === 0 ? 12 : currentMonth; // month in snapshot could be 1-12
+        const prevYear = currentMonth === 0 ? currentYear - 1 : currentYear;
+        const monthStr = `${prevMonth}`.padStart(2, '0');
+        
+        const prevSnapshotSnap = await getDocs(query(
+          collection(db, "monthly_kpi_snapshots"), 
+          where("month", "==", monthStr), 
+          where("year", "==", prevYear)
+        ));
+        
+        prevSnapshotSnap.forEach(doc => {
+           const d = doc.data();
+           if (teachers[d.teacherId]) {
+              teachers[d.teacherId].prevMonthScore = d.finalScore;
+           }
         });
 
         // Convert to array and sort by finalScore (desc), then fullName (asc)
@@ -502,13 +530,27 @@ export default function DashboardPage() {
                     <td className="p-5 text-center font-bold text-emerald-500">{t.kudosScore > 0 ? `+${t.kudosScore}` : 0}</td>
                     <td className="p-5 text-center font-bold text-rose-500">{t.penaltyScore < 0 ? t.penaltyScore : 0}</td>
                     <td className="p-5 text-right">
-                      <span className={`inline-block px-4 py-1.5 rounded-2xl font-black text-lg shadow-sm border ${
-                        t.finalScore >= 980 ? "bg-emerald-50 text-emerald-700 border-emerald-200" : 
-                        t.finalScore >= 950 ? "bg-yellow-50 text-yellow-700 border-yellow-200" :
-                        "bg-rose-50 text-rose-700 border-rose-200"
-                      }`}>
-                        {t.finalScore}
-                      </span>
+                      <div className="flex flex-col items-end">
+                        <span className={`inline-block px-4 py-2 font-black text-lg rounded-2xl ${
+                          t.finalScore >= 1005 ? "bg-gradient-to-r from-blue-500 to-indigo-500 text-white shadow-lg shadow-blue-500/30" : 
+                          t.finalScore >= 1000 ? "bg-slate-100 text-slate-700" : 
+                          "bg-red-50 text-red-600 border border-red-100"
+                        }`}>
+                          {t.finalScore}
+                        </span>
+                        {t.prevMonthScore !== undefined && (
+                          <span className={`text-xs font-semibold mt-1 flex items-center ${
+                            t.finalScore > t.prevMonthScore ? "text-emerald-500" : 
+                            t.finalScore < t.prevMonthScore ? "text-red-500" : 
+                            "text-slate-400"
+                          }`} title="So với tháng trước">
+                            {t.finalScore > t.prevMonthScore ? <TrendingUp size={12} className="mr-0.5" /> : 
+                             t.finalScore < t.prevMonthScore ? <TrendingDown size={12} className="mr-0.5" /> : 
+                             <span className="mr-0.5">=</span>}
+                            Tháng trước: {t.prevMonthScore}
+                          </span>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 ))
