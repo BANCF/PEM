@@ -33,6 +33,49 @@ const rpcCallHeadlessV33 = async (endpoint, payload) => {
         }, timeout);
     };
 
+    // ==========================================
+    // MODULE: NETWORK SPY & API WAITER (ĐỘC QUYỀN)
+    // ==========================================
+    // 1. Tiêm máy nghe lén vào Main World để bắt sự kiện jQuery AJAX
+    const injectAjaxSpy = () => {
+        if (document.getElementById('ohke-ajax-spy')) return;
+        const script = document.createElement('script');
+        script.id = 'ohke-ajax-spy';
+        script.textContent = `
+            if (typeof window.jQuery !== 'undefined') {
+                window.jQuery(document).ajaxComplete((event, xhr, settings) => {
+                    window.dispatchEvent(new CustomEvent('OHKE_API_DONE', { detail: settings.url }));
+                });
+            }
+        `;
+        document.documentElement.appendChild(script);
+        script.remove();
+    };
+    injectAjaxSpy();
+
+    // 2. Hàm chờ thông minh dựa trên tín hiệu Mạng (Zero-DOM-Latency)
+    const waitForApiV33 = (endpointKeyword, timeout = 10000) => {
+        return new Promise(resolve => {
+            let isResolved = false;
+            const timer = setTimeout(() => {
+                if (!isResolved) {
+                    window.removeEventListener('OHKE_API_DONE', listener);
+                    resolve(false); // Hết hạn chờ
+                }
+            }, timeout);
+
+            const listener = (e) => {
+                if (e.detail && e.detail.includes(endpointKeyword)) {
+                    isResolved = true;
+                    clearTimeout(timer);
+                    window.removeEventListener('OHKE_API_DONE', listener);
+                    resolve(true); // Đã bắt được API
+                }
+            };
+            window.addEventListener('OHKE_API_DONE', listener);
+        });
+    };
+
     const log = (msg) => {
         let logEl = document.getElementById('tool-log');
         if (logEl) {
@@ -204,15 +247,35 @@ const rpcCallHeadlessV33 = async (endpoint, payload) => {
 
         if (bestTab) {
             log(`🧭 Đang quét lớp tại tab [${bestTab.textContent.trim()}]...`);
+            
             forceClickV33(bestTab);
 
-            await waitForElementToDisappear('.fa-spin, .ohke-icon-loading, .fa-spinner', 15000);
-            
-            // Chờ DOM thực sự render ra các thẻ lớp học (Tối đa 15 giây cho máy cực chậm)
-            await waitForCondition(() => {
-                return document.querySelectorAll('.list-item[data-entity], .item-4qfjeb3y6f[data-entity], [data-entity*="class_schedule_slot_id"]').length > 0;
-            }, 15000, 200);
+            // Kiểm tra xem có Spinner xuất hiện không (Tab đang tải mới hay đã Cache)
+            let isCached = true;
+            for (let i = 0; i < 6; i++) { // Quét trong 300ms
+                await delay(50);
+                let spinners = Array.from(document.querySelectorAll('.fa-spin, .ohke-icon-loading, .fa-spinner'));
+                if (spinners.some(el => el.offsetWidth > 0)) {
+                    isCached = false;
+                    break;
+                }
+            }
 
+            if (!isCached) {
+                log(`⏳ Phát hiện tải dữ liệu mới, đang chờ đồng bộ...`);
+                // Dùng Promise.race: Ai nhanh hơn người đó thắng!
+                // Nếu bắt được API trước -> Đi tiếp tức thì (Zero-Latency)
+                // Nếu API bị đổi tên/xịt nhưng Spinner tắt trước -> Đi tiếp ngay lập tức, không bao giờ bị giam 10 giây!
+                await Promise.race([
+                    waitForApiV33('_Model', 30000),
+                    waitForElementToDisappear('.fa-spin, .ohke-icon-loading, .fa-spinner', 30000)
+                ]);
+            } else {
+                // Không có Spinner => Dữ liệu đã tải sẵn, chỉ chờ DOM chuyển đổi hiển thị
+                log(`⚡ Dữ liệu Tab đã Cache, chuyển DOM tức thì.`);
+            }
+            
+            await delay(200); // Rút ngắn thời gian thở của DOM từ 400ms xuống 200ms
             return true;
         }
         return false;
@@ -344,8 +407,13 @@ const rpcCallHeadlessV33 = async (endpoint, payload) => {
 
             // 2. [FALLBACK] NẾU API NGẦM XỊT, MỞ UI VỚI TỐC ĐỘ BÀN THỜ (10ms Polling)
             if (!teacherId) {
+                let waitModal = waitForApiV33('Viewer', 30000); // Lắng nghe bất kỳ API Viewer nào (x35FD3, x35FD2...)
                 forceClickV33(classItem.element);
                 modalOpened = true;
+                
+                await waitModal; // Đợi server đổ Data về Modal
+                await delay(100); // Thở nhẹ cho Modal bung lên
+
                 let elapsed = 0; 
                 // TĂNG TIMEOUT: Cho phép máy yếu load Modal lên tới 15 giây.
                 // Lưu ý: Nếu máy khỏe, nó vẫn chỉ mất 10ms là thoát khỏi vòng lặp này.
@@ -447,19 +515,24 @@ const rpcCallHeadlessV33 = async (endpoint, payload) => {
                 }, 10000, 100);
                 
                 if (btnAllPresent) {
+                    let waitAction = waitForApiV33('bttAction_x2447C_', 30000);
                     forceClickV33(btnAllPresent);
+                    await waitAction; // Chờ API chốt học sinh
                     
                     let btnNext = null;
-                    // Đợi HTML đổi thành nút "Tiếp tục"
                     await waitForCondition(() => {
                         btnNext = Array.from(topModal.querySelectorAll('a, button')).find(el => {
                             let t = el.textContent.toLowerCase();
                             return (t.includes('tiếp tục') || t.includes('continue') || t.includes('next')) && el.offsetWidth > 0;
                         });
                         return !!btnNext;
-                    }, 5000, 100);
+                    }, 30000, 50);
                     
-                    if (btnNext) { forceClickV33(btnNext); await delay(100); }
+                    if (btnNext) { 
+                        let waitTrans = waitForApiV33('x35FD2_jsonPostTransition', 30000);
+                        forceClickV33(btnNext); 
+                        await waitTrans; // Chờ API chuyển trạng thái hoàn tất
+                    }
                 }
             }
 
@@ -655,15 +728,18 @@ const rpcCallHeadlessV33 = async (endpoint, payload) => {
             let currentItemCount = document.querySelectorAll('.list-item[data-entity], .item-4qfjeb3y6f[data-entity], [data-entity*="class_schedule_slot_id"]').length;
 
             log(`⬇️ Đang click mở rộng dữ liệu (Trang ${currentPage + 1}/${maxPages})...`);
+            
             forceClickV33(moreBtn);
+            await delay(100); // Đợi 100ms để đảm bảo Spinner kịp bung lên HTML (nếu có)
             
-            await waitForElementToDisappear('.fa-spin, .ohke-icon-loading, .fa-spinner', 15000);
+            // Dùng Promise.race đua tốc độ giữa API và Spinner
+            let waitRace = Promise.race([
+                waitForApiV33('_Model', 30000),
+                waitForElementToDisappear('.fa-spin, .ohke-icon-loading, .fa-spinner', 30000)
+            ]);
             
-            // Chờ đến khi máy tính vẽ xong các thẻ lớp mới (Số lượng lớn hơn ban đầu)
-            await waitForCondition(() => {
-                let newCount = document.querySelectorAll('.list-item[data-entity], .item-4qfjeb3y6f[data-entity], [data-entity*="class_schedule_slot_id"]').length;
-                return newCount > currentItemCount;
-            }, 15000, 200);
+            await waitRace;
+            await delay(300); // Khoảng thở cực ngắn để DOM nạp thẻ HTML mới
 
             currentPage++;
         }
@@ -885,10 +961,11 @@ const rpcCallHeadlessV33 = async (endpoint, payload) => {
                         <b>Miễn phí:</b> Mở cửa sổ điểm danh trên web, sau đó bấm nút tự động dưới đây.
                     </div>
 
-                    <!-- Nút cũ (Đỏ) - Chế độ chậm -->
+                    <!-- [TẠM ẨN CHẾ ĐỘ CLICK CHẬM CHO BẢN PRODUCTION]
                     <button id="btn-auto-attendance" style="background: #dc3545; color: white; padding: 10px; border: none; border-radius: 4px; font-weight: bold; cursor: pointer;">
                         🐢 AUTO ĐIỂM DANH (CHẾ ĐỘ CLICK CHẬM)
                     </button>
+                    -->
 
                     <!-- Công tắc Hẹn giờ & Debug Trạng thái -->
                     <div style="display: flex; align-items: center; justify-content: space-between; border: 1px solid #ccc; padding: 8px 10px; border-radius: 4px; background: #fff; margin-top: 5px;">
@@ -1333,9 +1410,13 @@ const rpcCallHeadlessV33 = async (endpoint, payload) => {
         const clickText = async (tuKhoa, loaiTru = null) => {
             const vung = getTopModal();
             let els = Array.from(vung.querySelectorAll('a, button, div, span, label')).filter(el => {
-                let text = el.textContent.trim();
-                if (!text.includes(tuKhoa)) return false;
-                if (loaiTru && text.includes(loaiTru)) return false;
+                let text = el.textContent.trim().toLowerCase();
+                let matchKeyword = Array.isArray(tuKhoa) ? tuKhoa.some(k => text.includes(k.toLowerCase())) : text.includes(tuKhoa.toLowerCase());
+                if (!matchKeyword) return false;
+                if (loaiTru) {
+                    let matchExclude = Array.isArray(loaiTru) ? loaiTru.some(k => text.includes(k.toLowerCase())) : text.includes(loaiTru.toLowerCase());
+                    if (matchExclude) return false;
+                }
                 if (el.offsetWidth === 0) return false;
                 return true;
             });
@@ -1359,9 +1440,12 @@ const rpcCallHeadlessV33 = async (endpoint, payload) => {
         };
 
         // ==========================================
-        // 4. MODULE ĐIỂM DANH (GIỮ NGUYÊN)
+        // MODULE: ĐIỂM DANH CHẬM (MÔ PHỎNG CLICK) - [TẠM ẨN]
         // ==========================================
-        document.getElementById('btn-auto-attendance').onclick = async () => {
+        /*
+        let btnAutoAttendance = document.getElementById('btn-auto-attendance');
+        if (btnAutoAttendance) {
+            btnAutoAttendance.onclick = async () => {
             log("🚀 Kích hoạt quy trình Tự Động Hóa Điểm Danh...");
 
             if (!window.location.href.includes('classhub')) {
@@ -1415,105 +1499,118 @@ const rpcCallHeadlessV33 = async (endpoint, payload) => {
             if (!tenGiaoVien) { alert("❌ LỖI BẢO MẬT: Không thể đọc được tên của bạn trên hệ thống!"); return; }
             log(`✅ Thành công! Xin chào Giáo viên: [${tenGiaoVien}]`);
 
-            let cacTab = Array.from(document.querySelectorAll('a, button, div, span')).filter(el => el.textContent.trim() !== "" && el.offsetWidth > 0);
-            let tabQuaKhu = cacTab.find(el => el.textContent.trim().toLowerCase() === 'quá khứ');
-
-            if (tabQuaKhu) {
-                tabQuaKhu.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                await delay(300);
-                tabQuaKhu.click();
-                log("⏳ Đang tải danh sách lớp trong quá khứ (5s)...");
-                await delay(5000);
-            } else { alert("❌ LỖI: Không tìm thấy tab 'Quá Khứ'."); return; }
-
-            const tabActive = document.querySelector('.tab-content > .tab-item:not(.w3-hide)');
-            if (!tabActive) return;
-
             let tongSoLopDaXuLy = 0;
-            while (true) {
-                let cacLop = Array.from(tabActive.querySelectorAll('.list-item')).filter(el => {
-                    let txt = el.textContent;
-                    return (txt.includes('CHƯA NỘP BẢNG ĐIỂM DANH') || txt.includes('CHƯA ĐIỂM DANH GIÁO VIÊN')) && el.offsetWidth > 0 && !el.dataset.daDiemDanh;
-                });
 
-                if (cacLop.length > 0) {
-                    for (let i = 0; i < cacLop.length; i++) {
-                        cacLop[i].scrollIntoView({ behavior: 'smooth', block: 'center' }); await delay(300); cacLop[i].click(); await delay(3000);
+            // Hàm xử lý cuốn chiếu cho 1 tab
+            const processSlowAttendanceTab = async () => {
+                const tabActive = document.querySelector('.tab-content > .tab-item:not(.w3-hide)');
+                if (!tabActive) { log("⚠️ Không tìm thấy dữ liệu tab hiện tại."); return; }
+                
+                while (true) {
+                    let cacLop = Array.from(tabActive.querySelectorAll('.list-item')).filter(el => {
+                        let txt = el.textContent.toUpperCase();
+                        let isPending = txt.includes('CHƯA NỘP BẢNG ĐIỂM DANH') || txt.includes('CHƯA ĐIỂM DANH GIÁO VIÊN') || txt.includes('NOT YET SUBMITTED') || txt.includes('NOT YET MARKED');
+                        return isPending && el.offsetWidth > 0 && !el.dataset.daDiemDanh;
+                    });
 
-                        let vungChinh = getTopModal();
-                        let rows = Array.from(vungChinh.querySelectorAll('tr, .list-item, .ohke-row'));
-                        let rowGV = rows.find(r => r.textContent.includes(tenGiaoVien) && r.textContent.includes('CHƯA ĐIỂM DANH'));
+                    if (cacLop.length > 0) {
+                        for (let i = 0; i < cacLop.length; i++) {
+                            cacLop[i].scrollIntoView({ behavior: 'smooth', block: 'center' }); await delay(300); forceClick(cacLop[i]); await delay(3000);
 
-                        if (rowGV) {
-                            let btnChuaDiemDanh = Array.from(rowGV.querySelectorAll('a, button, div, span')).find(el => el.textContent.trim().includes('CHƯA ĐIỂM DANH') && el.offsetWidth > 0);
-                            if (btnChuaDiemDanh) {
-                                forceClick(btnChuaDiemDanh); await delay(1500);
-                                let daClickCoMat = await clickText('CÓ MẶT', 'Tất Cả'); if (daClickCoMat > 0) await delay(1000);
-                                let soModal = Array.from(document.querySelectorAll('.w3-modal.w3-show')).filter(m => m.offsetWidth > 0).length;
-                                if (soModal > 1) { await closeTopModal(); await delay(800); }
-                            }
-                        }
+                            let vungChinh = getTopModal();
+                            let rows = Array.from(vungChinh.querySelectorAll('tr, .list-item, .ohke-row'));
+                            let rowGV = rows.find(r => r.textContent.includes(tenGiaoVien) && (r.textContent.includes('CHƯA ĐIỂM DANH') || r.textContent.toUpperCase().includes('NOT YET') || r.textContent.toUpperCase().includes('NO ATTENDANCE')));
 
-                        let laTiet0 = false;
-                        try {
-                            let dataEntityStr = cacLop[i].dataset.entity;
-                            if (dataEntityStr) {
-                                let entityData = JSON.parse(dataEntityStr);
-                                let classHourCode = entityData.class_hour_code || '';
-                                laTiet0 = classHourCode === 'H0' || classHourCode.startsWith('H0.');
-                            }
-                        } catch (e) { }
-
-                        if (laTiet0) {
-                            let daClickCoMatTatCa = await clickText('Đánh Dấu Tất Cả Có Mặt'); if (daClickCoMatTatCa > 0) await delay(1500);
-                            let bamTiepTuc0 = await clickText('Tiếp Tục'); if (bamTiepTuc0 > 0) await delay(2500);
-                        } else {
-                            let daClickTietTruoc = await clickText('Đánh Dấu Như Tiết Học Trước');
-                            if (daClickTietTruoc === 0) await clickText('Đánh Dấu Tất Cả Có Mặt');
-                            await delay(1500);
-                            let bamTiepTuc = await clickText('Tiếp Tục'); if (bamTiepTuc > 0) await delay(2500);
-                        }
-
-                        let soNutDaBam = 0;
-                        while (soNutDaBam < 3) {
-                            let danhSachHoanThanh = Array.from(getTopModal().querySelectorAll('a, button, .btn, .w3-button')).filter(el => el.offsetWidth > 50 && el.textContent.trim().includes('Đánh Dấu Hoàn Thành') && !el.closest('td'));
-                            if (danhSachHoanThanh.length === 0) break;
-                            danhSachHoanThanh.sort((a, b) => a.getBoundingClientRect().top - b.getBoundingClientRect().top);
-                            let targetBtn = danhSachHoanThanh[0];
-
-                            for (let w = 0; w < 10; w++) {
-                                if (!targetBtn.disabled && !targetBtn.className.includes('disabled')) break;
-                                await delay(500);
-                            }
-                            forceClick(targetBtn); soNutDaBam++;
-
-                            for (let j = 0; j < 15; j++) {
-                                await delay(500);
-                                let checkLai = Array.from(getTopModal().querySelectorAll('a, button, .btn, .w3-button')).filter(el => {
-                                    let txt = el.textContent.trim();
-                                    return txt.includes('Đánh Dấu Hoàn Thành') && el.offsetWidth > 50 && !el.closest('td');
+                            if (rowGV) {
+                                let btnChuaDiemDanh = Array.from(rowGV.querySelectorAll('a, button, div, span')).find(el => {
+                                    let t = el.textContent.toUpperCase();
+                                    return (t.includes('CHƯA ĐIỂM DANH') || t.includes('NOT YET') || t.includes('NO ATTENDANCE')) && el.offsetWidth > 0;
                                 });
-                                if (checkLai.length < danhSachHoanThanh.length) break;
+                                if (btnChuaDiemDanh) {
+                                    forceClick(btnChuaDiemDanh); await delay(1500);
+                                    let daClickCoMat = await clickText(['CÓ MẶT', 'PRESENT'], ['Tất Cả', 'ALL']); if (daClickCoMat > 0) await delay(1000);
+                                    let soModal = Array.from(document.querySelectorAll('.w3-modal.w3-show')).filter(m => m.offsetWidth > 0).length;
+                                    if (soModal > 1) { await closeTopModal(); await delay(800); }
+                                }
                             }
+
+                            let laTiet0 = false;
+                            try {
+                                let dataEntityStr = cacLop[i].getAttribute('data-entity') || (cacLop[i].dataset && cacLop[i].dataset.entity);
+                                if (dataEntityStr) {
+                                    let entityData = JSON.parse(dataEntityStr);
+                                    let classHourCode = entityData.class_hour_code || '';
+                                    laTiet0 = classHourCode === 'H0' || String(classHourCode).startsWith('H0.');
+                                }
+                            } catch (e) { }
+
+                            if (laTiet0) {
+                                let daClickCoMatTatCa = await clickText(['Đánh Dấu Tất Cả Có Mặt', 'MARK ALL AS PRESENT', 'MARK ALL']); if (daClickCoMatTatCa > 0) await delay(1500);
+                                let bamTiepTuc0 = await clickText(['Tiếp Tục', 'CONTINUE', 'NEXT']); if (bamTiepTuc0 > 0) await delay(2500);
+                            } else {
+                                let daClickTietTruoc = await clickText(['Đánh Dấu Như Tiết Học Trước', 'MARK AS PREVIOUS']);
+                                if (daClickTietTruoc === 0) await clickText(['Đánh Dấu Tất Cả Có Mặt', 'MARK ALL AS PRESENT', 'MARK ALL']);
+                                await delay(1500);
+                                let bamTiepTuc = await clickText(['Tiếp Tục', 'CONTINUE', 'NEXT']); if (bamTiepTuc > 0) await delay(2500);
+                            }
+
+                            let soNutDaBam = 0;
+                            while (soNutDaBam < 3) {
+                                let danhSachHoanThanh = Array.from(getTopModal().querySelectorAll('a, button, .btn, .w3-button')).filter(el => {
+                                    let t = el.textContent.toUpperCase();
+                                    return (t.includes('ĐÁNH DẤU HOÀN THÀNH') || t.includes('MARK AS COMPLETED') || t.includes('MARK COMPLETED')) && el.offsetWidth > 50 && !el.closest('td');
+                                });
+                                if (danhSachHoanThanh.length === 0) break;
+                                danhSachHoanThanh.sort((a, b) => a.getBoundingClientRect().top - b.getBoundingClientRect().top);
+                                let targetBtn = danhSachHoanThanh[0];
+
+                                for (let w = 0; w < 10; w++) {
+                                    if (!targetBtn.disabled && !targetBtn.className.includes('disabled')) break;
+                                    await delay(500);
+                                }
+                                forceClick(targetBtn); soNutDaBam++;
+
+                                for (let j = 0; j < 15; j++) {
+                                    await delay(500);
+                                    let checkLai = Array.from(getTopModal().querySelectorAll('a, button, .btn, .w3-button')).filter(el => {
+                                        let txt = el.textContent.toUpperCase();
+                                        return (txt.includes('ĐÁNH DẤU HOÀN THÀNH') || txt.includes('MARK AS COMPLETED') || txt.includes('MARK COMPLETED')) && el.offsetWidth > 50 && !el.closest('td');
+                                    });
+                                    if (checkLai.length < danhSachHoanThanh.length) break;
+                                }
+                            }
+                            await delay(800); await closeTopModal(); await delay(1200);
+                            cacLop[i].dataset.daDiemDanh = "true"; cacLop[i].style.opacity = "0.3"; tongSoLopDaXuLy++;
                         }
-                        await delay(800); await closeTopModal(); await delay(1200);
-                        cacLop[i].dataset.daDiemDanh = "true"; cacLop[i].style.opacity = "0.3"; tongSoLopDaXuLy++;
-                    }
-                } else {
-                    let dsPhanTu = Array.from(tabActive.querySelectorAll('a, button, div, span'));
-                    let nutXemThem = dsPhanTu.find(el => el.textContent.trim() === 'Xem Thêm' && el.offsetWidth > 0);
-                    if (nutXemThem) {
-                        forceClick(nutXemThem); await delay(3500);
-                        let kiemTraTheDoMoi = Array.from(tabActive.querySelectorAll('.list-item')).filter(el => {
-                            let txt = el.textContent;
-                            return (txt.includes('CHƯA NỘP BẢNG ĐIỂM DANH') || txt.includes('CHƯA ĐIỂM DANH GIÁO VIÊN')) && el.offsetWidth > 0 && !el.dataset.daDiemDanh;
+                    } else {
+                        let dsPhanTu = Array.from(tabActive.querySelectorAll('a, button, div, span'));
+                        let nutXemThem = dsPhanTu.find(el => {
+                            let t = el.textContent.toUpperCase();
+                            return (t === 'XEM THÊM' || t === 'SHOW MORE' || t === 'LOAD MORE') && el.offsetWidth > 0;
                         });
-                        if (kiemTraTheDoMoi.length === 0) break;
-                    } else break;
+                        if (nutXemThem) {
+                            forceClick(nutXemThem); await delay(3500);
+                            let kiemTraTheDoMoi = Array.from(tabActive.querySelectorAll('.list-item')).filter(el => {
+                                let txt = el.textContent.toUpperCase();
+                                return (txt.includes('CHƯA NỘP BẢNG ĐIỂM DANH') || txt.includes('CHƯA ĐIỂM DANH GIÁO VIÊN') || txt.includes('NOT YET SUBMITTED') || txt.includes('NOT YET MARKED')) && el.offsetWidth > 0 && !el.dataset.daDiemDanh;
+                            });
+                            if (kiemTraTheDoMoi.length === 0) break;
+                        } else break;
+                    }
                 }
-            }
-            alert(`🎉 HOÀN TẤT ĐIỂM DANH! Tổng số lớp đã xử lý: ${tongSoLopDaXuLy} lớp.`);
-        };
+            };
+
+            // THỰC THI QUY TRÌNH CHUẨN: QUÁ KHỨ -> HÔM NAY
+            await switchTabAndWaitV33(['quá khứ', 'past']);
+            await processSlowAttendanceTab();
+
+            await switchTabAndWaitV33(['hôm nay', 'today']);
+            await processSlowAttendanceTab();
+
+            alert(`🎉 HOÀN TẤT ĐIỂM DANH CHẬM! Tổng số lớp đã xử lý: ${tongSoLopDaXuLy} lớp.`);
+            };
+        }
+        */
 
         const clickLoadMore = async () => {
             let loadMoreCount = 0; let xemThemBtn;
