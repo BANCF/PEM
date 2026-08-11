@@ -690,7 +690,7 @@ export default function GradeInputPage({ params }: { params: Promise<{ classId: 
           </>
         )}
 
-        {activeTab === "evaluations" && (
+        {activeTab === "evaluations" && classData && (
           <MonthlyEvaluationsTab
             classData={classData}
             students={students}

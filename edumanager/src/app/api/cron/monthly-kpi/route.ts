@@ -42,7 +42,7 @@ export async function GET(request: Request) {
       .get();
 
     const teachers: Record<string, any> = {};
-    usersSnapshot.forEach(doc => {
+    usersSnapshot.forEach((doc: any) => {
       const data = doc.data();
       teachers[doc.id] = {
         teacherId: doc.id,
@@ -160,7 +160,7 @@ export async function GET(request: Request) {
       // 2. Send Summary Email to BGH
       const bghSnapshot = await adminDb.collection('users').where('role', '==', 'BGH').get();
       const bghEmails: string[] = [];
-      bghSnapshot.forEach(doc => {
+      bghSnapshot.forEach((doc: any) => {
         if (doc.data().email) bghEmails.push(doc.data().email);
       });
 
