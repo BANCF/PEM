@@ -117,45 +117,49 @@ export async function GET(request: Request) {
 
     if (isEmailConfigured) {
       // 1. Send Individual Emails to Teachers
-      for (const t of teacherStats) {
-        if (!t.email) continue;
-        
-        const htmlContent = `
-          <div style="font-family: Arial, sans-serif; max-w: 600px; margin: 0 auto; border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden;">
-            <div style="background-color: #3b82f6; padding: 20px; text-align: center; color: white;">
-              <h2 style="margin: 0;">Báo cáo KPI Tháng ${monthStr}/${prevYear}</h2>
+      const emailPromises = teacherStats
+        .filter((t: any) => !!t.email)
+        .map(async (t: any) => {
+          const htmlContent = `
+            <div style="font-family: Arial, sans-serif; max-w: 600px; margin: 0 auto; border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden;">
+              <div style="background-color: #3b82f6; padding: 20px; text-align: center; color: white;">
+                <h2 style="margin: 0;">Báo cáo KPI Tháng ${monthStr}/${prevYear}</h2>
+              </div>
+              <div style="padding: 20px; color: #333;">
+                <p>Xin chào thầy/cô <strong>${t.fullName}</strong>,</p>
+                <p>Hệ thống EduManager xin gửi báo cáo điểm thi đua KPI tháng ${monthStr}/${prevYear} của thầy/cô như sau:</p>
+                <table style="width: 100%; border-collapse: collapse; margin-top: 15px;">
+                  <tr><td style="padding: 8px; border-bottom: 1px solid #eee;">Điểm gốc:</td><td style="padding: 8px; border-bottom: 1px solid #eee; text-align: right; font-weight: bold;">${t.baseScore}</td></tr>
+                  <tr><td style="padding: 8px; border-bottom: 1px solid #eee;">Điểm thưởng:</td><td style="padding: 8px; border-bottom: 1px solid #eee; text-align: right; color: #10b981; font-weight: bold;">+${t.kudosScore}</td></tr>
+                  <tr><td style="padding: 8px; border-bottom: 1px solid #eee;">Điểm phạt:</td><td style="padding: 8px; border-bottom: 1px solid #eee; text-align: right; color: #ef4444; font-weight: bold;">${t.penaltyScore}</td></tr>
+                  <tr><td style="padding: 12px 8px; border-bottom: 1px solid #eee; font-size: 18px;"><strong>Tổng kết KPI:</strong></td><td style="padding: 12px 8px; border-bottom: 1px solid #eee; text-align: right; font-size: 18px; color: #2563eb;"><strong>${t.finalScore}</strong></td></tr>
+                </table>
+                <p style="margin-top: 20px; font-size: 14px; color: #64748b;">(Mẫu nhận xét chi tiết sẽ được tự động điền tại đây theo cấu hình của trường)</p>
+                <br/>
+                <p>Chúc thầy/cô một tháng làm việc mới tràn đầy năng lượng!</p>
+              </div>
+              <div style="background-color: #f8fafc; padding: 15px; text-align: center; font-size: 12px; color: #94a3b8;">
+                Email được gửi tự động từ Hệ thống EduManager. Vui lòng không trả lời email này.
+              </div>
             </div>
-            <div style="padding: 20px; color: #333;">
-              <p>Xin chào thầy/cô <strong>${t.fullName}</strong>,</p>
-              <p>Hệ thống EduManager xin gửi báo cáo điểm thi đua KPI tháng ${monthStr}/${prevYear} của thầy/cô như sau:</p>
-              <table style="width: 100%; border-collapse: collapse; margin-top: 15px;">
-                <tr><td style="padding: 8px; border-bottom: 1px solid #eee;">Điểm gốc:</td><td style="padding: 8px; border-bottom: 1px solid #eee; text-align: right; font-weight: bold;">${t.baseScore}</td></tr>
-                <tr><td style="padding: 8px; border-bottom: 1px solid #eee;">Điểm thưởng:</td><td style="padding: 8px; border-bottom: 1px solid #eee; text-align: right; color: #10b981; font-weight: bold;">+${t.kudosScore}</td></tr>
-                <tr><td style="padding: 8px; border-bottom: 1px solid #eee;">Điểm phạt:</td><td style="padding: 8px; border-bottom: 1px solid #eee; text-align: right; color: #ef4444; font-weight: bold;">${t.penaltyScore}</td></tr>
-                <tr><td style="padding: 12px 8px; border-bottom: 1px solid #eee; font-size: 18px;"><strong>Tổng kết KPI:</strong></td><td style="padding: 12px 8px; border-bottom: 1px solid #eee; text-align: right; font-size: 18px; color: #2563eb;"><strong>${t.finalScore}</strong></td></tr>
-              </table>
-              <p style="margin-top: 20px; font-size: 14px; color: #64748b;">(Mẫu nhận xét chi tiết sẽ được tự động điền tại đây theo cấu hình của trường)</p>
-              <br/>
-              <p>Chúc thầy/cô một tháng làm việc mới tràn đầy năng lượng!</p>
-            </div>
-            <div style="background-color: #f8fafc; padding: 15px; text-align: center; font-size: 12px; color: #94a3b8;">
-              Email được gửi tự động từ Hệ thống EduManager. Vui lòng không trả lời email này.
-            </div>
-          </div>
-        `;
+          `;
 
-        try {
-          await transporter.sendMail({
-            from: `"EduManager" <${process.env.SMTP_USER}>`,
-            to: t.email,
-            subject: `Báo cáo KPI Tháng ${monthStr}/${prevYear} - ${t.fullName}`,
-            html: htmlContent,
-          });
-          emailsSent++;
-        } catch (e) {
-          console.error(`Failed to send email to ${t.email}`, e);
-        }
-      }
+          try {
+            await transporter.sendMail({
+              from: `"EduManager" <${process.env.SMTP_USER}>`,
+              to: t.email,
+              subject: `Báo cáo KPI Tháng ${monthStr}/${prevYear} - ${t.fullName}`,
+              html: htmlContent,
+            });
+            return true;
+          } catch (e) {
+            console.error(`Failed to send email to ${t.email}`, e);
+            return false;
+          }
+        });
+
+      const results = await Promise.allSettled(emailPromises);
+      emailsSent = results.filter(r => r.status === 'fulfilled' && r.value === true).length;
 
       // 2. Send Summary Email to BGH
       const bghSnapshot = await adminDb.collection('users').where('role', '==', 'BGH').get();
