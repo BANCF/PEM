@@ -5,7 +5,7 @@ import { Upload, FileSpreadsheet, Save, Calendar, AlertCircle } from "lucide-rea
 import * as XLSX from "xlsx";
 import toast from "react-hot-toast";
 import { useAuth } from "@/contexts/AuthContext";
-import { saveSchedule, FullScheduleData } from "@/lib/services/schedule.service";
+import { saveSchedule, getDraftSchedule, saveDraftSchedule, publishDraftSchedule, deleteDraftSchedule, FullScheduleData } from "@/lib/services/schedule.service";
 
 const TEACHER_ALIASES: Record<string, string> = {
   "Linh": "Vũ Linh",
@@ -26,6 +26,22 @@ export default function ScheduleSettingsPage() {
   const [file, setFile] = useState<File | null>(null);
   const [loading, setLoading] = useState(false);
   const [parsedData, setParsedData] = useState<FullScheduleData | null>(null);
+  const [hasDraft, setHasDraft] = useState(false);
+  const [draftCheckLoading, setDraftCheckLoading] = useState(true);
+
+  React.useEffect(() => {
+    const checkDraft = async () => {
+      try {
+        const draft = await getDraftSchedule();
+        setHasDraft(!!draft);
+      } catch (e) {
+        console.error("Error checking draft", e);
+      } finally {
+        setDraftCheckLoading(false);
+      }
+    };
+    checkDraft();
+  }, []);
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = e.target.files?.[0];
@@ -189,7 +205,7 @@ export default function ScheduleSettingsPage() {
                 if (!teachersSchedule[tName]) teachersSchedule[tName] = {};
                 if (!teachersSchedule[tName][curDay]) teachersSchedule[tName][curDay] = [];
 
-                const existingT = teachersSchedule[tName][curDay].find((p: any) => p.period === periodClean);
+                const existingT = teachersSchedule[tName][curDay].find((p: any) => p.period === periodClean && p.className === className);
                 if (!existingT) {
                   teachersSchedule[tName][curDay].push({
                     period: periodClean,
@@ -221,19 +237,65 @@ export default function ScheduleSettingsPage() {
     }
   };
 
-  const handleSave = async () => {
+  const handleSaveDraft = async () => {
     if (!parsedData) return;
     
     setLoading(true);
     try {
-      await saveSchedule(parsedData);
-      toast.success("Đã cập nhật Thời khóa biểu toàn trường!");
+      await saveDraftSchedule(parsedData);
+      setHasDraft(true);
+      toast.success("Đã lưu Thời khóa biểu thành bản Nháp (Tuần sau)!");
     } catch (error) {
       toast.error("Lỗi khi lưu lên hệ thống");
     } finally {
       setLoading(false);
     }
   };
+
+  const handlePublishDraft = async () => {
+    if (!window.confirm("Bạn có chắc chắn muốn áp dụng TKB Nháp thành TKB chính thức cho tuần này? Hành động này sẽ ghi đè TKB hiện tại.")) return;
+    setLoading(true);
+    try {
+      await publishDraftSchedule();
+      setHasDraft(false);
+      setParsedData(null);
+      setFile(null);
+      toast.success("Đã áp dụng TKB Nháp thành công!");
+    } catch (error) {
+      toast.error("Lỗi khi áp dụng TKB");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDeleteDraft = async () => {
+    if (!window.confirm("Bạn có chắc chắn muốn xóa TKB Nháp này?")) return;
+    setLoading(true);
+    try {
+      await deleteDraftSchedule();
+      setHasDraft(false);
+      toast.success("Đã xóa TKB Nháp!");
+    } catch (error) {
+      toast.error("Lỗi khi xóa TKB Nháp");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  let conflictCount = 0;
+  if (parsedData) {
+    Object.values(parsedData.teachers).forEach(days => {
+      Object.values(days).forEach(periods => {
+        const periodMap = new Map();
+        periods.forEach(p => {
+          periodMap.set(p.period, (periodMap.get(p.period) || 0) + 1);
+        });
+        periodMap.forEach(count => {
+          if (count > 1) conflictCount++;
+        });
+      });
+    });
+  }
 
   return (
     <div className="space-y-6">
@@ -243,9 +305,37 @@ export default function ScheduleSettingsPage() {
             <Calendar className="text-blue-600" />
             Cập nhật Thời khóa biểu
           </h1>
-          <p className="text-slate-500 mt-1">Tải lên file Excel TKB toàn trường (sheet TKB SangChieu) để đồng bộ dữ liệu.</p>
+          <p className="text-slate-500 mt-1">Tải lên file Excel TKB để kiểm tra trùng tiết và lưu làm bản nháp cho tuần sau.</p>
         </div>
       </div>
+
+      {!draftCheckLoading && hasDraft && (
+        <div className="bg-amber-50 p-6 rounded-2xl shadow-sm border border-amber-200 flex flex-col md:flex-row items-center justify-between gap-4">
+          <div>
+            <h2 className="text-lg font-bold text-amber-800 flex items-center gap-2">
+              <AlertCircle size={20} />
+              Đang có TKB Nháp (Tuần sau)
+            </h2>
+            <p className="text-amber-700 mt-1">Hệ thống đang lưu trữ 1 bản TKB nháp. Bạn có thể áp dụng bản nháp này thành TKB chính thức cho toàn trường.</p>
+          </div>
+          <div className="flex gap-3 shrink-0">
+            <button
+              onClick={handleDeleteDraft}
+              disabled={loading}
+              className="px-4 py-2 bg-white text-red-600 border border-red-200 hover:bg-red-50 rounded-xl font-medium transition-colors"
+            >
+              Xóa bản nháp
+            </button>
+            <button
+              onClick={handlePublishDraft}
+              disabled={loading}
+              className="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white rounded-xl font-medium transition-colors"
+            >
+              Áp dụng chính thức
+            </button>
+          </div>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
@@ -298,15 +388,29 @@ export default function ScheduleSettingsPage() {
                   <li>Tìm thấy TKB của <strong>{Object.keys(parsedData.teachers).length}</strong> giáo viên</li>
                   <li>Tìm thấy TKB của <strong>{Object.keys(parsedData.classes).length}</strong> lớp học</li>
                 </ul>
+                
+                {conflictCount > 0 ? (
+                  <div className="mt-4 p-3 bg-red-100 text-red-800 rounded-lg border border-red-200 flex items-start gap-2">
+                    <AlertCircle size={18} className="shrink-0 mt-0.5" />
+                    <div>
+                      <span className="font-bold">Cảnh báo: </span>
+                      Phát hiện <strong>{conflictCount}</strong> trường hợp giáo viên bị trùng tiết (dạy 2 lớp cùng 1 thời điểm). Bạn vẫn có thể lưu Nháp và yêu cầu GV vào xem để báo lại lỗi.
+                    </div>
+                  </div>
+                ) : (
+                  <div className="mt-4 p-3 bg-emerald-100 text-emerald-800 rounded-lg border border-emerald-200">
+                    <span className="font-bold">Tuyệt vời: </span> Không phát hiện trường hợp trùng tiết nào.
+                  </div>
+                )}
               </div>
 
               <button
-                onClick={handleSave}
+                onClick={handleSaveDraft}
                 disabled={loading}
                 className="w-full bg-blue-600 hover:bg-blue-700 text-white py-3 rounded-xl font-medium transition-colors flex items-center justify-center gap-2"
               >
                 <Save size={20} />
-                Lưu và Đồng bộ lên Hệ thống
+                Lưu thành TKB Tuần Sau (Dự kiến)
               </button>
             </div>
           ) : (

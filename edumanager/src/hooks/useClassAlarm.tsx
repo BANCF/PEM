@@ -19,8 +19,20 @@ export const useClassAlarm = () => {
         const docSnap = await getDoc(docRef);
         if (docSnap.exists()) {
           const data = docSnap.data();
-          if (data.teachers && data.teachers[profile.id]) {
-            setSchedule(data.teachers[profile.id]);
+          if (data.teachers) {
+            const scheduleName = (profile as any).scheduleName;
+            if (scheduleName && data.teachers[scheduleName]) {
+              setSchedule(data.teachers[scheduleName]);
+            } else {
+              const allTeachers = Object.keys(data.teachers);
+              const exactMatch = allTeachers.find(t => t.toLowerCase() === profile.fullName?.toLowerCase());
+              if (exactMatch) {
+                setSchedule(data.teachers[exactMatch]);
+              } else {
+                const includesMatch = allTeachers.find(t => profile.fullName?.toLowerCase().includes(t.toLowerCase()));
+                if (includesMatch) setSchedule(data.teachers[includesMatch]);
+              }
+            }
           }
         }
       } catch (error) {
@@ -40,9 +52,8 @@ export const useClassAlarm = () => {
       const now = new Date();
       // Target time is 5 minutes from now
       const targetTime = new Date(now.getTime() + 5 * 60000);
-      const targetHours = targetTime.getHours().toString().padStart(2, '0');
-      const targetMinutes = targetTime.getMinutes().toString().padStart(2, '0');
-      const targetTimeString = `${targetHours}:${targetMinutes}`;
+      const targetH = targetTime.getHours();
+      const targetM = targetTime.getMinutes();
 
       let vnDay = now.getDay();
       const scheduleDay = vnDay === 0 ? "8" : (vnDay + 1).toString();
@@ -52,11 +63,17 @@ export const useClassAlarm = () => {
       for (const cls of todayClasses) {
         if (!cls.time) continue;
         const startTimeStr = cls.time.split('-')[0].trim();
+        
+        const match = startTimeStr.match(/(\d{1,2})[h:](\d{1,2})?/);
+        if (!match) continue;
+        
+        const h = parseInt(match[1]);
+        const m = match[2] ? parseInt(match[2]) : 0;
 
         // Unique ID for this class session today
-        const classSessionId = `${scheduleDay}-${cls.className}-${cls.period}-${startTimeStr}`;
+        const classSessionId = `${scheduleDay}-${cls.className}-${cls.period}-${h}-${m}`;
 
-        if (startTimeStr === targetTimeString && !alertedClasses.current.has(classSessionId)) {
+        if (h === targetH && m === targetM && !alertedClasses.current.has(classSessionId)) {
           alertedClasses.current.add(classSessionId);
           triggerAlarm(cls);
         }
@@ -67,6 +84,33 @@ export const useClassAlarm = () => {
       // Play sound
       const audio = new Audio("/sounds/notification.wav");
       audio.play().catch(e => console.log("Audio play blocked by browser policy"));
+
+      // Native browser notification for mobile/background support
+      if (typeof window !== "undefined" && "Notification" in window) {
+        if (Notification.permission === "granted") {
+          const title = `🔔 Sắp đến tiết ${cls.subject}!`;
+          const options = {
+            body: `Còn 5 phút nữa là bắt đầu tiết ${cls.period} ở lớp ${cls.className}. Mời thầy/cô chuẩn bị vào lớp.`,
+            icon: '/logo-pascal-01.png',
+            vibrate: [500, 200, 500],
+            requireInteraction: true
+          };
+          
+          try {
+            if (navigator.serviceWorker) {
+              navigator.serviceWorker.ready.then(registration => {
+                registration.showNotification(title, options);
+              }).catch(() => {
+                new Notification(title, options);
+              });
+            } else {
+              new Notification(title, options);
+            }
+          } catch (e) {
+            console.error("Lỗi khi hiển thị native notification:", e);
+          }
+        }
+      }
 
       // Show toast
       toast.custom((t) => (

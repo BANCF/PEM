@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useRef } from "react";
 import { useAuth } from "@/contexts/AuthContext";
-import { getSchedule, FullScheduleData, ScheduleClassInfo } from "@/lib/services/schedule.service";
+import { getSchedule, getDraftSchedule, FullScheduleData, ScheduleClassInfo } from "@/lib/services/schedule.service";
 import { assignmentService } from "@/lib/services/assignment.service";
 import { classService } from "@/lib/services/class.service";
 import { db } from "@/lib/firebase/client";
@@ -42,15 +42,19 @@ const ScheduleGrid = ({
   };
 
   const allPeriodsSet = new Set<string>();
+  let totalPeriods = 0;
   Object.values(scheduleData).forEach(dayArr => {
     dayArr.forEach(item => {
       if (item && item.period) {
+        totalPeriods++;
         const match = item.period.toString().trim().match(/\d+/);
         if (match) allPeriodsSet.add(match[0]);
       }
     });
   });
   const periods = Array.from(allPeriodsSet).sort((a, b) => parseInt(a) - parseInt(b));
+  
+  const displayTitle = totalPeriods > 0 ? `${title} (Tổng: ${totalPeriods} tiết)` : title;
 
   if (periods.length === 0) {
     return <div className="p-8 text-center text-slate-500 bg-slate-50 rounded-xl">Không có dữ liệu thời khóa biểu.</div>;
@@ -61,7 +65,7 @@ const ScheduleGrid = ({
   return (
     <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden" id="schedule-print-area">
       <div className="bg-blue-600 text-white p-4 text-center">
-        <h2 className="text-xl font-bold uppercase">{title}</h2>
+        <h2 className="text-xl font-bold uppercase">{displayTitle}</h2>
       </div>
 
       {/* Desktop Table View */}
@@ -83,26 +87,35 @@ const ScheduleGrid = ({
                 </td>
                 {days.map(day => {
                   const dayData = scheduleData[day] || [];
-                  const cellData = dayData.find(item => item.period === period);
+                  const cellDatas = dayData.filter(item => item.period === period);
                   
                   return (
                     <td key={`${day}-${period}`} className="border border-slate-300 py-3 px-2">
-                      {cellData ? (
-                        <div 
-                          onClick={() => handleCellClick(day, period, cellData)}
-                          className={`flex flex-col items-center justify-center space-y-1 ${fullSchedule && currentTeacherName ? 'cursor-pointer hover:bg-blue-50 p-2 rounded-lg transition-colors' : ''}`}
-                          title={fullSchedule && currentTeacherName ? "Bấm vào để tra cứu giáo viên đổi tiết/dạy thay" : undefined}
-                        >
-                          <span className="font-bold text-blue-700 text-sm">{cellData.subject}</span>
-                          <span className="text-xs font-medium px-2 py-0.5 bg-slate-100 text-slate-600 rounded-md border border-slate-200">
-                            {cellData.className}
-                          </span>
-                          <span className="text-[11px] font-semibold text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded">
-                            {cellData.time}
-                          </span>
-                          {cellData.teacher && (
-                            <span className="text-xs text-slate-500 italic">{cellData.teacher}</span>
-                          )}
+                      {cellDatas.length > 0 ? (
+                        <div className="flex flex-col gap-2">
+                          {cellDatas.map((cellData, idx) => (
+                            <div 
+                              key={idx}
+                              onClick={() => handleCellClick(day, period, cellData)}
+                              className={`flex flex-col items-center justify-center space-y-1 ${
+                                cellDatas.length > 1 ? 'bg-red-50 border border-red-200 shadow-sm' : 
+                                (fullSchedule && currentTeacherName ? 'hover:bg-blue-50 transition-colors' : '')
+                              } p-2 rounded-lg`}
+                              title={fullSchedule && currentTeacherName ? "Bấm vào để tra cứu giáo viên đổi tiết/dạy thay" : undefined}
+                            >
+                              {cellDatas.length > 1 && <span className="text-xs font-bold text-red-600 uppercase bg-red-100 px-2 py-0.5 rounded animate-pulse">Trùng Tiết!</span>}
+                              <span className={`font-bold text-sm ${cellDatas.length > 1 ? 'text-red-700' : 'text-blue-700'}`}>{cellData.subject}</span>
+                              <span className={`text-xs font-medium px-2 py-0.5 rounded-md border ${cellDatas.length > 1 ? 'bg-red-100 text-red-800 border-red-200' : 'bg-slate-100 text-slate-600 border-slate-200'}`}>
+                                {cellData.className}
+                              </span>
+                              <span className="text-[11px] font-semibold text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded">
+                                {cellData.time}
+                              </span>
+                              {cellData.teacher && (
+                                <span className="text-xs text-slate-500 italic">{cellData.teacher}</span>
+                              )}
+                            </div>
+                          ))}
                         </div>
                       ) : (
                         <span className="text-slate-300">-</span>
@@ -139,36 +152,41 @@ const ScheduleGrid = ({
         {/* Timeline list for selected day */}
         <div className="space-y-3 pt-2">
           {periods.map(period => {
-            const cellData = activeDayData.find(item => item.period === period);
+            const cellDatas = activeDayData.filter(item => item.period === period);
 
             return (
-              <div key={period} className="flex items-center gap-3 bg-slate-50 p-3.5 rounded-xl border border-slate-200">
-                <div className="w-14 h-14 bg-blue-100 text-blue-800 rounded-xl flex flex-col items-center justify-center shrink-0 border border-blue-200">
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-blue-600">Tiết</span>
+              <div key={period} className={`flex items-center gap-3 p-3.5 rounded-xl border ${cellDatas.length > 1 ? 'bg-red-50 border-red-200' : 'bg-slate-50 border-slate-200'}`}>
+                <div className={`w-14 h-14 rounded-xl flex flex-col items-center justify-center shrink-0 border ${cellDatas.length > 1 ? 'bg-red-100 text-red-800 border-red-200' : 'bg-blue-100 text-blue-800 border-blue-200'}`}>
+                  <span className={`text-[10px] font-bold uppercase tracking-wider ${cellDatas.length > 1 ? 'text-red-600' : 'text-blue-600'}`}>Tiết</span>
                   <span className="text-xl font-black">{period}</span>
                 </div>
 
-                <div className="flex-1 min-w-0">
-                  {cellData ? (
-                    <div 
-                      onClick={() => handleCellClick(activeMobileDay, period, cellData)}
-                      className={fullSchedule && currentTeacherName ? "cursor-pointer" : ""}
-                    >
-                      <div className="flex items-center gap-2">
-                        <h4 className="font-bold text-slate-800 text-base">{cellData.subject}</h4>
-                        <span className="text-xs font-bold bg-blue-50 text-blue-700 px-2 py-0.5 rounded border border-blue-200">
-                          {cellData.className}
-                        </span>
-                      </div>
-                      <div className="flex items-center gap-3 text-xs text-slate-500 mt-1">
-                        {cellData.time && (
-                          <span className="text-emerald-700 font-semibold bg-emerald-50 px-1.5 py-0.5 rounded">
-                            {cellData.time}
+                <div className="flex-1 min-w-0 space-y-2">
+                  {cellDatas.length > 0 ? (
+                    cellDatas.map((cellData, idx) => (
+                      <div 
+                        key={idx}
+                        onClick={() => handleCellClick(activeMobileDay, period, cellData)}
+                        className={fullSchedule && currentTeacherName ? "cursor-pointer" : ""}
+                      >
+                        {cellDatas.length > 1 && idx === 0 && <span className="text-xs font-bold text-red-600 uppercase bg-red-100 px-2 py-0.5 rounded mb-1 inline-block animate-pulse">Trùng Tiết!</span>}
+                        <div className="flex items-center gap-2">
+                          <h4 className={`font-bold text-base ${cellDatas.length > 1 ? 'text-red-700' : 'text-slate-800'}`}>{cellData.subject}</h4>
+                          <span className={`text-xs font-bold px-2 py-0.5 rounded border ${cellDatas.length > 1 ? 'bg-red-100 text-red-700 border-red-200' : 'bg-blue-50 text-blue-700 border-blue-200'}`}>
+                            {cellData.className}
                           </span>
-                        )}
-                        {cellData.teacher && <span>GV: {cellData.teacher}</span>}
+                        </div>
+                        <div className="flex items-center gap-3 text-xs text-slate-500 mt-1">
+                          {cellData.time && (
+                            <span className="text-emerald-700 font-semibold bg-emerald-50 px-1.5 py-0.5 rounded">
+                              {cellData.time}
+                            </span>
+                          )}
+                          {cellData.teacher && <span>GV: {cellData.teacher}</span>}
+                        </div>
+                        {idx < cellDatas.length - 1 && <div className="border-b border-red-200 my-2"></div>}
                       </div>
-                    </div>
+                    ))
                   ) : (
                     <span className="text-slate-400 text-sm italic">Nghỉ / Không có tiết</span>
                   )}
@@ -197,6 +215,8 @@ const ScheduleGrid = ({
 export default function SchedulePage() {
   const { profile } = useAuth();
   const [schedule, setSchedule] = useState<FullScheduleData | null>(null);
+  const [draftSchedule, setDraftSchedule] = useState<FullScheduleData | null>(null);
+  const [viewMode, setViewMode] = useState<"current" | "draft">("current");
   const [loading, setLoading] = useState(true);
   
   const [activeTab, setActiveTab] = useState<"personal" | "homeroom">("personal");
@@ -207,8 +227,9 @@ export default function SchedulePage() {
     const fetchData = async () => {
       if (!profile) return;
       try {
-        const sched = await getSchedule();
+        const [sched, draft] = await Promise.all([getSchedule(), getDraftSchedule()]);
         setSchedule(sched);
+        setDraftSchedule(draft);
 
         if (sched) {
           // Try to auto match teacher name if not already saved
@@ -251,9 +272,10 @@ export default function SchedulePage() {
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
 
   const handlePrint = async () => {
-    if (activeTab.startsWith("homeroom-") && schedule) {
+    const activeSchedule = viewMode === "current" ? schedule : draftSchedule;
+    if (activeTab.startsWith("homeroom-") && activeSchedule) {
       const className = activeTab.split("-")[1];
-      const classSched = schedule.classes[className];
+      const classSched = activeSchedule.classes[className];
       if (!classSched) {
         toast.error("Không có dữ liệu thời khóa biểu để in.");
         return;
@@ -263,13 +285,13 @@ export default function SchedulePage() {
       const toastId = toast.loading("Đang tạo file PDF...");
       try {
         const teacherName = profile?.fullName || "Giáo viên";
-        const applicationDate = schedule.weekName || new Date(schedule.updatedAt).toLocaleDateString("vi-VN");
+        const applicationDate = activeSchedule.weekName || new Date(activeSchedule.updatedAt).toLocaleDateString("vi-VN");
         
         let secondaryClassSched;
         let secondaryClassName;
         
-        if (className === '9C' && schedule.classes['9A-C']) {
-          secondaryClassSched = schedule.classes['9A-C'];
+        if (className === '9C' && activeSchedule.classes['9A-C']) {
+          secondaryClassSched = activeSchedule.classes['9A-C'];
           secondaryClassName = '9A-C';
         }
 
@@ -320,28 +342,71 @@ export default function SchedulePage() {
     return <div className="flex justify-center p-12"><div className="animate-spin h-8 w-8 border-4 border-blue-500 rounded-full border-t-transparent"></div></div>;
   }
 
-  if (!schedule) {
+  const activeSchedule = viewMode === "current" ? schedule : draftSchedule;
+
+  if (!activeSchedule) {
     return (
-      <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-12 text-center">
-        <Calendar className="w-16 h-16 text-slate-300 mx-auto mb-4" />
-        <h2 className="text-xl font-bold text-slate-700 mb-2">Chưa có dữ liệu Thời khóa biểu</h2>
-        <p className="text-slate-500">Quản trị viên chưa cập nhật thời khóa biểu lên hệ thống.</p>
+      <div className="space-y-6">
+        {draftSchedule && (
+          <div className="flex justify-center bg-white p-2 rounded-xl shadow-sm border border-slate-100 max-w-fit mx-auto">
+            <button
+              onClick={() => setViewMode("current")}
+              className={`px-6 py-2 rounded-lg font-medium transition-colors ${viewMode === "current" ? "bg-blue-600 text-white" : "text-slate-600 hover:bg-slate-100"}`}
+            >
+              TKB Tuần Này
+            </button>
+            <button
+              onClick={() => setViewMode("draft")}
+              className={`px-6 py-2 rounded-lg font-medium transition-colors flex items-center gap-2 ${viewMode === "draft" ? "bg-amber-500 text-white" : "text-amber-700 hover:bg-amber-50"}`}
+            >
+              TKB Tuần Sau (Nháp)
+            </button>
+          </div>
+        )}
+        <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-12 text-center">
+          <Calendar className="w-16 h-16 text-slate-300 mx-auto mb-4" />
+          <h2 className="text-xl font-bold text-slate-700 mb-2">Chưa có dữ liệu Thời khóa biểu</h2>
+          <p className="text-slate-500">Quản trị viên chưa cập nhật thời khóa biểu lên hệ thống.</p>
+        </div>
       </div>
     );
   }
 
-  const teacherList = Object.keys(schedule.teachers).sort();
-  const personalSchedule = selectedTeacherName ? schedule.teachers[selectedTeacherName] : null;
+  const teacherList = Object.keys(activeSchedule.teachers).sort();
+  const personalSchedule = selectedTeacherName ? activeSchedule.teachers[selectedTeacherName] : null;
 
   return (
     <div className="space-y-6">
+      {draftSchedule && (
+        <div className="flex justify-center bg-white p-2 rounded-xl shadow-sm border border-slate-100 max-w-fit mx-auto print:hidden">
+          <button
+            onClick={() => setViewMode("current")}
+            className={`px-6 py-2 rounded-lg font-medium transition-colors ${viewMode === "current" ? "bg-blue-600 text-white" : "text-slate-600 hover:bg-slate-100"}`}
+          >
+            TKB Tuần Này
+          </button>
+          <button
+            onClick={() => setViewMode("draft")}
+            className={`px-6 py-2 rounded-lg font-medium transition-colors flex items-center gap-2 ${viewMode === "draft" ? "bg-amber-500 text-white" : "text-amber-700 hover:bg-amber-50"}`}
+          >
+            TKB Tuần Sau (Nháp)
+          </button>
+        </div>
+      )}
+
+      {viewMode === "draft" && (
+        <div className="bg-amber-50 border border-amber-200 p-4 rounded-xl text-amber-800 text-center font-medium print:hidden">
+          Đây là Thời Khóa Biểu Dự Kiến cho tuần sau. Nếu phát hiện trùng tiết (ô màu đỏ), vui lòng báo BGH.
+        </div>
+      )}
+
       <div className="flex flex-col md:flex-row items-start md:items-center justify-between bg-white p-6 rounded-2xl shadow-sm border border-slate-100 gap-4 print:hidden">
         <div>
           <h1 className="text-2xl font-bold text-slate-800 flex items-center gap-3">
-            <Calendar className="text-blue-600" />
-            Thời khóa biểu
+            <Calendar className={viewMode === "draft" ? "text-amber-500" : "text-blue-600"} />
+            Thời khóa biểu {viewMode === "draft" ? "(Dự kiến)" : ""}
           </h1>
-          <p className="text-slate-500 mt-1">Cập nhật lúc: {new Date(schedule.updatedAt).toLocaleString("vi-VN")} bởi {schedule.updatedBy}</p>
+          <p className="text-slate-500 mt-1">Cập nhật lúc: {new Date(activeSchedule.updatedAt).toLocaleString("vi-VN")} bởi {activeSchedule.updatedBy}</p>
         </div>
         
         <button 
@@ -423,7 +488,7 @@ export default function SchedulePage() {
             <ScheduleGrid 
               scheduleData={personalSchedule} 
               title={`Thời Khóa Biểu Giảng Dạy - GV: ${selectedTeacherName}`} 
-              fullSchedule={schedule}
+              fullSchedule={activeSchedule}
               currentTeacherName={selectedTeacherName}
             />
           ) : (
@@ -438,7 +503,7 @@ export default function SchedulePage() {
         <div className="space-y-4">
           {(() => {
             const className = activeTab.split("-")[1];
-            const classSched = schedule.classes[className];
+            const classSched = activeSchedule.classes[className];
             if (!classSched) {
               return (
                 <div className="text-center p-8 bg-white rounded-xl border border-slate-200 text-slate-500">

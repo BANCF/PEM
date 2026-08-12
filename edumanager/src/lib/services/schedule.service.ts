@@ -1,5 +1,5 @@
 import { db } from "../firebase/client";
-import { doc, getDoc, setDoc } from "firebase/firestore";
+import { doc, getDoc, setDoc, deleteDoc } from "firebase/firestore";
 
 export interface ScheduleClassInfo {
   period: string;
@@ -41,6 +41,52 @@ export const saveSchedule = async (data: FullScheduleData): Promise<void> => {
     await setDoc(docRef, data);
   } catch (error) {
     console.error("Error saving schedule:", error);
+    throw error;
+  }
+};
+
+export const getDraftSchedule = async (): Promise<FullScheduleData | null> => {
+  try {
+    const docRef = doc(db, "schedules", "draft");
+    const docSnap = await getDoc(docRef);
+    if (docSnap.exists()) {
+      return docSnap.data() as FullScheduleData;
+    }
+    return null;
+  } catch (error) {
+    console.error("Error fetching draft schedule:", error);
+    throw error;
+  }
+};
+
+export const saveDraftSchedule = async (data: FullScheduleData): Promise<void> => {
+  try {
+    const docRef = doc(db, "schedules", "draft");
+    await setDoc(docRef, data);
+  } catch (error) {
+    console.error("Error saving draft schedule:", error);
+    throw error;
+  }
+};
+
+export const publishDraftSchedule = async (): Promise<void> => {
+  try {
+    const draftData = await getDraftSchedule();
+    if (!draftData) throw new Error("Không tìm thấy TKB Nháp");
+    await saveSchedule(draftData);
+    await deleteDraftSchedule();
+  } catch (error) {
+    console.error("Error publishing draft schedule:", error);
+    throw error;
+  }
+};
+
+export const deleteDraftSchedule = async (): Promise<void> => {
+  try {
+    const docRef = doc(db, "schedules", "draft");
+    await deleteDoc(docRef);
+  } catch (error) {
+    console.error("Error deleting draft schedule:", error);
     throw error;
   }
 };
