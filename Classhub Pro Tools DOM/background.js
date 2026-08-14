@@ -28,6 +28,23 @@ const setDailyAlarm = () => {
     chrome.alarms.create('daily_attendance', { delayInMinutes, periodInMinutes: 1440 });
 };
 
+// ==========================================
+// THIẾT LẬP RESET VÉ NGÀY (DAY-PASS EXPIRY)
+// ==========================================
+const setResetDayPassAlarm = () => {
+    let now = new Date();
+    let resetScheduled = new Date();
+    resetScheduled.setHours(0, 0, 0, 0);
+    if (now.getTime() >= resetScheduled.getTime()) resetScheduled.setDate(resetScheduled.getDate() + 1);
+    chrome.alarms.create('reset_day_pass', { delayInMinutes: (resetScheduled.getTime() - now.getTime()) / 60000, periodInMinutes: 1440 });
+};
+setResetDayPassAlarm(); // Gọi ngay khi khởi chạy background
+
+chrome.runtime.onStartup.addListener(() => {
+    chrome.storage.local.set({ 'ohke_in_class_auto': "" });
+    setResetDayPassAlarm();
+});
+
 // 2. Lắng nghe lệnh từ content.js
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     if (msg.action === 'ENABLE_DAILY_CRON') {
@@ -42,11 +59,29 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
         sendResponse({status: "Alarm cleared"});
     } else if (msg.action === 'OPEN_CLASSHUB_TAB') {
         // Mở tab mới khi user bấm nút Bật Auto từ trang ngoài
-        chrome.storage.local.set({ 'pending_action': 'AUTO_V33' }, () => {
-            const targetUrl = "https://idcloud.vn/61892/appstart/classhub/";
-            chrome.tabs.create({ url: targetUrl, active: true });
+        chrome.storage.local.get(['pending_action'], (res) => {
+            let act = res.pending_action || 'AUTO_V33'; // Không ghi đè nếu đã set (vd: AUTO_SCOUT_IN_CLASS)
+            chrome.storage.local.set({ 'pending_action': act }, () => {
+                const targetUrl = "https://idcloud.vn/61892/appstart/classhub/";
+                chrome.tabs.create({ url: targetUrl, active: true });
+            });
         });
         sendResponse({status: "Tab opened"});
+    } else if (msg.action === 'ACTION_SCHEDULE_SYNCED') {
+        let schedule = msg.schedule || [];
+        schedule.forEach(item => {
+            let triggerTime = item.triggerTime;
+            if (triggerTime <= Date.now()) triggerTime = Date.now() + 5000; // Trễ 5s an toàn
+            chrome.alarms.create(`in_class_${item.id}`, { when: triggerTime });
+        });
+        sendResponse({status: "Schedule synced"});
+    } else if (msg.action === 'ACTION_SUICIDE_TAB') {
+        if (sender.tab && sender.tab.id) {
+            try {
+                chrome.tabs.remove(sender.tab.id).catch(() => {});
+            } catch(e) {}
+        }
+        sendResponse({status: "Tab closed"});
     }
     return true;
 });
@@ -55,6 +90,15 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
 chrome.alarms.onAlarm.addListener((alarm) => {
     if (alarm.name === 'daily_attendance') {
         triggerDailyAttendance();
+    } else if (alarm.name === 'reset_day_pass') {
+        chrome.storage.local.set({ 'ohke_in_class_auto': "" });
+    } else if (alarm.name.startsWith('in_class_')) {
+        let classId = alarm.name.replace('in_class_', '');
+        chrome.tabs.create({ 
+            url: "https://idcloud.vn/61892/appstart/classhub?mode=ghost_attendance&id=" + classId, 
+            active: true, 
+            pinned: true 
+        });
     }
 });
 
@@ -69,7 +113,7 @@ chrome.action.onClicked.addListener((tab) => {
 chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
     if (changeInfo.status === 'complete' && tab.url && tab.url.includes("idcloud.vn")) {
         chrome.storage.local.get(['pending_action'], (res) => {
-            if (res.pending_action) {
+            if (res.pending_action || tab.url.includes('mode=ghost_attendance')) {
                 setTimeout(() => {
                     chrome.scripting.executeScript({
                         target: { tabId: tabId },

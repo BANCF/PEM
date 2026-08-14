@@ -1,16 +1,26 @@
-const rpcCallHeadlessV33 = async (endpoint, payload) => {
-    let fullUrl = normalizeEndpointV33(endpoint);
-    // log(`[POST FETCH] -> ${fullUrl}`);
-    try {
-        let res = await fetch(fullUrl, {
-            method: 'POST',
-            credentials: 'same-origin',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload || {})
-        });
-        return await res.json();
-    } catch (err) { return { status: "error", error: err.message }; }
-}; (async function () {
+(async function () {
+    // 1. LÍNH GÁC CHỐNG TIÊM KÉP, GỌI UI DẬY & CẬP NHẬT LOG
+    if (window.ohkeToolInjectedV33) {
+        let panel = document.getElementById('ohke-hub-tools');
+        if (panel) {
+            panel.style.display = 'flex'; // Hiện lại bảng
+            
+            // Kéo log mới nhất từ Database đắp lên UI
+            chrome.storage.local.get(['ohke_debug_logs'], (res) => {
+                let logs = res.ohke_debug_logs || [];
+                let logEl = document.getElementById('tool-log');
+                if (logEl && logs.length > 0) {
+                    logEl.innerHTML = logs.map(msg => `<div>${msg}</div>`).join('');
+                    logEl.scrollTop = logEl.scrollHeight; // Cuộn xuống dòng mới nhất
+                }
+            });
+        }
+        return;
+    }
+    window.ohkeToolInjectedV33 = true;
+
+    // 2. HÀM GLOBAL ĐÃ ĐƯỢC DI CHUYỂN XUỐNG DƯỚI ĐỂ TRÁNH LỖI HOISTING
+
     const delay = ms => new Promise(res => setTimeout(res, ms));
 
     // ==========================================
@@ -41,15 +51,9 @@ const rpcCallHeadlessV33 = async (endpoint, payload) => {
         if (document.getElementById('ohke-ajax-spy')) return;
         const script = document.createElement('script');
         script.id = 'ohke-ajax-spy';
-        script.textContent = `
-            if (typeof window.jQuery !== 'undefined') {
-                window.jQuery(document).ajaxComplete((event, xhr, settings) => {
-                    window.dispatchEvent(new CustomEvent('OHKE_API_DONE', { detail: settings.url }));
-                });
-            }
-        `;
+        script.src = chrome.runtime.getURL('ajax_spy.js');
         document.documentElement.appendChild(script);
-        script.remove();
+        script.onload = () => script.remove();
     };
     injectAjaxSpy();
 
@@ -76,14 +80,51 @@ const rpcCallHeadlessV33 = async (endpoint, payload) => {
         });
     };
 
+    const crushWarningModalV33 = () => {
+        let visibleModals = Array.from(document.querySelectorAll('.swal2-popup, .w3-modal.w3-show, .ohke-alert, .patch-modal, .ohke-popup')).filter(el => el.offsetWidth > 0);
+        let warningModal = visibleModals.reverse().find(m => {
+            let txt = m.innerText.toLowerCase();
+            return txt.includes('warning') || txt.includes('cảnh báo') || txt.includes('confirm action') || txt.includes('xác nhận');
+        });
+        if (warningModal) {
+            let confirmBtn = Array.from(warningModal.querySelectorAll('button, a, .ohke-btn')).find(btn => {
+                let t = btn.textContent.toLowerCase().trim();
+                return (t === 'continue' || t === 'tiếp tục' || t === 'đồng ý' || t === 'yes' || t === 'ok');
+            });
+            if (confirmBtn) { forceClickV33(confirmBtn); return true; }
+        }
+        return false;
+    };
+
     const log = (msg) => {
+        let timeStr = new Date().toLocaleTimeString('vi-VN');
+        let fullMsg = `[${timeStr}] ${msg}`;
         let logEl = document.getElementById('tool-log');
         if (logEl) {
-            logEl.insertAdjacentHTML('beforeend', `<div>👉 ${msg}</div>`);
+            logEl.insertAdjacentHTML('beforeend', `<div>👉 ${fullMsg}</div>`);
             logEl.scrollTop = logEl.scrollHeight;
         }
-        console.log(msg); // In thêm ra F12 để dễ kiểm tra
+        console.log(`👉 ${fullMsg}`);
+        // Lưu vào Storage (giữ 50 dòng mới nhất)
+        chrome.storage.local.get(['ohke_debug_logs'], (res) => {
+            let logs = res.ohke_debug_logs || [];
+            logs.push(`👉 ${fullMsg}`);
+            if (logs.length > 50) logs = logs.slice(-50);
+            chrome.storage.local.set({ 'ohke_debug_logs': logs });
+        });
     };
+
+    // Lắng nghe sự thay đổi của Database để Live Update bảng Log
+    chrome.storage.onChanged.addListener((changes, area) => {
+        if (area === 'local' && changes.ohke_debug_logs) {
+            let logs = changes.ohke_debug_logs.newValue || [];
+            let logEl = document.getElementById('tool-log');
+            if (logEl && logs.length > 0) {
+                logEl.innerHTML = logs.map(msg => `<div>${msg}</div>`).join('');
+                logEl.scrollTop = logEl.scrollHeight;
+            }
+        }
+    });
 
     // ==========================================
     // 0. CẤU HÌNH SERVER BẢO MẬT
@@ -407,12 +448,20 @@ const rpcCallHeadlessV33 = async (endpoint, payload) => {
 
             // 2. [FALLBACK] NẾU API NGẦM XỊT, MỞ UI VỚI TỐC ĐỘ BÀN THỜ (10ms Polling)
             if (!teacherId) {
-                let waitModal = waitForApiV33('Viewer', 30000); // Lắng nghe bất kỳ API Viewer nào (x35FD3, x35FD2...)
                 forceClickV33(classItem.element);
                 modalOpened = true;
                 
-                await waitModal; // Đợi server đổ Data về Modal
-                await delay(100); // Thở nhẹ cho Modal bung lên
+                // ĐUA TỐC ĐỘ: Chờ API 'Viewer' trả về HOẶC chờ Modal vẽ xong HTML chứa data-entity
+                await Promise.race([
+                    waitForApiV33('Viewer', 15000),
+                    waitForCondition(() => {
+                        crushWarningModalV33();
+                        let modals = Array.from(document.querySelectorAll('.w3-modal, .ohke-popup-subform, .patch-modal')).filter(el => el.offsetWidth > 0 || el.classList.contains('w3-show'));
+                        return modals.length > 0 && modals[modals.length - 1].querySelectorAll('[data-entity]').length > 0;
+                    }, 15000, 50)
+                ]);
+                
+                await delay(100); // Thở nhẹ 100ms cho Modal ổn định
 
                 let elapsed = 0; 
                 // TĂNG TIMEOUT: Cho phép máy yếu load Modal lên tới 15 giây.
@@ -449,10 +498,15 @@ const rpcCallHeadlessV33 = async (endpoint, payload) => {
                 teacherId = entity.instructor_id || entity.instructor_sheet_id || (entity.instructor && entity.instructor.id) || masterKey;
             }
 
+            // --- GIAI ĐOẠN 3: BẮN API CHỐT SỔ (HYBRID 3-TIER FALLBACK) ---
             let currentEntity = Object.assign({}, entity);
             let currentTeacherEntity = Object.assign({}, teacherEntityData || entity);
 
-            if (!isLessonZero) {
+            let tStatus = String(currentTeacherEntity.instructor_attendance_status || currentTeacherEntity.status || "").toUpperCase();
+            let isTeacherDone = tStatus.includes('ACCEPTED') || tStatus.includes('PRESENT') || tStatus.includes('FULL_ATTENDANCE');
+
+            // 1. Chốt Giáo Viên
+            if (!isLessonZero && !isTeacherDone) {
                 let payloadApi1 = {
                     id: teacherId, field_name: "status",
                     begin_state: currentTeacherEntity.status || "INSTRUCTOR_ATTENDANCE_STATUS_NO_ATTENDANCE",
@@ -488,86 +542,99 @@ const rpcCallHeadlessV33 = async (endpoint, payload) => {
                 } catch (e2) { }
             }
 
-            // API 3: Copy HS theo tiết trước
-            // API 3: Gọi lệnh Copy/Đánh dấu điểm danh HS
-            try {
-                await rpcCallHeadlessV33(API_CONFIG_V33.studentActionApi, {
-                    id: masterKey, entity: currentEntity, master_key: String(masterKey),
-                    action_code: "MARK_ALL_STUDENT_ATTENDANCE_RECORDS_AS_PRESENT", env: env
-                });
-            } catch (e3) { }
-
-            // CHỈ QUÉT UI CHỮA CHÁY NẾU MODAL ĐANG MỞ
-            if (modalOpened) {
-                let btnAllPresent = null;
-                let topModal = null;
-                
-                // Đợi nút "Tất cả có mặt" thực sự render ra HTML
-                await waitForCondition(() => {
-                    topModal = Array.from(document.querySelectorAll('.w3-modal, .ohke-popup-subform, .patch-modal')).filter(el => el.offsetWidth > 0 || el.classList.contains('w3-show')).pop();
-                    if (!topModal) return false;
-                    
-                    btnAllPresent = Array.from(topModal.querySelectorAll('a, button, .ohke-btn')).find(el => {
-                        let t = el.textContent.toLowerCase();
-                        return (t.includes('tất cả có mặt') || t.includes('mark all as present') || t.includes('mark all')) && el.offsetWidth > 0;
-                    });
-                    return !!btnAllPresent;
-                }, 10000, 100);
-                
-                if (btnAllPresent) {
-                    let waitAction = waitForApiV33('bttAction_x2447C_', 30000);
-                    forceClickV33(btnAllPresent);
-                    await waitAction; // Chờ API chốt học sinh
-                    
-                    let btnNext = null;
-                    await waitForCondition(() => {
-                        btnNext = Array.from(topModal.querySelectorAll('a, button')).find(el => {
-                            let t = el.textContent.toLowerCase();
-                            return (t.includes('tiếp tục') || t.includes('continue') || t.includes('next')) && el.offsetWidth > 0;
-                        });
-                        return !!btnNext;
-                    }, 30000, 50);
-                    
-                    if (btnNext) { 
-                        let waitTrans = waitForApiV33('x35FD2_jsonPostTransition', 30000);
-                        forceClickV33(btnNext); 
-                        await waitTrans; // Chờ API chuyển trạng thái hoàn tất
-                    }
-                }
+            // 2. Chốt Học Sinh (3-Tier Fallback)
+            let checkModes = [
+                'MARK_ALL_STUDENT_ATTENDANCE_RECORDS_AS_SAME_AS_PREVIOUS_LESSON', // Tier 1: Tiết trước
+                'MARK_ALL_STUDENT_ATTENDANCE_RECORDS_AS_ARRIVED_AT_SCHOOL',       // Tier 2: Đến trường
+                'MARK_ALL_STUDENT_ATTENDANCE_RECORDS_AS_PRESENT'                  // Tier 3: Tất cả có mặt
+            ];
+            
+            if (isLessonZero) {
+                checkModes.shift(); // Lọc bỏ Tier 1 nếu là H0
             }
 
-            try {
-                let resRefresh = await rpcCallHeadlessV33('x35FD2_Viewer', { id: masterKey, master_key: masterKey, mode: "V", env: env });
-                if (resRefresh) {
-                    if (resRefresh.data && typeof resRefresh.data === 'object') {
-                        Object.assign(currentEntity, resRefresh.data);
-                        if (resRefresh.data.update_time) currentEntity.update_time = resRefresh.data.update_time;
-                    } else if (resRefresh.update_time) { currentEntity.update_time = resRefresh.update_time; }
-                }
-            } catch (eRefresh) { }
+            let isTrulySuccess = false;
 
-            let payloadApi4 = {
-                id: masterKey, field_name: "attendance_sheet_status",
-                begin_state: currentEntity.attendance_sheet_status || "CLASS_SCHEDULE_SLOT_STATUS_PENDING",
-                to_state: "CLASS_SCHEDULE_SLOT_STATUS_ACCEPTED", end_state: "CLASS_SCHEDULE_SLOT_STATUS_ACCEPTED",
-                is_reversal: 0, update_time: currentEntity.update_time || classUpdateTime,
-                mode: "V", entity: currentEntity, env: env
-            };
-            try {
-                let res4 = await rpcCallHeadlessV33('x35FD2_jsonPostTransition', payloadApi4);
-                if (res4 && res4.data && typeof res4.data === 'object') Object.assign(currentEntity, res4.data);
-            } catch (e4) { }
+            for (let mode of checkModes) {
+                if (isTrulySuccess) break;
+                
+                try {
+                    await rpcCallHeadlessV33(API_CONFIG_V33.studentActionApi, {
+                        id: masterKey, entity: currentEntity, master_key: String(masterKey),
+                        action_code: mode, env: env
+                    });
+                } catch (e3) { }
 
+                try {
+                    let resRefresh = await rpcCallHeadlessV33('x35FD2_Viewer', { id: masterKey, master_key: masterKey, mode: "V", env: env });
+                    if (resRefresh) {
+                        if (resRefresh.data && typeof resRefresh.data === 'object') {
+                            Object.assign(currentEntity, resRefresh.data);
+                            if (resRefresh.data.update_time) currentEntity.update_time = resRefresh.data.update_time;
+                        } else if (resRefresh.update_time) { currentEntity.update_time = resRefresh.update_time; }
+                    }
+                } catch (eRefresh) { }
+
+                let payloadApi4 = {
+                    id: masterKey, field_name: "attendance_sheet_status",
+                    begin_state: currentEntity.attendance_sheet_status || "CLASS_SCHEDULE_SLOT_STATUS_PENDING",
+                    to_state: "CLASS_SCHEDULE_SLOT_STATUS_ACCEPTED", end_state: "CLASS_SCHEDULE_SLOT_STATUS_ACCEPTED",
+                    is_reversal: 0, update_time: currentEntity.update_time || classUpdateTime,
+                    mode: "V", entity: currentEntity, env: env
+                };
+
+                let res4;
+                try {
+                    res4 = await rpcCallHeadlessV33('x35FD2_jsonPostTransition', payloadApi4);
+                    if (res4 && res4.data && typeof res4.data === 'object') Object.assign(currentEntity, res4.data);
+                } catch (e4) { }
+
+                // Kiểm tra Viewer (Fallback 1)
+                try {
+                    let finalCheck = await rpcCallHeadlessV33('x35FD2_Viewer', { id: masterKey, master_key: masterKey, mode: "V", env: env });
+                    if (finalCheck && finalCheck.data) {
+                        let finalStatus = String(finalCheck.data.attendance_sheet_status || "").toUpperCase();
+                        if (finalStatus.includes("ACCEPTED")) {
+                            isTrulySuccess = true;
+                            log(`✔️ Tier xác nhận thành công: ${mode}`);
+                            break;
+                        }
+                    }
+                } catch(e) {}
+            }
+
+            // --- GIAI ĐOẠN 4: DỌN DẸP & ULTIMATE DOM FALLBACK ---
             if (modalOpened) await closeModalSafelyV33();
 
-            classItem.element.style.opacity = '0.3'; 
-            classItem.element.setAttribute('data-da-diem-danh', 'true');
-            if (!classItem.element.innerHTML.includes('Đã Auto V33')) {
-                classItem.element.innerHTML += '<div style="color:#dc3545; font-weight:bold; font-size:12px; margin-top:5px;">✔️ Đã Auto V33</div>';
+            if (!isTrulySuccess) {
+                // DOM Fallback 
+                log("⚠️ API chưa xác nhận ACCEPTED, đang chờ 1.5s để check DOM...");
+                await delay(1500); // Chờ UI React/Vue render lại
+                let uiText = (classItem.element.textContent || "").toUpperCase();
+                if (!uiText.includes('CHƯA NỘP') && !uiText.includes('NOT YET SUBMITTED')) {
+                    isTrulySuccess = true;
+                    log("✔️ DOM Check: Không tìm thấy nhãn đỏ, điểm danh đã qua lọt.");
+                } else {
+                    log(`❌ DOM Check: Vẫn còn nhãn đỏ, có thể lỗi hoặc hệ thống chưa đồng bộ kịp.`);
+                }
             }
-            let duration = Math.round(performance.now() - startTime);
-            log(`✅ Thành công! Đã chốt sổ tiết [${classHourCode || masterKey}] trong ${(duration / 1000).toFixed(1)}s.`);
-            return true;
+
+            if (isTrulySuccess) {
+                classItem.element.style.opacity = '0.3'; 
+                classItem.element.setAttribute('data-da-diem-danh', 'true');
+                if (!classItem.element.innerHTML.includes('Đã Auto V33')) {
+                    classItem.element.innerHTML += '<div style="color:#28a745; font-weight:bold; font-size:12px; margin-top:5px;">✔️ Đã Auto V33</div>';
+                }
+                let duration = Math.round(performance.now() - startTime);
+                log(`✅ Thành công! Đã chốt sổ tiết [${classHourCode || masterKey}] trong ${(duration / 1000).toFixed(1)}s.`);
+                return true;
+            } else {
+                if (!classItem.element.innerHTML.includes('Bị kẹt API')) {
+                    classItem.element.innerHTML += '<div style="color:#dc3545; font-weight:bold; font-size:12px; margin-top:5px;">⚠️ Bị kẹt API (Sẽ thử lại)</div>';
+                }
+                log(`⚠️ Cảnh báo: Tiết [${classHourCode || masterKey}] API chốt sổ không phản hồi đúng. Sẽ tự động thử lại sau!`);
+                return false;
+            }
         } catch (err) {
             log(`❌ Lỗi Sniper tiết ${masterKey}: ${err.message}`);
             await closeModalSafelyV33();
@@ -639,13 +706,14 @@ const rpcCallHeadlessV33 = async (endpoint, payload) => {
         return { processedCount: localReadyList.length, locked: localLockedList };
     };
 
-    const processTabWithPaginationV33 = async (seenIds, bufferMinutes, maxPages = 4) => {
+    const processTabWithPaginationV33 = async (seenIds, bufferMinutes, maxEmptyAttempts = 4) => {
         let totalProcessed = 0;
         let allLocked = [];
-        let currentPage = 1;
+        let physicalPage = 1;
+        let emptyAttempts = 0; // Thanh thể lực: Đếm số trang liên tiếp không có lớp mới
         let env = window.Ohke && window.Ohke.session ? window.Ohke.session.env : "PROD";
 
-        while (currentPage <= maxPages && isWatcherRunningV33) {
+        while (emptyAttempts <= maxEmptyAttempts && isWatcherRunningV33) {
             // 1. Quét tất cả thẻ lớp đang hiển thị trên màn hình
             let items = Array.from(document.querySelectorAll('.list-item[data-entity], .item-4qfjeb3y6f[data-entity], [data-entity*="class_schedule_slot_id"]')).filter(el => el.offsetWidth > 0);
             
@@ -701,7 +769,7 @@ const rpcCallHeadlessV33 = async (endpoint, payload) => {
 
             // In Log thống kê cho trang hiện tại
             if (newItemsFound > 0) {
-                log(`📄 [Trang ${currentPage}] Đã quét ${newItemsFound} lớp mới: ${doneCount} Đã xong - ${pendingItems.length} Cần điểm danh.`);
+                log(`📄 [Trang ${physicalPage}] Đã quét ${newItemsFound} lớp mới: ${doneCount} Đã xong - ${pendingItems.length} Cần điểm danh.`);
             }
 
             // 2. Xử lý điểm danh ngầm cho các lớp Cần điểm danh
@@ -713,6 +781,14 @@ const rpcCallHeadlessV33 = async (endpoint, payload) => {
                 await delay(500);
             }
 
+            // [SMART RESET COUNTER] - Hồi phục thể lực nếu đào trúng lớp cần điểm danh
+            if (pendingItems.length > 0) {
+                emptyAttempts = 0; 
+                // log(`🔄 Phát hiện mỏ vàng, khôi phục 100% thể lực đào sâu!`); // Bỏ comment nếu muốn log chi tiết
+            } else {
+                emptyAttempts++; // Đào trúng đất đá, mất 1 thể lực
+            }
+
             // 3. Tìm và click nút "Show More"
             let moreBtns = Array.from(document.querySelectorAll('a, button, .ohke-btn, span')).filter(el => {
                 let t = el.textContent.trim().toLowerCase();
@@ -720,14 +796,17 @@ const rpcCallHeadlessV33 = async (endpoint, payload) => {
             });
             let moreBtn = moreBtns.length > 0 ? moreBtns[0] : null;
 
-            if (!moreBtn || currentPage >= maxPages) {
-                break; // Nút đã biến mất hoặc đạt giới hạn trang
+            if (!moreBtn || emptyAttempts >= maxEmptyAttempts) {
+                if (emptyAttempts >= maxEmptyAttempts && moreBtn) {
+                    log(`🛑 Đã đào ${maxEmptyAttempts} trang liên tiếp không có lớp mới. Dừng đào sâu!`);
+                }
+                break; // Nút đã biến mất hoặc cạn kiệt thể lực
             }
 
             // Lưu lại số lượng thẻ lớp trước khi bấm mở rộng
             let currentItemCount = document.querySelectorAll('.list-item[data-entity], .item-4qfjeb3y6f[data-entity], [data-entity*="class_schedule_slot_id"]').length;
 
-            log(`⬇️ Đang click mở rộng dữ liệu (Trang ${currentPage + 1}/${maxPages})...`);
+            log(`⬇️ Đang click mở rộng dữ liệu (Trang ${physicalPage + 1} - Lượt đào còn lại: ${maxEmptyAttempts - emptyAttempts})...`);
             
             forceClickV33(moreBtn);
             await delay(100); // Đợi 100ms để đảm bảo Spinner kịp bung lên HTML (nếu có)
@@ -741,7 +820,7 @@ const rpcCallHeadlessV33 = async (endpoint, payload) => {
             await waitRace;
             await delay(300); // Khoảng thở cực ngắn để DOM nạp thẻ HTML mới
 
-            currentPage++;
+            physicalPage++; // Tăng số trang vật lý
         }
 
         return { processedCount: totalProcessed, locked: allLocked };
@@ -813,6 +892,92 @@ const rpcCallHeadlessV33 = async (endpoint, payload) => {
         } finally {
             isProcessingV33 = false;
         }
+    };
+
+    // ==========================================
+    // MODULE: TRINH SÁT VÀ NẠP LỊCH TRÌNH VÀO BACKGROUND (TASK 3)
+    // ==========================================
+    const syncScheduleToBackground = async () => {
+        log("🔎 Đang điều hướng sang tab Hôm nay để trinh sát...");
+        
+        let switched = await switchTabAndWaitV33(['hôm nay', 'today']);
+        if (!switched) {
+            log("⚠️ Không tìm thấy tab Hôm Nay. Đang thử quét trên tab hiện tại...");
+        }
+
+        // TĂNG THỜI GIAN CHỜ DOM RENDER (1.5 giây)
+        await delay(1500);
+
+        // 1. GIỚI HẠN VÙNG QUÉT CHỈ TRONG TAB HIỆN TẠI (TRÁNH QUÉT NHẦM SIDEBAR)
+        let activeTabArea = document.querySelector('.tab-content > .active, .tab-content > :not(.w3-hide), .ohke-tab-content') || document;
+        
+        let items = Array.from(activeTabArea.querySelectorAll('.list-item[data-entity], .item-4qfjeb3y6f[data-entity], [data-entity*="class_schedule_slot_id"]'))
+            .filter(el => el.offsetWidth > 0 && !el.closest('.w3-modal, .ohke-popup-subform, .patch-modal'));
+        
+        if (items.length === 0) {
+            items = Array.from(activeTabArea.querySelectorAll('.list-item'))
+                .filter(el => el.offsetWidth > 0 && !el.closest('.w3-modal, .ohke-popup-subform, .patch-modal'));
+        }
+
+        log(`⚙️ Trinh sát quét được ${items.length} thẻ lớp trên tab chính. Đang lọc dữ liệu...`);
+
+        let scheduleData = [];
+        let now = Date.now();
+        
+        for (let item of items) {
+            let entityStr = item.getAttribute('data-entity') || (item.dataset && item.dataset.entity);
+            if (entityStr && entityStr !== '[object Object]') {
+                try {
+                    let entity = (typeof entityStr === 'string') ? JSON.parse(entityStr) : entityStr;
+                    let classCode = entity.class_hour_code || entity.id;
+
+                    // 2. LỌC CÁC LỚP ĐÃ HOÀN THÀNH (Dùng logic chuẩn V33)
+                    let tStatus = String(entity.instructor_attendance_status || entity.status || "").toUpperCase();
+                    let sStatus = String(entity.attendance_sheet_status || "").toUpperCase();
+                    let isTeacherPending = (!tStatus.includes('ACCEPTED') && !tStatus.includes('PRESENT') && !tStatus.includes('FULL_ATTENDANCE'));
+                    let isStudentPending = !sStatus.includes('ACCEPTED');
+                    
+                    let uiText = (item.textContent || "").toUpperCase();
+                    let isUiPending = uiText.includes('CHƯA NỘP') || uiText.includes('CHƯA ĐIỂM DANH') || uiText.includes('NOT YET SUBMITTED') || uiText.includes('NOT YET MARKED');
+                    
+                    if (isUiPending) { 
+                        isTeacherPending = true; 
+                        isStudentPending = true; 
+                    }
+
+                    if (!isTeacherPending && !isStudentPending) {
+                        log(`⏩ Bỏ qua tiết [${classCode}]: Đã điểm danh xong.`);
+                        continue; // Bỏ qua, không nạp báo thức
+                    }
+
+                    // 3. XỬ LÝ THỜI GIAN & FALLBACK
+                    let unlockInfo = getClassUnlockInfoV33(entity, 0); 
+                    
+                    if (unlockInfo.unlockTimestamp > 0) {
+                        let triggerTimeMs = unlockInfo.unlockTimestamp + (5 * 60 * 1000); // +5 Phút
+                        let startStr = new Date(unlockInfo.unlockTimestamp).toLocaleTimeString('vi-VN', {hour: '2-digit', minute:'2-digit'});
+                        let triggerStr = new Date(triggerTimeMs).toLocaleTimeString('vi-VN', {hour: '2-digit', minute:'2-digit'});
+                        
+                        scheduleData.push({ id: entity.id, triggerTime: triggerTimeMs });
+                        log(`👉 ⏳ Nạp tiết [${classCode}]: Bắt đầu (${startStr}) | Kích hoạt ngầm (${triggerStr})`);
+                    } else {
+                        // NẾU PARSE LỖI HOẶC THIẾU NGÀY -> ÉP CHẠY NGAY LẬP TỨC
+                        scheduleData.push({ id: entity.id, triggerTime: now });
+                        log(`⚠️ Nạp tiết [${classCode}]: Mất dữ liệu giờ. Ép đưa vào hàng đợi chạy ngay!`);
+                    }
+                } catch(e) {}
+            }
+        }
+
+        if (scheduleData.length > 0) {
+            chrome.runtime.sendMessage({ action: 'ACTION_SCHEDULE_SYNCED', schedule: scheduleData, data: scheduleData });
+            log(`📡 Đã đóng gói ${scheduleData.length} tiết sang Background. Trinh sát sẽ tự hủy sau 3 giây...`);
+        } else {
+            log(`✔️ Các lớp hôm nay đều đã xong hoặc trống. Trinh sát sẽ tự hủy sau 3 giây...`);
+        }
+        
+        await delay(3000);
+        chrome.runtime.sendMessage({ action: 'ACTION_SUICIDE_TAB' });
     };
 
     const startWatcherV33 = async (intervalSeconds) => {
@@ -988,6 +1153,18 @@ const rpcCallHeadlessV33 = async (endpoint, payload) => {
                         </style>
                     </div>
 
+                    <!-- Công tắc In-Class -->
+                    <div style="display: flex; align-items: center; justify-content: space-between; border: 1px solid #ccc; padding: 8px 10px; border-radius: 4px; background: #fff; margin-top: 5px;">
+                        <div style="display: flex; flex-direction: column; gap: 4px;">
+                            <span style="font-size: 13px; font-weight: bold; color: #333;">🏫 Bật Điểm danh Trong Tiết</span>
+                            <span id="text-in-class-status" style="font-size: 11px; color: #666; font-style: italic;">Đang tải trạng thái...</span>
+                        </div>
+                        <label class="switch" style="position: relative; display: inline-block; width: 40px; height: 20px; flex-shrink: 0;">
+                            <input type="checkbox" id="toggle-in-class" style="opacity: 0; width: 0; height: 0;">
+                            <span id="slider-in-class" class="slider round" style="position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #ccc; transition: .4s; border-radius: 34px;"></span>
+                        </label>
+                    </div>
+
                     <!-- Nút mới V33 (Xanh ngọc) - Chế độ siêu tốc -->
                     <button id="btn-v33-auto-watcher" style="background: #20c997; color: white; padding: 10px; border: none; border-radius: 4px; font-weight: bold; cursor: pointer; margin-top: 5px;">
                         ⚡ BẬT AUTO ĐIỂM DANH (SIÊU TỐC)
@@ -1024,6 +1201,16 @@ const rpcCallHeadlessV33 = async (endpoint, payload) => {
         `;
         document.documentElement.appendChild(panel);
 
+        // Lấy lịch sử log (Task 1)
+        chrome.storage.local.get(['ohke_debug_logs'], (res) => {
+            let logs = res.ohke_debug_logs || [];
+            let logEl = document.getElementById('tool-log');
+            if (logEl && logs.length > 0) {
+                logEl.innerHTML = logs.map(msg => `<div>${msg}</div>`).join('');
+                logEl.scrollTop = logEl.scrollHeight;
+            }
+        });
+
         const panelBody = document.getElementById('ohke-panel-body');
         const tabsContainer = document.getElementById('ohke-tabs-container');
         const btnMinimize = document.getElementById('btn-minimize-tool');
@@ -1049,7 +1236,7 @@ const rpcCallHeadlessV33 = async (endpoint, payload) => {
             }
         };
 
-        document.getElementById('btn-close-tool-top').onclick = () => panel.remove();
+        document.getElementById('btn-close-tool-top').onclick = () => panel.style.display = 'none';
 
         // ==========================================
         // MODULE: KÉO THẢ GIAO DIỆN (DRAG & DROP)
@@ -1247,7 +1434,7 @@ const rpcCallHeadlessV33 = async (endpoint, payload) => {
             return mapping;
         };
 
-        document.getElementById('btn-close-tool').onclick = () => panel.remove();
+        document.getElementById('btn-close-tool').onclick = () => panel.style.display = 'none';
 
         // ==========================================
         // EVENT: KÍCH HOẠT AUTO V33
@@ -1263,6 +1450,68 @@ const rpcCallHeadlessV33 = async (endpoint, payload) => {
                 chrome.runtime.sendMessage({ action: isChecked ? 'ENABLE_DAILY_CRON' : 'DISABLE_DAILY_CRON' });
                 log(isChecked ? "⏰ Đã BẬT hẹn giờ chạy V33 lúc 16:15 hàng ngày." : "⏰ Đã TẮT hẹn giờ chạy V33.");
             };
+        }
+
+        // ==========================================
+        // EVENT: ĐIỂM DANH TRONG TIẾT (ZERO-TOUCH)
+        // ==========================================
+        let toggleInClass = document.getElementById('toggle-in-class');
+        let textInClassStatus = document.getElementById('text-in-class-status');
+        let sliderInClass = document.getElementById('slider-in-class');
+        
+        if (toggleInClass && textInClassStatus) {
+            let currentHour = new Date().getHours();
+            let todayStr = new Date().toLocaleDateString('vi-VN');
+            
+            if (currentHour < 7 || currentHour >= 24) { // 🛠️ [DEBUG] Tạm mở khóa đến 24:00
+                toggleInClass.disabled = true;
+                sliderInClass.style.backgroundColor = '#6c757d'; // Xám
+                sliderInClass.style.cursor = 'not-allowed';
+                textInClassStatus.innerText = "Khóa ngoài giờ (07:00 - 19:59)";
+                textInClassStatus.style.color = "#dc3545";
+                chrome.storage.local.set({ 'ohke_in_class_auto': "" });
+            } else {
+                chrome.storage.local.get(['ohke_in_class_auto'], (res) => {
+                    if (res.ohke_in_class_auto === todayStr) {
+                        toggleInClass.checked = true;
+                        textInClassStatus.innerText = "Đã nhận Vé Ngày";
+                        textInClassStatus.style.color = "#28a745";
+                    } else {
+                        toggleInClass.checked = false;
+                        textInClassStatus.innerText = "Chưa kích hoạt Vé Ngày";
+                        textInClassStatus.style.color = "#ffc107";
+                        chrome.storage.local.set({ 'ohke_in_class_auto': "" });
+                    }
+                });
+                
+                toggleInClass.onchange = async (e) => {
+                    let isChecked = e.target.checked;
+                    if (isChecked) {
+                        chrome.storage.local.set({ 'ohke_in_class_auto': todayStr });
+                        textInClassStatus.innerText = "Đã nhận Vé Ngày";
+                        textInClassStatus.style.color = "#28a745";
+                        log("🎟️ Đã nhận Vé Ngày! Bắt đầu rải lính trinh sát...");
+                        
+                        // KIỂM TRA MÔI TRƯỜNG CHUẨN V33
+                        if (!window.location.href.includes('classhub')) {
+                            log("🚀 Đang ở trang ngoài. Lưu trạng thái và mở thẻ ClassHub mới để trinh sát...");
+                            await chrome.storage.local.set({ 'pending_action': 'AUTO_SCOUT_IN_CLASS' });
+                            chrome.runtime.sendMessage({ action: 'OPEN_CLASSHUB_TAB' });
+                            return; // Dừng thực thi ở tab hiện tại
+                        }
+                        
+                        // Đã ở Classhub thì gọi hàm trinh sát luôn
+                        if (typeof syncScheduleToBackground === 'function') {
+                            syncScheduleToBackground();
+                        }
+                    } else {
+                        chrome.storage.local.set({ 'ohke_in_class_auto': "" });
+                        textInClassStatus.innerText = "Chưa kích hoạt Vé Ngày";
+                        textInClassStatus.style.color = "#ffc107";
+                        log("🛑 Đã Hủy Vé Ngày Điểm Danh Trong Tiết.");
+                    }
+                };
+            }
         }
 
         // ==========================================
@@ -2752,6 +3001,61 @@ const rpcCallHeadlessV33 = async (endpoint, payload) => {
     renderMainApp();
 
     // ==========================================
+    // MODULE GHOST MODE: ĐIỂM DANH NGẦM (TASK 6)
+    // ==========================================
+    const urlParams = new URLSearchParams(window.location.search);
+    if (urlParams.get('mode') === 'ghost_attendance') {
+        let ghostId = urlParams.get('id');
+        log(`👻 [GHOST MODE] Bắt đầu điểm danh ngầm cho lớp ID: ${ghostId}...`);
+        
+        // Buộc bật bảng điểm danh để theo dõi
+        let tabAtt = document.getElementById('tab-attendance');
+        if (tabAtt) tabAtt.click();
+
+        (async () => {
+            try {
+                // Chờ thẻ có data-entity trùng ID xuất hiện
+                let ghostEl = null;
+                await waitForCondition(() => {
+                    let items = Array.from(document.querySelectorAll('.list-item[data-entity], .item-4qfjeb3y6f[data-entity], [data-entity*="class_schedule_slot_id"]'));
+                    for (let el of items) {
+                        let raw = el.getAttribute('data-entity') || (el.dataset && el.dataset.entity);
+                        if (!raw || raw === '[object Object]') continue;
+                        try {
+                            let ent = JSON.parse(raw);
+                            let masterKey = String(ent.id || el.dataset?.id || ent.master_key);
+                            if (masterKey === ghostId) {
+                                ghostEl = el;
+                                return true;
+                            }
+                        } catch(e) {}
+                    }
+                    return false;
+                }, 20000, 200);
+
+                if (ghostEl) {
+                    let raw = ghostEl.getAttribute('data-entity') || (ghostEl.dataset && ghostEl.dataset.entity);
+                    let entity = JSON.parse(raw);
+                    let classItem = { element: ghostEl, id: ghostId, entity: entity };
+                    
+                    log(`👻 [GHOST MODE] Tìm thấy lớp. Bắt đầu submit...`);
+                    await submitAttendanceFlowV33(classItem);
+                    log(`👻 [GHOST MODE] Xong việc! Trì hoãn 15s để debug trước khi tự sát...`);
+                } else {
+                    log(`👻 [GHOST MODE] ❌ KHÔNG TÌM THẤY LỚP ${ghostId} TRÊN DOM. Tự sát sau 15s...`);
+                }
+            } catch(e) {
+                log(`👻 [GHOST MODE] Lỗi ngầm: ${e.message}`);
+            }
+
+            await delay(15000); // Trì hoãn 15s theo yêu cầu User
+            chrome.runtime.sendMessage({ action: 'ACTION_SUICIDE_TAB' });
+        })();
+        
+        return; // Chặn không chạy Auto Resume bên dưới nữa
+    }
+
+    // ==========================================
     // AUTO RESUME: ĐÁNH THỨC VÀ KHÔI PHỤC DỮ LIỆU EXCEL
     // ==========================================
     chrome.storage.local.get(['pending_action', 'pending_data', 'pending_queue'], async (res) => {
@@ -2798,6 +3102,17 @@ const rpcCallHeadlessV33 = async (endpoint, payload) => {
 
                 let btnBatch = document.getElementById('btn-auto-batch');
                 if (btnBatch) btnBatch.click();
+            } else if (action === 'AUTO_SCOUT_IN_CLASS') {
+                let tabAtt = document.getElementById('tab-attendance');
+                if (tabAtt) tabAtt.click();
+                
+                let toggleInClass = document.getElementById('toggle-in-class');
+                if (toggleInClass && !toggleInClass.checked) {
+                    toggleInClass.checked = true;
+                }
+                if (typeof syncScheduleToBackground === 'function') {
+                    syncScheduleToBackground();
+                }
             } else if (action === 'AUTO_V33') {
                 let tabAtt = document.getElementById('tab-attendance');
                 if (tabAtt) tabAtt.click();
