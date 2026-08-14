@@ -30,9 +30,9 @@ export default function MonthlyEvaluationsTab({ classData, students, assignments
   const userAssignments = assignments.filter(a => a.teacherId === profile?.id);
   const isGVCN = userAssignments.some(a => a.role === "GVCN" || a.role === "PCN");
   
-  const teachesMath = userAssignments.some(a => a.subject === "Toán");
-  const teachesLit = userAssignments.some(a => a.subject === "Ngữ văn" || a.subject === "Văn");
-  const teachesEng = userAssignments.some(a => a.subject === "Tiếng Anh" || a.subject === "Anh");
+  const teachesMath = userAssignments.some(a => a.subject?.toLowerCase() === "toán");
+  const teachesLit = userAssignments.some(a => a.subject?.toLowerCase() === "ngữ văn" || a.subject?.toLowerCase() === "văn");
+  const teachesEng = userAssignments.some(a => a.subject?.toLowerCase() === "tiếng anh" || a.subject?.toLowerCase() === "anh");
 
   const canViewAll = isAdminOrBGH || isGVCN;
   

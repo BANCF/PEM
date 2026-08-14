@@ -178,7 +178,7 @@ export default function PrintMonthlyEvaluation() {
           return (
             <div 
               key={student.id} 
-              className={`w-[210mm] h-[297mm] p-[20mm] bg-white relative box-border ${!isLast ? 'page-break' : ''}`}
+              className={`w-[210mm] h-[297mm] px-[20mm] pt-[10mm] pb-[20mm] bg-white relative box-border flex flex-col ${!isLast ? 'page-break' : ''}`}
             >
               
               {/* HEADER TABLE */}
@@ -258,10 +258,10 @@ export default function PrintMonthlyEvaluation() {
               </div>
 
               {/* SIGNATURE */}
-              <div className="flex justify-end pr-10 mt-12">
+              <div className="mt-auto flex justify-end pr-10">
                 <div className="text-center">
                   <p className="italic text-[18px] mb-2">Hà Nội, ngày {new Date().getDate()} tháng {new Date().getMonth() + 1} năm {new Date().getFullYear()}</p>
-                  <p className="font-bold text-[18px] mb-24">Giáo viên chủ nhiệm</p>
+                  <p className="font-bold text-[18px] mb-20">Giáo viên chủ nhiệm</p>
                   <p className="font-bold text-[18px] uppercase">{teacherName}</p>
                 </div>
               </div>

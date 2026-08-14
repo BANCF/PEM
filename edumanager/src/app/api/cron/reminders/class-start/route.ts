@@ -105,27 +105,11 @@ export async function GET(request: Request) {
       
       if (fcmTokens && fcmTokens.length > 0) {
         const message = {
-          notification: {
-            title: `🔔 Nhắc nhở vào tiết: Lớp ${notificationInfo.className}`,
-            body: `Còn 5 phút nữa là bắt đầu tiết ${notificationInfo.subject} ở lớp ${notificationInfo.className}. Mời thầy/cô chuẩn bị vào lớp!`
-          },
           data: {
+            title: `🔔 Nhắc nhở vào tiết: Lớp ${notificationInfo.className}`,
+            body: `Còn 5 phút nữa là bắt đầu tiết ${notificationInfo.subject} ở lớp ${notificationInfo.className}. Mời thầy/cô chuẩn bị vào lớp!`,
             url: '/dashboard/schedule',
             type: 'class_start_reminder'
-          },
-          android: {
-            priority: 'high' as const,
-            notification: {
-              sound: 'default',
-            },
-          },
-          apns: {
-            payload: {
-              aps: {
-                sound: 'default',
-                badge: 1,
-              }
-            }
           },
           tokens: fcmTokens,
         };
