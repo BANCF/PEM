@@ -11,7 +11,7 @@ interface ProtectedRouteProps {
 }
 
 export default function ProtectedRoute({ children, allowedRoles }: ProtectedRouteProps) {
-  const { user, profile, loading } = useAuth();
+  const { user, profile, actualProfile, loading } = useAuth();
   const router = useRouter();
   const [isAuthorized, setIsAuthorized] = useState(false);
 
@@ -28,12 +28,18 @@ export default function ProtectedRoute({ children, allowedRoles }: ProtectedRout
         } else {
           setIsAuthorized(true);
         }
-      } else {
-        // Logged in but profile not found in DB
-        // Wait or handle error?
+      } else if (actualProfile === null) {
+        // Logged in but profile not found in DB (incomplete signup)
+        import("@/lib/firebase/client").then(({ auth }) => {
+          import("firebase/auth").then(({ signOut }) => {
+            signOut(auth).then(() => {
+              router.push("/login");
+            });
+          });
+        });
       }
     }
-  }, [user, profile, loading, router, allowedRoles]);
+  }, [user, profile, actualProfile, loading, router, allowedRoles]);
 
   if (loading || !isAuthorized) {
     return (
