@@ -53,6 +53,9 @@ export default function DashboardLayout({
         }
       }
       setLoadingConfig(false);
+    }, (error) => {
+      console.error("Error fetching system settings:", error);
+      setLoadingConfig(false);
     });
     return () => unsub();
   }, []);

@@ -178,6 +178,8 @@ export default function Notifications() {
         }
         return unread;
       });
+    }, (error) => {
+      console.error("Error fetching notifications:", error);
     });
 
     return () => unsubscribe();
