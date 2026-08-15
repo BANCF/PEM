@@ -34,7 +34,6 @@ export default function PrintMonthlyEvaluation() {
   const [loading, setLoading] = useState(true);
 
   // Statistics
-  const [classAverages, setClassAverages] = useState({ math: 0, lit: 0, eng: 0 });
   const [rankings, setRankings] = useState<Record<string, number>>({});
 
   useEffect(() => {
@@ -58,30 +57,33 @@ export default function PrintMonthlyEvaluation() {
         evals.forEach(e => { evalMap[e.studentId] = e; });
         setEvaluations(evalMap);
 
-        // Calculate averages
-        let mTotal = 0, mCount = 0;
-        let lTotal = 0, lCount = 0;
-        let eTotal = 0, eCount = 0;
-
+        // Calculate totals for ranking
         const studentTotals: { id: string, total: number }[] = [];
+
+        // Helper to parse score that might use comma (e.g. '7,5')
+        const parseScore = (score: any): number | null => {
+          if (score === null || score === undefined || score === "") return null;
+          const s = String(score).replace(',', '.');
+          const n = Number(s);
+          return isNaN(n) ? null : n;
+        };
 
         stds.forEach(s => {
           const e = evalMap[s.id!];
           if (e) {
             let sTotal = 0;
-            if (e.mathScore != null) { mTotal += e.mathScore; mCount++; sTotal += e.mathScore; }
-            if (e.literatureScore != null) { lTotal += e.literatureScore; lCount++; sTotal += e.literatureScore; }
-            if (e.englishScore != null) { eTotal += e.englishScore; eCount++; sTotal += e.englishScore; }
+            const m = parseScore(e.mathScore);
+            const l = parseScore(e.literatureScore);
+            const eng = parseScore(e.englishScore);
+
+            if (m !== null) sTotal += m;
+            if (l !== null) sTotal += l;
+            if (eng !== null) sTotal += eng;
+            
             studentTotals.push({ id: s.id!, total: sTotal });
           } else {
             studentTotals.push({ id: s.id!, total: 0 });
           }
-        });
-
-        setClassAverages({
-          math: mCount > 0 ? Number((mTotal / mCount).toFixed(1)) : 0,
-          lit: lCount > 0 ? Number((lTotal / lCount).toFixed(1)) : 0,
-          eng: eCount > 0 ? Number((eTotal / eCount).toFixed(1)) : 0,
         });
 
         // Rank students
@@ -209,60 +211,60 @@ export default function PrintMonthlyEvaluation() {
               </div>
 
               {/* SCORES TABLE WITH WATERMARK */}
-              <div className="relative mb-8">
+              <div className="relative mb-6 flex-1 flex flex-col">
                 {/* Watermark */}
                 <div className="absolute inset-0 flex justify-center items-center pointer-events-none opacity-[0.1] z-0">
-                  <img src="/logo-pascal-01.png" alt="Watermark" className="w-[300px] h-auto" />
+                  <img src="/logo-pascal-01.png" alt="Watermark" className="w-[280px] h-auto" />
                 </div>
                 
-                <table className="w-full border-collapse border border-black relative z-10 bg-transparent">
+                <table className="w-full h-full border-collapse border border-black relative z-10 bg-transparent">
                   <thead>
                     <tr>
-                      <th className="border border-black p-3 text-center w-32 font-bold text-[18px]">Môn</th>
-                      <th className="border border-black p-3 text-center w-24 font-bold text-[18px]">Điểm</th>
-                      <th className="border border-black p-3 text-center font-bold text-[18px]">Nhận xét</th>
+                      <th className="border border-black p-2 text-center w-28 font-bold text-[17px] h-[40px]">Môn</th>
+                      <th className="border border-black p-2 text-center w-24 font-bold text-[17px]">Điểm</th>
+                      <th className="border border-black p-2 text-center font-bold text-[17px]">Nhận xét</th>
                     </tr>
                   </thead>
-                  <tbody className="text-[18px]">
+                  <tbody className="text-[16px]">
                     <tr>
-                      <td className="border border-black p-4 text-center align-middle h-[70px]">Toán</td>
-                      <td className="border border-black p-4 text-center font-bold text-xl">{ev.mathScore ?? ""}</td>
-                      <td className="border border-black p-4 align-middle">{ev.mathComment || ""}</td>
+                      <td className="border border-black p-2 px-3 text-center align-middle">Toán</td>
+                      <td className="border border-black p-2 text-center font-bold text-lg">{ev.mathScore ?? ""}</td>
+                      <td className="border border-black p-2 px-3 align-middle leading-snug">{ev.mathComment || ""}</td>
                     </tr>
                     <tr>
-                      <td className="border border-black p-4 text-center align-middle h-[70px]">Văn</td>
-                      <td className="border border-black p-4 text-center font-bold text-xl">{ev.literatureScore ?? ""}</td>
-                      <td className="border border-black p-4 align-middle">{ev.literatureComment || ""}</td>
+                      <td className="border border-black p-2 px-3 text-center align-middle">Văn</td>
+                      <td className="border border-black p-2 text-center font-bold text-lg">{ev.literatureScore ?? ""}</td>
+                      <td className="border border-black p-2 px-3 align-middle leading-snug">{ev.literatureComment || ""}</td>
                     </tr>
                     <tr>
-                      <td className="border border-black p-4 text-center align-middle h-[70px]">Anh</td>
-                      <td className="border border-black p-4 text-center font-bold text-xl">{ev.englishScore ?? ""}</td>
-                      <td className="border border-black p-4 align-middle">{ev.englishComment || ""}</td>
+                      <td className="border border-black p-2 px-3 text-center align-middle">Anh</td>
+                      <td className="border border-black p-2 text-center font-bold text-lg">{ev.englishScore ?? ""}</td>
+                      <td className="border border-black p-2 px-3 align-middle leading-snug">{ev.englishComment || ""}</td>
                     </tr>
                   </tbody>
                 </table>
               </div>
 
               {/* AVERAGES AND RANKING (Below Table) */}
-              <div className="text-[18px] leading-relaxed">
-                <div className="flex mb-2">
+              <div className="text-[16px] leading-relaxed">
+                <div className="flex mb-1">
                   <span className="font-bold mr-2">Xếp hạng:</span>
                   <span className="font-bold">{rank} / {students.length}</span>
                 </div>
-                <div className="font-bold mb-2">Điểm trung bình các môn lớp {classData.name}</div>
-                <div className="ml-6 space-y-1">
-                  <div>- Môn Toán: {classAverages.math}</div>
-                  <div>- Môn Văn: {classAverages.lit}</div>
-                  <div>- Môn Anh: {classAverages.eng}</div>
+                <div className="font-bold mb-1">Điểm trung bình các môn lớp {classData.name}</div>
+                <div className="ml-6 space-y-0.5">
+                  <div>- Môn Toán: {ev.mathScore ?? "..."}</div>
+                  <div>- Môn Văn: {ev.literatureScore ?? "..."}</div>
+                  <div>- Môn Anh: {ev.englishScore ?? "..."}</div>
                 </div>
               </div>
 
               {/* SIGNATURE */}
               <div className="mt-auto flex justify-end pr-10">
                 <div className="text-center">
-                  <p className="italic text-[18px] mb-2">Hà Nội, ngày {new Date().getDate()} tháng {new Date().getMonth() + 1} năm {new Date().getFullYear()}</p>
-                  <p className="font-bold text-[18px] mb-20">Giáo viên chủ nhiệm</p>
-                  <p className="font-bold text-[18px] uppercase">{teacherName}</p>
+                  <p className="italic text-[16px] mb-1">Hà Nội, ngày {new Date().getDate()} tháng {new Date().getMonth() + 1} năm {new Date().getFullYear()}</p>
+                  <p className="font-bold text-[16px] mb-16">Giáo viên chủ nhiệm</p>
+                  <p className="font-bold text-[16px] uppercase">{teacherName}</p>
                 </div>
               </div>
             </div>

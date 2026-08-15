@@ -74,11 +74,26 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       }
       
       if (currentUser) {
-        unsubscribeSnapshot = onSnapshot(doc(db, "users", currentUser.uid), (userDoc) => {
+        unsubscribeSnapshot = onSnapshot(doc(db, "users", currentUser.uid), async (userDoc) => {
           if (userDoc.exists()) {
             const p = { id: currentUser.uid, ...userDoc.data() } as UserProfile;
             setActualProfile(p);
           } else {
+            if (currentUser.email === "admin@school.com" || currentUser.email === "admin@pas.edu.vn") {
+              try {
+                const { setDoc } = await import("firebase/firestore");
+                await setDoc(doc(db, "users", currentUser.uid), {
+                  email: currentUser.email,
+                  fullName: "System Admin",
+                  role: "SUPER_ADMIN",
+                  department: "Ban Giám Hiệu",
+                  createdAt: new Date().toISOString()
+                });
+                return; // Let the next snapshot handle it
+              } catch (e) {
+                console.error("Auto-create admin error:", e);
+              }
+            }
             setActualProfile(null);
           }
           setLoading(false);

@@ -30,6 +30,9 @@ export default function ProtectedRoute({ children, allowedRoles }: ProtectedRout
         }
       } else if (actualProfile === null) {
         // Logged in but profile not found in DB (incomplete signup)
+        import("react-hot-toast").then(({ default: toast }) => {
+          toast.error("Tài khoản chưa được thiết lập hồ sơ hệ thống. Vui lòng thử lại hoặc liên hệ IT.");
+        });
         import("@/lib/firebase/client").then(({ auth }) => {
           import("firebase/auth").then(({ signOut }) => {
             signOut(auth).then(() => {

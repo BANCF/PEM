@@ -39,7 +39,7 @@ export default function LoginPage() {
       if (error.code === "auth/invalid-credential" || error.code === "auth/user-not-found" || error.code === "auth/wrong-password") {
         toast.error("Email hoặc mật khẩu không chính xác!");
       } else {
-        toast.error("Đã xảy ra lỗi khi đăng nhập.");
+        toast.error(`Đã xảy ra lỗi khi đăng nhập: ${error.message}`);
       }
     } finally {
       setLoading(false);
@@ -95,7 +95,7 @@ export default function LoginPage() {
     } catch (error: any) {
       console.error("Google login error:", error);
       if (error.code !== "auth/popup-closed-by-user") {
-        toast.error("Lỗi đăng nhập Google.");
+        toast.error(`Lỗi đăng nhập Google: ${error.message}`);
       }
     } finally {
       setLoading(false);
