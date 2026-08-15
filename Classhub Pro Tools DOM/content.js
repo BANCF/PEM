@@ -412,7 +412,6 @@
         let entity = classItem.entity;
         let masterKey = classItem.id;
         let classUpdateTime = entity.update_time || "";
-        let env = window.Ohke && window.Ohke.session ? window.Ohke.session.env : "PROD";
         let startTime = performance.now();
 
         let classHourCode = entity.class_hour_code || '';
@@ -428,9 +427,9 @@
             let teacherId = null; let teacherEntityData = null;
             let modalOpened = false;
 
-            // 1. [CHẾ ĐỘ THẦN TỐC] DÙNG API NGẦM ĐỂ TÌM ID GIÁO VIÊN (KHÔNG MỞ UI)
+            // 1. TÌM ID GIÁO VIÊN NGẦM
             try {
-                let resSheet = await rpcCallHeadlessV33('x35FD3_Viewer', { id: masterKey, master_key: String(masterKey), mode: "V", env: env });
+                let resSheet = await rpcCallHeadlessV33('x35FD3_Viewer', { id: masterKey, master_key: String(masterKey) });
                 if (resSheet && resSheet.html) {
                     let vDoc = new DOMParser().parseFromString(resSheet.html, 'text/html');
                     let els = vDoc.querySelectorAll('[data-entity]');
@@ -446,12 +445,9 @@
                 }
             } catch(e) {}
 
-            // 2. [FALLBACK] NẾU API NGẦM XỊT, MỞ UI VỚI TỐC ĐỘ BÀN THỜ (10ms Polling)
             if (!teacherId) {
                 forceClickV33(classItem.element);
                 modalOpened = true;
-                
-                // ĐUA TỐC ĐỘ: Chờ API 'Viewer' trả về HOẶC chờ Modal vẽ xong HTML chứa data-entity
                 await Promise.race([
                     waitForApiV33('Viewer', 15000),
                     waitForCondition(() => {
@@ -460,12 +456,9 @@
                         return modals.length > 0 && modals[modals.length - 1].querySelectorAll('[data-entity]').length > 0;
                     }, 15000, 50)
                 ]);
-                
-                await delay(100); // Thở nhẹ 100ms cho Modal ổn định
+                await delay(100); 
 
                 let elapsed = 0; 
-                // TĂNG TIMEOUT: Cho phép máy yếu load Modal lên tới 15 giây.
-                // Lưu ý: Nếu máy khỏe, nó vẫn chỉ mất 10ms là thoát khỏi vòng lặp này.
                 while (elapsed < 15000) { 
                     let modals = Array.from(document.querySelectorAll('.w3-modal, .ohke-popup-subform, .patch-modal')).filter(el => el.offsetWidth > 0 || el.classList.contains('w3-show'));
                     let classModal = modals.length > 0 ? modals[modals.length - 1] : null;
@@ -489,7 +482,7 @@
                         }
                         if (teacherId) break;
                     }
-                    await delay(10); elapsed += 10; // ÉP XUNG: Quét siêu tốc mỗi 10ms thay vì 50ms
+                    await delay(10); elapsed += 10;
                 }
             }
 
@@ -498,126 +491,143 @@
                 teacherId = entity.instructor_id || entity.instructor_sheet_id || (entity.instructor && entity.instructor.id) || masterKey;
             }
 
-            // --- GIAI ĐOẠN 3: BẮN API CHỐT SỔ (HYBRID 3-TIER FALLBACK) ---
             let currentEntity = Object.assign({}, entity);
             let currentTeacherEntity = Object.assign({}, teacherEntityData || entity);
-
             let tStatus = String(currentTeacherEntity.instructor_attendance_status || currentTeacherEntity.status || "").toUpperCase();
             let isTeacherDone = tStatus.includes('ACCEPTED') || tStatus.includes('PRESENT') || tStatus.includes('FULL_ATTENDANCE');
 
-            // 1. Chốt Giáo Viên
-            if (!isLessonZero && !isTeacherDone) {
+            // --- 2. CHỐT GIÁO VIÊN ---
+            if (!isTeacherDone) {
+                let teacherMockEnv = {
+                    id: String(teacherId),
+                    master_key: String(masterKey),
+                    father_master_key: String(masterKey)
+                };
+
                 let payloadApi1 = {
-                    id: teacherId, field_name: "status",
+                    id: parseInt(teacherId) || teacherId, 
+                    field_name: "status",
                     begin_state: currentTeacherEntity.status || "INSTRUCTOR_ATTENDANCE_STATUS_NO_ATTENDANCE",
-                    to_state: API_CONFIG_V33.teacherTargetState,
                     end_state: API_CONFIG_V33.teacherTargetState,
-                    is_reversal: 0, update_time: currentTeacherEntity.update_time || currentEntity.update_time || "",
-                    mode: "V", entity: currentTeacherEntity, env: env
+                    is_reversal: 0, 
+                    update_time: currentTeacherEntity.update_time || currentEntity.update_time || "",
+                    mode: "V", 
+                    entity: currentTeacherEntity, 
+                    env: teacherMockEnv
                 };
                 try {
                     let res1 = await rpcCallHeadlessV33('x24F76_jsonPostTransition', payloadApi1);
-                    if (res1 && res1.data && typeof res1.data === 'object') {
-                        Object.assign(currentTeacherEntity, res1.data);
-                        if (res1.data.update_time) { currentTeacherEntity.update_time = res1.data.update_time; currentEntity.update_time = res1.data.update_time; }
-                    }
+                    if (res1 && res1.data) Object.assign(currentTeacherEntity, res1.data);
                 } catch (e1) { }
 
                 let payloadApi2 = {
-                    id: masterKey, field_name: "instructor_attendance_status",
+                    id: parseInt(masterKey) || masterKey, 
+                    field_name: "instructor_attendance_status",
                     begin_state: currentEntity.instructor_attendance_status || "INSTRUCTOR_ATTENDANCE_SHEET_STATUS_PENDING",
-                    to_state: "INSTRUCTOR_ATTENDANCE_SHEET_STATUS_ACCEPTED", end_state: "INSTRUCTOR_ATTENDANCE_SHEET_STATUS_ACCEPTED",
-                    is_reversal: 0, update_time: currentEntity.update_time || classUpdateTime,
-                    mode: "V", entity: currentEntity, env: env
+                    end_state: "INSTRUCTOR_ATTENDANCE_SHEET_STATUS_ACCEPTED",
+                    is_reversal: 0, 
+                    update_time: currentEntity.update_time || classUpdateTime,
+                    mode: "V", 
+                    entity: currentEntity, 
+                    env: { id: String(masterKey), master_key: String(masterKey) }
                 };
                 try {
                     let res2 = await rpcCallHeadlessV33('x35FD3_jsonPostTransition', payloadApi2);
-                    if (!res2 || (res2.type !== "success" && res2.status !== "success" && res2.code !== 200 && !res2.data)) {
-                        res2 = await rpcCallHeadlessV33('x24F76_jsonPostTransition', payloadApi2);
-                    }
-                    if (res2 && res2.data && typeof res2.data === 'object') {
-                        Object.assign(currentEntity, res2.data);
-                        if (res2.data.update_time) currentEntity.update_time = res2.data.update_time;
-                    }
+                    if (!res2 || res2.type !== "success") res2 = await rpcCallHeadlessV33('x24F76_jsonPostTransition', payloadApi2);
+                    if (res2 && res2.data) Object.assign(currentEntity, res2.data);
                 } catch (e2) { }
             }
 
-            // 2. Chốt Học Sinh (3-Tier Fallback)
+            // --- 3. CHỐT HỌC SINH (3-TIER TUẦN TỰ) ---
             let checkModes = [
-                'MARK_ALL_STUDENT_ATTENDANCE_RECORDS_AS_SAME_AS_PREVIOUS_LESSON', // Tier 1: Tiết trước
-                'MARK_ALL_STUDENT_ATTENDANCE_RECORDS_AS_ARRIVED_AT_SCHOOL',       // Tier 2: Đến trường
-                'MARK_ALL_STUDENT_ATTENDANCE_RECORDS_AS_PRESENT'                  // Tier 3: Tất cả có mặt
+                { name: "Tiết trước", endpoint: "bttAction_x2447C_" },
+                { name: "Đến trường", endpoint: "bttAction_x2B0CE_" },
+                { name: "Tất cả có mặt", endpoint: "bttAction_x2447B_" }
             ];
-            
-            if (isLessonZero) {
-                checkModes.shift(); // Lọc bỏ Tier 1 nếu là H0
-            }
+            if (isLessonZero) checkModes.shift(); 
 
             let isTrulySuccess = false;
 
             for (let mode of checkModes) {
-                if (isTrulySuccess) break;
+                log(`🔄 Đang thử chốt Học sinh theo: [${mode.name}]...`);
                 
+                // Tier 1/2/3: Gửi Lệnh bttAction (Chỉ nhận tham số { "id": "master_key" })
                 try {
-                    await rpcCallHeadlessV33(API_CONFIG_V33.studentActionApi, {
-                        id: masterKey, entity: currentEntity, master_key: String(masterKey),
-                        action_code: mode, env: env
-                    });
+                    await rpcCallHeadlessV33(mode.endpoint, { id: String(masterKey) });
                 } catch (e3) { }
 
+                // Check API Viewer & Bóc tách Mật mã ngầm
+                let realEnv = {
+                    id: String(masterKey),
+                    master_key: String(masterKey),
+                    father_master_key: String(masterKey)
+                };
+
                 try {
-                    let resRefresh = await rpcCallHeadlessV33('x35FD2_Viewer', { id: masterKey, master_key: masterKey, mode: "V", env: env });
+                    // Gọi Viewer lấy HTML và dữ liệu mới nhất
+                    let resRefresh = await rpcCallHeadlessV33('x35FD2_Viewer', { id: String(masterKey) });
                     if (resRefresh) {
-                        if (resRefresh.data && typeof resRefresh.data === 'object') {
+                        if (resRefresh.html) {
+                            let vDoc = new DOMParser().parseFromString(resRefresh.html, 'text/html');
+                            let prefixInput = vDoc.querySelector('input[name="ohke_prefix"]');
+                            let queryIdInput = vDoc.querySelector('input[name="data_query_id"]');
+                            
+                            if (prefixInput && prefixInput.value) realEnv.ohke_prefix = prefixInput.value;
+                            if (queryIdInput && queryIdInput.value) realEnv.data_query_id = queryIdInput.value;
+                        }
+                        if (resRefresh.data) {
                             Object.assign(currentEntity, resRefresh.data);
                             if (resRefresh.data.update_time) currentEntity.update_time = resRefresh.data.update_time;
-                        } else if (resRefresh.update_time) { currentEntity.update_time = resRefresh.update_time; }
+                        }
                     }
                 } catch (eRefresh) { }
 
+                // Gửi API Chốt sổ
                 let payloadApi4 = {
-                    id: masterKey, field_name: "attendance_sheet_status",
+                    id: parseInt(masterKey) || masterKey,
+                    field_name: "attendance_sheet_status",
                     begin_state: currentEntity.attendance_sheet_status || "CLASS_SCHEDULE_SLOT_STATUS_PENDING",
-                    to_state: "CLASS_SCHEDULE_SLOT_STATUS_ACCEPTED", end_state: "CLASS_SCHEDULE_SLOT_STATUS_ACCEPTED",
-                    is_reversal: 0, update_time: currentEntity.update_time || classUpdateTime,
-                    mode: "V", entity: currentEntity, env: env
+                    end_state: "CLASS_SCHEDULE_SLOT_STATUS_ACCEPTED",
+                    is_reversal: 0, 
+                    update_time: currentEntity.update_time || classUpdateTime,
+                    mode: "V", 
+                    entity: currentEntity, 
+                    env: realEnv
                 };
-
-                let res4;
+                
                 try {
-                    res4 = await rpcCallHeadlessV33('x35FD2_jsonPostTransition', payloadApi4);
-                    if (res4 && res4.data && typeof res4.data === 'object') Object.assign(currentEntity, res4.data);
-                } catch (e4) { }
-
-                // Kiểm tra Viewer (Fallback 1)
-                try {
-                    let finalCheck = await rpcCallHeadlessV33('x35FD2_Viewer', { id: masterKey, master_key: masterKey, mode: "V", env: env });
-                    if (finalCheck && finalCheck.data) {
-                        let finalStatus = String(finalCheck.data.attendance_sheet_status || "").toUpperCase();
-                        if (finalStatus.includes("ACCEPTED")) {
+                    let res4 = await rpcCallHeadlessV33('x35FD2_jsonPostTransition', payloadApi4);
+                    if (res4) {
+                        if (res4.type === "success") {
                             isTrulySuccess = true;
-                            log(`✔️ Tier xác nhận thành công: ${mode}`);
-                            break;
+                            log(`✔️ [API Check] Điểm danh [${mode.name}] chốt sổ thành công!`);
+                            break; // Thành công thì thoát vòng lặp
+                        } else if (res4.type === "error" && res4.code === "ERR_STUDENT_ATTENDANCE_INCOMPLETED") {
+                            log(`❌ Lỗi Ohke (Tier reject): Học sinh chưa điểm danh đủ. Chuyển Tier...`);
+                            continue; // Bị reject -> Thử tier tiếp theo
+                        } else {
+                            log(`⚠️ Lỗi Ohke không xác định: ${res4.message || 'Unknown'}. Vẫn thử tiếp...`);
                         }
                     }
-                } catch(e) {}
+                } catch (e4) { }
             }
 
-            // --- GIAI ĐOẠN 4: DỌN DẸP & ULTIMATE DOM FALLBACK ---
-            if (modalOpened) await closeModalSafelyV33();
-
+            // Fallback cuối cùng: DOM Check nếu các tier đều báo không thành công / kẹt
             if (!isTrulySuccess) {
-                // DOM Fallback 
-                log("⚠️ API chưa xác nhận ACCEPTED, đang chờ 1.5s để check DOM...");
-                await delay(1500); // Chờ UI React/Vue render lại
-                let uiText = (classItem.element.textContent || "").toUpperCase();
-                if (!uiText.includes('CHƯA NỘP') && !uiText.includes('NOT YET SUBMITTED')) {
-                    isTrulySuccess = true;
-                    log("✔️ DOM Check: Không tìm thấy nhãn đỏ, điểm danh đã qua lọt.");
-                } else {
-                    log(`❌ DOM Check: Vẫn còn nhãn đỏ, có thể lỗi hoặc hệ thống chưa đồng bộ kịp.`);
+                log(`⚠️ Các API Tier không xác nhận thành công. Chờ 0.6s kiểm tra chéo DOM...`);
+                await delay(600); 
+                
+                if (classItem.element) {
+                    let uiText = (classItem.element.textContent || "").toUpperCase();
+                    if (!uiText.includes('CHƯA NỘP') && !uiText.includes('NOT YET SUBMITTED')) {
+                        isTrulySuccess = true;
+                        log(`✔️ [DOM Check] Điểm danh thành công (Mất nhãn đỏ).`);
+                    }
                 }
             }
+
+            // --- 4. DỌN DẸP ---
+            if (modalOpened) await closeModalSafelyV33();
 
             if (isTrulySuccess) {
                 classItem.element.style.opacity = '0.3'; 
