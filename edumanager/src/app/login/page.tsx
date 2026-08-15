@@ -59,7 +59,8 @@ export default function LoginPage() {
       const user = result.user;
 
       // 1. Kiểm tra đuôi email có đúng là của trường không
-      if (user.email && !user.email.endsWith(ALLOWED_DOMAIN) && user.email !== "admin@school.com") {
+      const userEmail = user.email ? user.email.toLowerCase() : "";
+      if (userEmail && !userEmail.endsWith(ALLOWED_DOMAIN) && userEmail !== "admin@school.com") {
         await signOut(auth); // Ép đăng xuất ngay lập tức
         toast.error(`Vui lòng sử dụng email đuôi ${ALLOWED_DOMAIN} của trường!`);
         return;

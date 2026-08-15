@@ -23,13 +23,13 @@ export const useClassAlarm = () => {
             const scheduleName = (profile as any).scheduleName;
             if (scheduleName && data.teachers[scheduleName]) {
               setSchedule(data.teachers[scheduleName]);
-            } else {
+            } else if (profile.fullName) {
               const allTeachers = Object.keys(data.teachers);
               const exactMatch = allTeachers.find(t => t.toLowerCase() === profile.fullName?.toLowerCase());
               if (exactMatch) {
                 setSchedule(data.teachers[exactMatch]);
               } else {
-                const includesMatch = allTeachers.find(t => profile.fullName?.toLowerCase().includes(t.toLowerCase()));
+                const includesMatch = allTeachers.find(t => (profile.fullName?.toLowerCase() || "").includes(t.toLowerCase()));
                 if (includesMatch) setSchedule(data.teachers[includesMatch]);
               }
             }

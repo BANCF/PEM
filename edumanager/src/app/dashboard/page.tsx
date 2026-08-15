@@ -230,8 +230,8 @@ export default function DashboardPage() {
 
   // Filtered leaderboard
   let filteredData = teachersData.filter(t => 
-    t.fullName.toLowerCase().includes(searchQuery.toLowerCase()) || 
-    t.department.toLowerCase().includes(searchQuery.toLowerCase())
+    (t.fullName?.toLowerCase() || "").includes(searchQuery.toLowerCase()) || 
+    (t.department?.toLowerCase() || "").includes(searchQuery.toLowerCase())
   );
 
   if (viewMode === "DEPARTMENT" && profile?.department) {
