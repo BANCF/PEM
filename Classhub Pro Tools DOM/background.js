@@ -106,7 +106,7 @@ chrome.alarms.onAlarm.addListener((alarm) => {
 chrome.action.onClicked.addListener((tab) => {
     chrome.scripting.executeScript({
         target: { tabId: tab.id },
-        files: ['xlsx.full.min.js', 'content.js']
+        files: ['xlsx.full.min.js', 'api_scanner.js', 'content.js']
     }).catch(err => console.log("Lỗi chèn tool: Trang này không hỗ trợ Extension."));
 });
 
@@ -117,7 +117,7 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
                 setTimeout(() => {
                     chrome.scripting.executeScript({
                         target: { tabId: tabId },
-                        files: ['xlsx.full.min.js', 'content.js']
+                        files: ['xlsx.full.min.js', 'api_scanner.js', 'content.js']
                     }).catch(err => console.log("Lỗi chèn tool tự động:", err));
                 }, 1000);
             }

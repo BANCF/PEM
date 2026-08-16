@@ -1,0 +1,494 @@
+<!DOCTYPE html>
+<html lang="vi" translate="no">
+<head>
+  <title>[PASCAL.2026] Trang Chủ</title>
+<meta charset="utf-8">
+<meta http-equiv="X-UA-Compatible" content="IE=100"/>
+<meta name="copyright" content="OHKE"/>
+<meta name="author" content="OHKE"/>
+<meta name="robots" content="index,follow"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="MobileOptimized" content="320"/>
+<meta name="HandheldFriendly" content="true"/>
+<meta name="format-detection" content="telephone=no">
+  <link href="/appstart/core-about-1.0/public/app_icon.png?0a1c8432" rel="shortcut icon">
+
+  <!-- CORE CSS -->
+  <link href="/appstart/resource/common/css/w3.css?v=1.0.257" rel="stylesheet">
+  <link href="/appstart/resource/common/css/font-awesome.min.css?v=1.0.257" rel="stylesheet">
+
+  <!-- THEME -->
+  <link href="/appstart/resource/palette/COLOR-0000007.css?v=1776310477" rel="stylesheet">
+  <link href="/appstart/resource/look/default_look_and_feel/z-index.css?v=1785579999" rel="stylesheet">
+  <link href="/appstart/resource/look/default_look_and_feel/ohke.css?v=1785579999" rel="stylesheet">
+  <link href="/appstart/resource/look/default_look_and_feel/inno-button.css?v=1785579999" rel="stylesheet">
+  <link href="/appstart/resource/look/default_look_and_feel/job.css?v=1785579999" rel="stylesheet">
+  <link href="/appstart/resource/look/default_look_and_feel/id-layout.css?v=1785579999" rel="stylesheet">
+  <link href="/appstart/resource/look/default_look_and_feel/g-app.css?v=1785579999" rel="stylesheet">
+  <link href="/appstart/resource/look/default_look_and_feel/ohke-wizard.css?v=1785579999" rel="stylesheet">
+  <link href="/appstart/resource/look/default_look_and_feel/ohke-switch.css?v=1785579999" rel="stylesheet">
+  <link href="/appstart/resource/look/default_look_and_feel/ohke-adv-combo.css?v=1785579999" rel="stylesheet">
+  <link href="/appstart/resource/look/default_look_and_feel/ohke-mc-combo.css?v=1785579999" rel="stylesheet">
+  <link href="/appstart/resource/look/default_look_and_feel/sidebar.css?v=1785579999" rel="stylesheet">
+  <link href="/appstart/resource/look/default_look_and_feel/tooltip.css?v=1785579999" rel="stylesheet">
+  <link href="/appstart/resource/look/default_look_and_feel/chosen.ext.css?v=1785579999" rel="stylesheet">
+  <link href="/appstart/resource/look/default_look_and_feel/date-picker.css?v=1785579999" rel="stylesheet">
+  <link href="/appstart/resource/look/default_look_and_feel/ohke-color-picker.css?v=1785579999" rel="stylesheet">
+  <link href="/appstart/resource/look/default_look_and_feel/ohke-slideshow.css?v=1785579999" rel="stylesheet">
+  <link href="/appstart/resource/look/default_look_and_feel/ohke-tab.css?v=1785579999" rel="stylesheet">
+  <link href="/appstart/resource/look/default_look_and_feel/media.css?v=1785579999" rel="stylesheet">
+  <link href="/appstart/resource/look/default_look_and_feel/calendar.css?v=1785579999" rel="stylesheet">
+  <link href="/appstart/resource/look/default_look_and_feel/list-header-x.css?v=1785579999" rel="stylesheet">
+  <link href="/appstart/resource/look/default_look_and_feel/floating-toolbar.css?v=1785579999" rel="stylesheet">
+  <link href="/appstart/resource/look/default_look_and_feel/katex-math.css?v=1785579999" rel="stylesheet">
+  <link href="/appstart/resource/look/default_look_and_feel/inno.geo.css?v=1785579999" rel="stylesheet">
+  <link href="/appstart/resource/look/default_look_and_feel/filter.css?v=1785579999" rel="stylesheet">
+  <link href="/appstart/resource/look/default_look_and_feel/chunk-uploader.css?v=1785579999" rel="stylesheet">
+  <link href="/appstart/resource/look/default_look_and_feel/video.css?v=1785579999" rel="stylesheet">
+  <link href="/appstart/resource/look/default_look_and_feel/payment-qr.css?v=1785579999" rel="stylesheet">
+
+<template id="ohke_popup_tmpl">
+  <div class="w3-modal ohke_popup_instance">
+    <div class="w3-modal-content w3-animate-zoom ohke-popup">
+      <div class="ohke-popup-header {type}">
+        <i class="ohke-popup-icon fa {type_icon}"></i>
+        <a class="close-btn">
+          <i class="fa fa-2x fa-close"></i>
+        </a>
+        <h4>
+          {header}
+        </h4>
+      </div>
+      <form class="ohke-popup-body" onsubmit="return false">
+        {body}
+      </form>
+      <div class="ohke-popup-footer">
+      </div>
+    </div>
+  </div>
+</template>
+<template id="ohke_loading_tmpl">
+  <div class="ohke-content-loading">
+    <i class="fa fa-cog fa-spin"></i> {message}
+  </div>
+</template>
+<template id="ohke_file_viewer_tmpl">
+  <div class="w3-modal ohke-file-viewer w3-show w3-animate-zoom">
+    <div class="w3-modal-content">
+      <div class="ohke-header">
+        <div class="action">
+          <a onclick="Ohke.modal.close(this)" class="close-btn">
+            <i class="fa fa-2x fa-close"></i></a>
+        </div>
+        <div class="title">
+          <i class="fa fa-eye"></i>
+          <span>{title}</span>
+        </div>
+      </div>
+      <div class="ohke-content">
+        <file-viewer filename="{name}" url="{url}"></file-viewer>
+      </div>
+    </div>
+  </div>
+</template>
+<template id="ohke_general_modal_tmpl">
+  <div class="w3-modal w3-show w3-animate-zoom form-modal modal-{size} {size} {top}">
+    <div class="w3-modal-content">
+      <div class="ohke-header">
+        <div class="action">
+          <a onclick="Ohke.modal.close(this)" class="close-btn">
+            <i class="fa fa-2x fa-close"></i></a>
+        </div>
+        <div class="title">
+          <span>{title}</span>
+        </div>
+      </div>
+      <div class="ohke-content padding-4">
+        {body}
+      </div>
+    </div>
+  </div>
+</template>
+
+  <!-- COMMON CSS -->
+  <link href="/appstart/resource/common/css/svg-file-type.min.css?v=1.0.257" rel="stylesheet">
+  <link href="/appstart/resource/common/css/svg-background.min.css?v=1.0.257" rel="stylesheet">
+
+  <!-- CORE JS -->
+  <script src="/appstart/resource/common/js/plugin/es6-supported.min.js?v=1.1.144"></script>
+  <script src="/appstart/resource/common/js/plugin/support-detector.min.js?v=1.1.144"></script>
+  <script src="/appstart/resource/vendor/jquery-3.2.1.min.js?v=62d32f3d"></script>
+  <script src="/appstart/resource/vendor/moment-2.18.1.min.js?v=62d32f3d"></script>
+  <script src="/appstart/resource/vendor/tinymce-v5.2.0/tinymce.min.js?v=62d32f3d"></script>
+  <script src="/appstart/resource/vendor/sha256.min.js?v=62d32f3d"></script>
+  <script src="/appstart/resource/common/js/ohke.min.js?v=1.1.144"></script>
+  <script src="/appstart/resource/common/js/locale/vi.js?v=62d32f3d"></script>
+
+  <!-- LEGACY OHKE -->
+  <script>
+    Ohke.version = '1.1.144';
+    Ohke.canTranslate = '';
+    Ohke.worker = {"id":"47826","member_of_site_id":"32282","user_id":"23522","username":"vuhoanglinh@pas.edu.vn","name":"V\u0169 Ho\u00e0ng Linh","device_key":"cms.idcloud.vndffkehnpd7d6sssve3tm8hj74n","session_id":"1825772","lang":"vi","avatar":null,"site_name":"[47826] V\u0169 Ho\u00e0ng Linh","site_model_name":"PEOPLE","permission_codes":"CRLECTURE,INSTR,AUTH,ANON","update_timestamp":"1754618759"};
+    Ohke.SITE = {"id":"61892","name":"PASCAL 2026-2027","code":"PASCAL.2026","name_en":"PASCAL 2026-2027","site_model_name":"STUDY_ACADEMIC_YEAR","site_model_type":"ORG","avatar":"https:\/\/idcloud.vn\/61892\/appstart\/reader\/MEdReFlDMExYOGZsc3FqWXNzQ3pMSVBrTlJ2cncxWmQ3bE5TZVg2SWRFND0=\/0\/0-0\/paste_c89cef9.png","update_timestamp":"1773909752","base_currency":"VND","currency_symbol":"\u20ab","owner_site_id":"47809","working_site_id":"61892","parent_id":"32282","lang":"en","look_code":"DEFAULT_LOOK_AND_FEEL","color_palette":"COLOR-0000007","having":{"environment":"development","google_api_key":null,"site_copyright":""},"closing_status":"UNSP","closing_type":1};
+    Ohke.BASE_URL = '/61892/appstart';
+    Ohke.APP_URL = '/61892/appstart/about';
+    Ohke.API_URL = 'https://idcloud.vn';
+    window.ojs = {};
+  </script>
+
+<script>
+window.inno = window.inno || {};
+window.inno.asset = window.inno.asset || {};
+window.inno.asset.cfg = {"assetVersion":"62d32f3d","cssVersion":"1.0.257","jsVersion":"1.1.144","cssUri":"/appstart/resource/look/default_look_and_feel","cssTs":"1785579999"};
+window.inno.env = Object.assign(window.inno.env || {}, {"baseUrl":"/61892/appstart","appUrl":"/61892/appstart/about","appAccessibleHash":"0d663924","jobHeartbeatCsrf":"3e13840244fdafd4d7f15befb8eb2240"})
+</script>
+<script src="/appstart/resource/bundle/prod/inno-main-add1b283f1fed6eb745d.js"></script>
+  <!-- PLUGINS -->
+  <script src="/appstart/resource/common/js/plugin/ohke-dom-remove.min.js?v=1.1.144"></script>
+  <script src="/appstart/resource/common/js/plugin/ohke-dom-movable.min.js?v=1.1.144"></script>
+  <script src="/appstart/resource/common/js/plugin/ohke-floating-header.min.js?v=1.1.144"></script>
+  <script src="/appstart/resource/common/js/plugin/jquery.binarytransport.js?v=1.1.144"></script>
+  <link href="/appstart/resource/common/js/plugin/inno-drawing/inno-drawing.min.css?v=62d32f3d" rel="stylesheet">
+  <script src="/appstart/resource/common/js/plugin/inno-drawing/inno-drawing.min.js?v=62d32f3d"></script>
+  <link href="/appstart/resource/common/js/plugin/agent-list-slideshow.min.css?v=62d32f3d" rel="stylesheet">
+  <script src="/appstart/resource/common/js/plugin/agent-list-slideshow.min.js?v=62d32f3d"></script>
+  <link href="/appstart/resource/common/js/plugin/id-ratio.min.css?v=62d32f3d" rel="stylesheet">
+  <script src="/appstart/resource/common/js/plugin/id-ratio.min.js?v=62d32f3d"></script>
+
+  <link href="/appstart/resource/common/js/chosen_v1.8.7/chosen.min.css?v=62d32f3d" rel="stylesheet">
+  <script src="/appstart/resource/common/js/chosen_v1.8.7/chosen.jquery.ext.min.js?v=62d32f3d"></script>
+  <script src="/appstart/resource/common/js/sidebar/sidebar.min.js?v=1.1.144"></script>
+  <script src="/appstart/resource/common/js/chunk_upload.min.js?v=1.1.144"></script>
+  <script src="/appstart/resource/common/js/plugin/id-rpc.min.js?v=1.1.144"></script>
+
+  <script src="/appstart/resource/common/js/widget/ohke-agent-field.min.js?v=1.1.144"></script>
+  <script src="/appstart/resource/common/js/widget/limit-date.min.js?v=1.1.144"></script>
+  <script src="/appstart/resource/common/js/widget/filter-list.min.js?v=1.1.144"></script>
+  <script src="/appstart/resource/common/js/widget/ohke-switch.min.js?v=1.1.144"></script>
+  <script src="/appstart/resource/common/js/widget/ohke-adv-combo.min.js?v=1.1.144"></script>
+  <script src="/appstart/resource/common/js/widget/ohke-mc-combo.min.js?v=1.1.144"></script>
+  <script src="/appstart/resource/common/js/widget/ohke-color-picker.min.js?v=1.1.144"></script>
+  <script src="/appstart/resource/common/js/widget/ohke-slideshow.min.js?v=1.1.144"></script>
+  <script src="/appstart/resource/common/js/widget/ohke-popup.min.js?v=1.1.144"></script>
+  <script src="/appstart/resource/common/js/widget/ohke-help.min.js?v=1.1.144"></script>
+  <script src="/appstart/resource/common/js/widget/ohke-inline-editor.min.js?v=1.1.144"></script>
+  <script src="/appstart/resource/common/js/widget/ohke-mobile.min.js?v=1.1.144"></script>
+  <script src="/appstart/resource/common/js/widget/ohke-hover.min.js?v=1.1.144"></script>
+
+<script defer src="/appstart/resource/vendor/katex-v0.16.9/katex.min.js?v=62d32f3d"></script>
+<script defer src="/appstart/resource/common/js/plugin/id-math.min.js?v=1.1.144"></script>
+<link href="/appstart/resource/vendor/katex-v0.16.9/katex.min.css?v=62d32f3d" rel="stylesheet">
+<link href="/appstart/resource/common/js/plugin/id-math.min.css?v=1.0.257" rel="stylesheet"><script src="/appstart/resource/common/js/plugin/id-diagram.min.js?v=1.1.144"></script><script src="/appstart/resource/vendor/twig.js-1.16.0/twig.min.js?v=62d32f3d"></script>
+<link href="/appstart/resource/vendor/codemirror-5.52.2/lib/codemirror.css?v=62d32f3d" rel="stylesheet">
+<link href="/appstart/resource/vendor/codemirror-5.52.2/addon/dialog/dialog.css?v=62d32f3d" rel="stylesheet">
+<link href="/appstart/resource/vendor/codemirror-5.52.2/addon/search/matchesonscrollbar.css?v=62d32f3d" rel="stylesheet">
+<script src="/appstart/resource/vendor/codemirror-5.52.2/lib/codemirror.js?v=62d32f3d"></script>
+<script src="/appstart/resource/vendor/codemirror-5.52.2/mode/xml/xml.js?v=62d32f3d"></script>
+<script src="/appstart/resource/vendor/codemirror-5.52.2/mode/javascript/javascript.js?v=62d32f3d"></script>
+<script src="/appstart/resource/vendor/codemirror-5.52.2/mode/css/css.js?v=62d32f3d"></script>
+<script src="/appstart/resource/vendor/codemirror-5.52.2/mode/php/php.js?v=62d32f3d"></script>
+<script src="/appstart/resource/vendor/codemirror-5.52.2/mode/sql/sql.js?v=62d32f3d"></script>
+
+<script src="/appstart/resource/vendor/codemirror-5.52.2/addon/edit/matchbrackets.js?v=62d32f3d"></script>
+<script src="/appstart/resource/vendor/codemirror-5.52.2/addon/display/placeholder.js?v=62d32f3d"></script>
+<script src="/appstart/resource/vendor/codemirror-5.52.2/addon/dialog/dialog.js?v=62d32f3d"></script>
+<script src="/appstart/resource/vendor/codemirror-5.52.2/addon/mode/multiplex.js?v=62d32f3d"></script>
+<script src="/appstart/resource/vendor/codemirror-5.52.2/addon/mode/overlay.js?v=62d32f3d"></script>
+<script src="/appstart/resource/vendor/codemirror-5.52.2/addon/search/searchcursor.js?v=62d32f3d"></script>
+<script src="/appstart/resource/vendor/codemirror-5.52.2/addon/search/search.js?v=62d32f3d"></script>
+<script src="/appstart/resource/vendor/codemirror-5.52.2/addon/search/matchesonscrollbar.js?v=62d32f3d"></script>
+<script src="/appstart/resource/vendor/codemirror-5.52.2/addon/scroll/annotatescrollbar.js?v=62d32f3d"></script>
+<script src="/appstart/resource/vendor/codemirror-5.52.2/addon/fold/foldcode.js?v=62d32f3d"></script>
+<script src="/appstart/resource/vendor/codemirror-5.52.2/addon/fold/foldgutter.js?v=62d32f3d"></script>
+<script src="/appstart/resource/vendor/codemirror-5.52.2/addon/fold/brace-fold.js?v=62d32f3d"></script>
+<script src="/appstart/resource/vendor/codemirror-5.52.2/addon/fold/comment-fold.js?v=62d32f3d"></script>
+<script src="/appstart/resource/vendor/codemirror-5.52.2/addon/fold/xml-fold.js?v=62d32f3d"></script>
+<link href="/appstart/resource/vendor/codemirror-5.52.2/addon/fold/foldgutter.css?v=62d32f3d" rel="stylesheet">
+
+  <script src="/appstart/resource/common/js/plugin/inno-code-mirror.min.js?v=1.1.144"></script>
+
+<link href="/appstart/resource/look/default_look_and_feel/ohke-codemirror.css?v=1785579999" rel="stylesheet">
+<script src="/appstart/resource/vendor/file-viewer-v1.2.0/loader.js?v=62d32f3d"></script>
+
+<link href="/appstart/resource/common/js/plugin/id-applicator.min.css?v=1.0.257" rel="stylesheet">
+<script src="/appstart/resource/vendor/hammer.min.js?v=62d32f3d"></script>
+<script src="/appstart/resource/common/js/plugin/id-applicator.min.js?v=62d32f3d"></script>
+  <style>body{
+      --sidebar-width:100px !important;
+      --topbar-height:58px !important;
+  }</style>
+</head>
+<body>
+<noscript>
+  <h3 class="w3-center">Vui lòng bật Javascript trong trình duyệt của bạn để tiếp tục!</h3>
+  <h3 class="w3-center">Please enable Javascript in your browser to continue!</h3>
+</noscript>
+<div class="g-app agent-container agent-id-1549 agent-uri-about w3-hide" id="inno-g-app">
+  <div class="g-sidebar">
+<div class="dynamic-content subform-container 
+ V-sidebar 
+ "
+     id="field-pwmdv75gi7" data-field-name="sidebar"
+     data-env="&lbrace;&quot;ohke&lowbar;prefix&quot;&colon;&quot;field-pwmdv75gi7&quot;&comma;&quot;master&lowbar;key&quot;&colon;null&comma;&quot;master&lowbar;object&lowbar;class&lowbar;name&quot;&colon;&quot;sites&quot;&comma;&quot;master&lowbar;object&lowbar;class&lowbar;code&quot;&colon;&quot;DOCTYPE-141&quot;&comma;&quot;data&lowbar;query&lowbar;id&quot;&colon;null&comma;&quot;&colon;field&lowbar;subform&lowbar;id&quot;&colon;1&comma;&quot;&colon;master&lowbar;readonly&quot;&colon;null&comma;&quot;father&lowbar;master&lowbar;key&quot;&colon;null&comma;&quot;media&quot;&colon;&quot;screen&quot;&rcub;" data-field-domain=""
+     data-load-form="ojs['field-pwmdv75gi7'].LoadForm"
+     data-load-form-when=""
+     data-reload-on-show=""
+     data-load-order=""
+>
+  <div class="agent-body w3-hide">
+  </div>
+  <div class="agent-loader w3-hide">
+  </div>
+  <div class="agent-loader-template w3-hide">
+      </div>
+</div>
+<script>
+  ojs['field-pwmdv75gi7'] = {
+    LoadForm:function(){
+              let url = `${inno.env.appUrl}/xSB_Viewer`;
+        let $container = $('#field-pwmdv75gi7');
+      let data = inno.form.buildPayload($container, arguments);
+
+        inno.form.applyExchangeMasterKey(
+        data,
+        $container.data('exchange') || {},
+        $container.data('p2c') || {}
+      );
+
+      let cfg = {
+        loading: 'HIDDEN',
+        error: 'SELF',
+                        data,
+              };
+      return $container.agentLoad(url, cfg);
+    },
+  };
+  $(() => {
+        ojs['field-pwmdv75gi7'].LoadForm();
+      })
+</script>
+  </div>
+  <div class="g-main">
+    <div class="g-topbar">
+<div class="dynamic-content subform-container 
+ V-topbar 
+ "
+     id="field-r52czd5f4i" data-field-name="topbar"
+     data-env="&lbrace;&quot;ohke&lowbar;prefix&quot;&colon;&quot;field-r52czd5f4i&quot;&comma;&quot;master&lowbar;key&quot;&colon;null&comma;&quot;master&lowbar;object&lowbar;class&lowbar;name&quot;&colon;&quot;sites&quot;&comma;&quot;master&lowbar;object&lowbar;class&lowbar;code&quot;&colon;&quot;DOCTYPE-141&quot;&comma;&quot;data&lowbar;query&lowbar;id&quot;&colon;null&comma;&quot;&colon;field&lowbar;subform&lowbar;id&quot;&colon;1&comma;&quot;&colon;master&lowbar;readonly&quot;&colon;null&comma;&quot;father&lowbar;master&lowbar;key&quot;&colon;null&comma;&quot;media&quot;&colon;&quot;screen&quot;&rcub;" data-field-domain=""
+     data-load-form="ojs['field-r52czd5f4i'].LoadForm"
+     data-load-form-when=""
+     data-reload-on-show=""
+     data-load-order=""
+>
+  <div class="agent-body w3-hide">
+  </div>
+  <div class="agent-loader w3-hide">
+  </div>
+  <div class="agent-loader-template w3-hide">
+      </div>
+</div>
+<script>
+  ojs['field-r52czd5f4i'] = {
+    LoadForm:function(){
+              let url = `${inno.env.appUrl}/xTB_Viewer`;
+        let $container = $('#field-r52czd5f4i');
+      let data = inno.form.buildPayload($container, arguments);
+
+        inno.form.applyExchangeMasterKey(
+        data,
+        $container.data('exchange') || {},
+        $container.data('p2c') || {}
+      );
+
+      let cfg = {
+        loading: 'HIDDEN',
+        error: 'SELF',
+                        data,
+              };
+      return $container.agentLoad(url, cfg);
+    },
+  };
+  $(() => {
+        ojs['field-r52czd5f4i'].LoadForm();
+      })
+</script>
+    </div>
+<div class="g-in-app main-container">
+<div class="agent-container agent-id-1549 agent-uri-about" id="agent-6o4u4tjed7" data-ag-form-id="V1549" data-id="61892">
+<!--V1549-->
+<form method="post" class="ohke-content no-margin no-padding" id="form-6o4u4tjed7">
+<!--V1549-->
+    <script type="application/json" id="data-6o4u4tjed7">{"id":"61892","working_site_id":"61892","site_model_name":"STUDY_ACADEMIC_YEAR","icon":"cso:1:9584185","create_site_id":"47809","update_site_id":"47809","active_stream_id":null,"star_id":"1","parent_id":"32282","owner":"PASCAL 2026-2027","display_name":"[61892] PASCAL 2026-2027","code":"PASCAL.2026","address":null,"email":"thanhbon@gmail.com","position_map":null,"province":null,"village":null,"district":null,"phone_number":"0909359733","type_id":null,"level":null,"geo_country_code2":"VN","geo_city_code":null,"geo_district_code":null,"geo_ward_code":null,"latitude":null,"longitude":null,"path":null,"note":null,"erp_id":null,"owner_site_id":"47809","signature_image":"","site_status":"SITE_STATUS_ACCEPTED","solid_logo":"cso:1:9584186","name_en":null,"create_time":"2026-03-19 10:14:20","update_time":"2026-03-19 15:42:32","__uri__cover_image":null,"__uri__icon":"https:\/\/idcloud.vn\/61892\/appstart\/reader\/MEdReFlDMExYOGZsc3FqWXNzQ3pMSVBrTlJ2cncxWmQ3bE5TZVg2SWRFND0=\/0\/0-0\/cso:1:9584185","cover_image":null,"site_model_type":"ORG"}</script>
+    	<div style="min-height: 100%;background-color: var(--main-color); color: var(--white); scrollbar-width: none;">
+          <!--hidden 1549V207193-cover_image-->
+          <!--hidden 1549V131555-id-->
+          <!--hidden 1549V132249-working_site_id-->
+          <!--hidden 1549V131571-site_model_name-->
+          <!--hidden 1549V131572-site_model_type-->
+          <!--hidden 1549V131554-icon-->
+          <!--hidden 1549V132253-create_site_id-->
+          <!--hidden 1549V132254-update_site_id-->
+          <!--hidden 1549V167022-active_stream_id-->
+              <!--1549V131573-->
+        <div class="ohke-v-box ohke-control no-padding sf-v-1549-about_site_organization">
+        <div class="control no-padding border-invisible">
+    <div class="dynamic-content subform-container 
+ V-about_site_organization sf-v-1549-about_site_organization
+ "
+     id="field-a2njke547h" data-field-name="about_site_organization"
+     data-env="&lbrace;&quot;ohke&lowbar;prefix&quot;&colon;&quot;field-a2njke547h&quot;&comma;&quot;master&lowbar;key&quot;&colon;&quot;61892&quot;&comma;&quot;master&lowbar;object&lowbar;class&lowbar;name&quot;&colon;&quot;sites&quot;&comma;&quot;master&lowbar;object&lowbar;class&lowbar;code&quot;&colon;&quot;DOCTYPE-141&quot;&comma;&quot;data&lowbar;query&lowbar;id&quot;&colon;null&comma;&quot;&colon;field&lowbar;subform&lowbar;id&quot;&colon;131573&comma;&quot;&colon;master&lowbar;readonly&quot;&colon;null&comma;&quot;father&lowbar;master&lowbar;key&quot;&colon;null&comma;&quot;media&quot;&colon;&quot;screen&quot;&rcub;" data-field-domain=""
+     data-load-form="ojs['field-a2njke547h'].LoadForm"
+     data-load-form-when="viewport"
+     data-reload-on-show="0"
+     data-load-order="1.start"
+>
+  <div class="agent-body w3-hide">
+  </div>
+  <div class="agent-loader w3-hide">
+  </div>
+  <div class="agent-loader-template w3-hide">
+          &lt;div class=&quot;agent-container agent-id-834 agent-uri-app-gen-loading&quot; id=&quot;agent-262mrrs6ki&quot; data-ag-form-id=&quot;V834&quot; data-id=&quot;0&quot;&gt;
+  &lt;form method=&quot;post&quot; class=&quot;ohke-content no-margin&quot; id=&quot;form-262mrrs6ki&quot;&gt;
+    &lt;!--V834--&gt;
+      &lt;script type=&quot;application/json&quot; id=&quot;data-262mrrs6ki&quot;&gt;{&quot;id&quot;:0}&lt;/script&gt;
+&lt;div style=&quot;margin: 0 auto;&quot;&gt;
+  &lt;div&gt;
+              &lt;!--834V80317--&gt;
+        &lt;div class=&quot;ohke-h-box ohke-control sf-v-834-icon_loading&quot;&gt;
+        &lt;div style=&quot;width: 100%&quot;&gt;
+    &lt;div class=&quot;w3-center&quot;&gt;
+  &lt;i class=&quot;fa fa-2x fa-cog fa-spin&quot;&gt;&lt;/i&gt;
+&lt;/div&gt;
+  &lt;/div&gt;
+        &lt;/div&gt;
+  &lt;/div&gt;
+  &lt;div&gt;
+              &lt;!--834V80318--&gt;
+        &lt;div class=&quot;ohke-h-box ohke-control sf-v-834-message_vi&quot;&gt;
+        &lt;div style=&quot;width: 100%&quot;&gt;
+    &lt;div class=&quot;w3-center&quot;&gt;
+  Đang tải...
+&lt;/div&gt;
+  &lt;/div&gt;
+        &lt;/div&gt;
+            &lt;input type=&quot;hidden&quot; class=&quot;not-render&quot; name=&quot;message_not_vi&quot; disabled&gt;
+  &lt;/div&gt;
+&lt;/div&gt;
+  &lt;/form&gt;
+  &lt;script type=&quot;application/json&quot; id=&quot;env-262mrrs6ki&quot;&gt;{&quot;id&quot;:0,&quot;ohke_prefix&quot;:null,&quot;data_query_id&quot;:null,&quot;master_object_class_name&quot;:null,&quot;master_object_class_code&quot;:null,&quot;:field_subform_id&quot;:null,&quot;:master_readonly&quot;:null,&quot;master_key&quot;:null,&quot;father_master_key&quot;:null,&quot;params&quot;:[]}&lt;/script&gt;
+&lt;/div&gt;
+&lt;script&gt;
+ojs['agent-262mrrs6ki'] = $.createViewer({
+  actionPrefix: 'x201F5_Loader_',
+  viewId: '262mrrs6ki',
+  agentSelector: '#agent-262mrrs6ki',
+  formSelector: '#form-262mrrs6ki',
+  formDomain: 'x201F5_Loader_',
+  isSubform: 1,
+  removable: 0,
+  isInModal: 0,
+  editorInModal: 0,
+  hasList: 0,
+  hasViewerPrint: 0,
+  hasCreator: 0,
+  hasEditor: 0,
+  hasHistory: 0,
+  hasState: 0,
+  formContainer: 'raw',
+  loadingMode: 'SELF',
+  key: '0',
+  title: '',
+});
+ojs['agent-262mrrs6ki'].ready()
+  .then(()=&gt;{
+  const agentId = 'agent-262mrrs6ki';
+  let me = ojs[agentId];
+	let $rootAgent = $('#agent-262mrrs6ki');
+  $rootAgent.on('pac:MSG_CLOSE', (event, attachment) =&gt; {
+		let message = event.type.substr(4);
+    let $agent = $rootAgent, self = $agent.data('form-action');
+    let PAC = $agent.data('pac-event');
+    if (PAC) PAC.log('V834 received MSG_CLOSE');
+		attachment = Ohke.clone(attachment || {});
+		if (!Array.isArray(attachment.env)) attachment.env = [];
+		attachment.env.unshift(Ohke.clone($agent.data('env')));
+		try{
+      self.close();
+		}catch(e){
+			console.error(`834-viewer-MSG_CLOSE: ${e.message}`);
+		}
+	});
+  $rootAgent.agentInitListener();
+  let PAC = $rootAgent.data('pac-event');
+  if (PAC) PAC.self('after_load');
+  })
+&lt;/script&gt;
+      </div>
+</div>
+<script>
+  ojs['field-a2njke547h'] = {
+    LoadForm:function(){
+              let url = `${inno.env.appUrl}/x201F5_Viewer`;
+        let $container = $('#field-a2njke547h');
+      let data = inno.form.buildPayload($container, arguments);
+
+        inno.form.applyExchangeMasterKey(
+        data,
+        $container.data('exchange') || {},
+        $container.data('p2c') || {}
+      );
+
+      let cfg = {
+        loading: 'INLINE',
+        error: 'INLINE',
+                        data,
+              };
+      return $container.agentLoad(url, cfg);
+    },
+  };
+  $(() => {
+          })
+</script>
+  </div>
+        </div>
+            <input type="hidden" class="not-render" name="about_site_individual" disabled>
+    </div>
+</form>
+  <script type="application/json" id="env-6o4u4tjed7">{"id":"61892","ohke_prefix":null,"data_query_id":null,"master_object_class_name":null,"master_object_class_code":null,":field_subform_id":null,":master_readonly":null,"master_key":null,"father_master_key":null,"params":[]}</script>
+</div>
+<script>
+ojs['agent-6o4u4tjed7'] = $.createViewer({
+  actionPrefix: '',
+  viewId: '6o4u4tjed7',
+  agentSelector: '#agent-6o4u4tjed7',
+  formSelector: '#form-6o4u4tjed7',
+  formDomain: 'a60D_',
+  isSubform: 0,
+  removable: 0,
+  isInModal: 0,
+  editorInModal: 0,
+  hasList: 0,
+  hasViewerPrint: 0,
+  hasCreator: 0,
+  hasEditor: 0,
+  hasHistory: 0,
+  hasState: 0,
+  formContainer: '',
+  loadingMode: 'SELF',
+  key: '61892',
+  title: '[61892] [61892] PASCAL 2026-2027',
+});
+ojs['agent-6o4u4tjed7'].ready()
+  .then(()=>{
+  const agentId = 'agent-6o4u4tjed7';
+  let me = ojs[agentId];
+	let $rootAgent = $('#agent-6o4u4tjed7');
+  $rootAgent.agentInitListener();
+  let PAC = $rootAgent.data('pac-event');
+  if (PAC) PAC.self('after_load');
+    })
+</script></div>
+  </div>
+</div>
+</body>
+</html>
