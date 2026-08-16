@@ -33,14 +33,15 @@ app.get('/api/stream', (req, res) => {
 app.post('/api/connect', async (req, res) => {
     const { loginUrl, username, password, rawCookie, tenantId = "61892", teacherName } = req.body;
     
-    if (!teacherName) {
-        return res.status(400).json({ success: false, message: "Vui lòng nhập Tên Giáo Viên" });
-    }
-
-    currentAPI = new ClasshubAPI(tenantId, teacherName, sendLog);
+    // Khởi tạo API (với teacherName tạm thời là "Unknown" nếu chưa nhập)
+    currentAPI = new ClasshubAPI(tenantId, teacherName || "Unknown", sendLog);
     
     if (rawCookie) {
         currentAPI.setRawCookie(rawCookie);
+        if (!teacherName) {
+            let huntRes = await currentAPI.autoHuntTeacherName();
+            if (!huntRes.success) return res.status(400).json({ success: false, message: "Không thể tự động tìm Tên Giáo Viên. Vui lòng nhập thủ công!" });
+        }
         return res.json({ success: true, message: "Đã nạp Cookie thủ công thành công" });
     }
     
@@ -52,6 +53,13 @@ app.post('/api/connect', async (req, res) => {
     if (!loginResult.success) {
         return res.status(401).json({ success: false, message: loginResult.error });
     }
+
+    // Tự động tìm tên giáo viên nếu chưa nhập
+    if (!teacherName) {
+        let huntRes = await currentAPI.autoHuntTeacherName();
+        if (!huntRes.success) return res.status(400).json({ success: false, message: "Đăng nhập thành công nhưng không tìm thấy Tên Giáo Viên. Vui lòng thử nhập tay!" });
+    }
+
     res.json({ success: true, message: "Đăng nhập Ohke thành công!" });
 });
 
@@ -96,6 +104,7 @@ app.post('/api/attendance', async (req, res) => {
     })();
 });
 
-app.listen(3000, () => {
-    console.log("🚀 Classhub Backend Server đang chạy tại http://localhost:3000");
+const PORT = 3000;
+app.listen(PORT, () => {
+    console.log(`🚀 Classhub Backend Server đang chạy tại http://localhost:${PORT}`);
 });

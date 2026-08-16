@@ -84,7 +84,8 @@ class ClasshubAPI {
                 "login-form": {
                     username: username,
                     password: hashedPassword,
-                    remember_me: "1"
+                    remember_me: "1",
+                    __password: "LAa0S"
                 }
             };
             
@@ -109,6 +110,52 @@ class ClasshubAPI {
         } catch (err) {
             this.log("❌ Lỗi Đăng nhập:", err.message);
             return { success: false, error: err.message };
+        }
+    }
+
+    async autoHuntTeacherName() {
+        try {
+            this.log("🔍 Đang tự động tìm Tên Giáo viên từ hệ thống...");
+            let res = await this.client.get(`/${this.tenantId}/appstart/classhub/`);
+            let html = res.data;
+            
+            let foundName = null;
+
+            // Ưu tiên 1: Lấy trực tiếp từ biến Ohke.worker (Chính xác 100%)
+            let workerMatch = html.match(/Ohke\.worker\s*=\s*(\{.*?\});/);
+            if (workerMatch && workerMatch[1]) {
+                try {
+                    let worker = JSON.parse(workerMatch[1]);
+                    if (worker && worker.name) {
+                        foundName = worker.name.trim();
+                    }
+                } catch(e) {}
+            }
+
+            // Ưu tiên 2: Tìm định dạng "[ID] Họ và Tên" (Ví dụ: "[123456] Vũ Hoàng Linh")
+            if (!foundName) {
+                let match = html.match(/\[\d+\]\s+([A-ZÀ-Ỹa-zà-ỹ\s]{4,50})/);
+                if (match && match[1]) foundName = match[1].trim().split('\n')[0].trim();
+            }
+            
+            // Ưu tiên 3: Định dạng <span class="title"> Vũ Hoàng Linh </span>
+            if (!foundName) {
+                let match = html.match(/<span[^>]*class=["']title["'][^>]*>\s*([A-ZÀ-Ỹa-zà-ỹ\s]{4,50})\s*<\/span>/i);
+                if (match && match[1]) foundName = match[1].trim().split('\n')[0].trim();
+            }
+
+            if (foundName) {
+                this.teacherName = foundName;
+                this.myNameLower = foundName.toLowerCase();
+                this.log(`✅ Đã nhận diện được tên Giáo viên: ${this.teacherName}`);
+                return { success: true, name: this.teacherName };
+            } else {
+                this.log("⚠️ Không thể tự động quét ra tên Giáo viên từ HTML.");
+                return { success: false };
+            }
+        } catch (e) {
+            this.log("❌ Lỗi khi quét tên Giáo viên:", e.message);
+            return { success: false, error: e.message };
         }
     }
 

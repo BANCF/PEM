@@ -3,88 +3,271 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Classhub Pro API Demo</title>
+    <title>Liên kết ClassHub</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <style>
-        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f4f7f6; padding: 20px; }
-        .container { max-width: 600px; margin: 0 auto; background: white; padding: 30px; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
-        h2 { text-align: center; color: #1f3c88; margin-bottom: 20px; }
-        .input-group { margin-bottom: 15px; }
-        label { display: block; margin-bottom: 5px; font-weight: bold; font-size: 14px; color: #333; }
-        input[type="text"], input[type="password"] { width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; }
-        button { width: 100%; padding: 12px; border: none; border-radius: 4px; font-size: 16px; font-weight: bold; cursor: pointer; margin-top: 10px; transition: 0.2s; }
-        .btn-primary { background-color: #274c77; color: white; }
-        .btn-primary:hover { background-color: #1a3a60; }
-        .btn-success { background-color: #2a9d8f; color: white; }
-        .btn-success:hover { background-color: #21867a; }
-        .btn-warning { background-color: #e9c46a; color: #333; }
-        .btn-warning:hover { background-color: #dfb24b; }
-        .hidden { display: none; }
-        
-        #console-log {
-            margin-top: 20px;
-            background-color: #1e1e1e;
-            color: #00ff00;
-            font-family: 'Courier New', Courier, monospace;
-            padding: 15px;
-            height: 300px;
-            overflow-y: auto;
-            border-radius: 4px;
-            font-size: 13px;
-            line-height: 1.4;
+        body {
+            font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            background-color: #f5f7fa;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 40px 20px;
+            margin: 0;
+            color: #333;
         }
-        .log-line { margin-bottom: 5px; border-bottom: 1px solid #333; padding-bottom: 3px; }
-        
-        table { width: 100%; border-collapse: collapse; margin-top: 15px; }
-        th, td { border: 1px solid #ddd; padding: 8px; text-align: left; font-size: 14px; }
-        th { background-color: #f2f2f2; }
+
+        .card {
+            background: #fff;
+            border-radius: 12px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.05);
+            width: 100%;
+            max-width: 600px;
+            border: 1px solid #eaeaea;
+            overflow: hidden;
+            margin-bottom: 30px;
+        }
+
+        .card-header {
+            padding: 20px;
+            border-bottom: 1px solid #eaeaea;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .header-title {
+            display: flex;
+            align-items: center;
+            font-weight: 600;
+            font-size: 16px;
+            color: #2c3e50;
+        }
+
+        .header-icon {
+            background: #e8f0fe;
+            color: #4285f4;
+            width: 32px;
+            height: 32px;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-right: 12px;
+            font-size: 14px;
+        }
+
+        .status-badge {
+            background: #f1f3f4;
+            color: #5f6368;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 500;
+        }
+
+        .status-badge.connected {
+            background: #e6f4ea;
+            color: #1e8e3e;
+        }
+
+        .card-body {
+            padding: 24px;
+        }
+
+        .info-box {
+            background: #f4f8ff;
+            border-radius: 8px;
+            padding: 16px;
+            display: flex;
+            align-items: flex-start;
+            margin-bottom: 24px;
+            color: #2b569a;
+            font-size: 14px;
+            line-height: 1.5;
+        }
+
+        .info-icon {
+            margin-right: 12px;
+            font-size: 16px;
+            margin-top: 2px;
+        }
+
+        .info-box strong {
+            font-weight: 600;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            font-size: 14px;
+            color: #4a5568;
+        }
+
+        .input-wrapper {
+            position: relative;
+            display: flex;
+            align-items: center;
+        }
+
+        .input-wrapper i {
+            position: absolute;
+            left: 14px;
+            color: #a0aec0;
+            font-size: 14px;
+        }
+
+        .input-wrapper input {
+            width: 100%;
+            padding: 12px 12px 12px 40px;
+            border: 1px solid #cbd5e0;
+            border-radius: 8px;
+            font-size: 14px;
+            outline: none;
+            transition: border-color 0.2s;
+            box-sizing: border-box;
+            color: #2d3748;
+        }
+
+        .input-wrapper input:focus {
+            border-color: #5a67d8;
+            box-shadow: 0 0 0 3px rgba(90, 103, 216, 0.1);
+        }
+
+        .card-footer {
+            padding: 0 24px 24px;
+            display: flex;
+            justify-content: flex-end;
+        }
+
+        .btn-submit {
+            background: #5a67d8;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            font-weight: 500;
+            font-size: 14px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            transition: background 0.2s;
+        }
+
+        .btn-submit:hover {
+            background: #4c51bf;
+        }
+
+        .btn-submit:disabled {
+            background: #a0aec0;
+            cursor: not-allowed;
+        }
+
+        .btn-submit i {
+            margin-right: 8px;
+        }
+
+        /* Console */
+        #console-wrapper {
+            width: 100%;
+            max-width: 600px;
+            background: #1e1e1e;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+
+        .console-header {
+            background: #2d2d2d;
+            padding: 10px 16px;
+            color: #bbb;
+            font-size: 12px;
+            font-weight: 600;
+            display: flex;
+            justify-content: space-between;
+        }
+
+        #console-log {
+            padding: 16px;
+            height: 250px;
+            overflow-y: auto;
+            color: #00ff00;
+            font-family: 'Consolas', 'Courier New', monospace;
+            font-size: 13px;
+            line-height: 1.5;
+        }
+
+        .log-line {
+            margin-bottom: 4px;
+            word-wrap: break-word;
+        }
+
+        .log-success { color: #00ff00; }
+        .log-error { color: #ff5555; }
+        .log-warn { color: #ffb86c; }
+        .log-info { color: #8be9fd; }
     </style>
 </head>
 <body>
 
-    <div class="container">
-        <h2>🚀 Điểm Danh Tự Động</h2>
-        
-        <!-- BƯỚC 1: KẾT NỐI -->
-        <div id="step-1">
-            <div class="input-group">
-                <label>Tên Giáo viên (BẮT BUỘC)</label>
-                <input type="text" id="teacherName" placeholder="Nhập tên thật của bạn (VD: Vũ Hoàng Linh)">
+    <div class="card">
+        <div class="card-header">
+            <div class="header-title">
+                <div class="header-icon"><i class="fa-solid fa-link"></i></div>
+                Liên kết Hệ thống ClassHub (idcloud.vn)
             </div>
-            <div class="input-group">
-                <label>Cookie Đăng nhập (Dùng để Test tắt)</label>
-                <input type="text" id="rawCookie" placeholder="Dán chùm Cookie vào đây (VD: OhkeSession=...; PHPSESSID=...)">
-            </div>
-            
-            <hr style="margin: 20px 0; border: 0; border-top: 1px dashed #ccc;">
-            <p style="text-align:center; font-size: 12px; color: #666;">-- Hoặc đăng nhập bằng Tài khoản (Đang bị Ohke chặn) --</p>
-            
-            <div class="input-group">
-                <label>Tài khoản (Email)</label>
-                <input type="text" id="username" placeholder="Nhập Email">
-            </div>
-            <div class="input-group">
-                <label>Mật khẩu</label>
-                <input type="password" id="password" placeholder="Nhập Mật khẩu">
-            </div>
-            
-            <button class="btn-primary" id="btnConnect" onclick="connectSystem()">Kết Nối Hệ Thống</button>
+            <div id="statusBadge" class="status-badge">Chưa kết nối</div>
         </div>
 
-        <!-- BƯỚC 2 & 3: QUÉT VÀ ĐIỂM DANH -->
-        <div id="step-2" class="hidden">
-            <button class="btn-warning" id="btnScan" onclick="scanClasses()">🔍 Bắt đầu Quét Lớp</button>
-            <div id="classListContainer" class="hidden">
-                <table id="classesTable">
-                    <thead><tr><th>Tên Lớp Học</th><th>Sĩ số</th></tr></thead>
-                    <tbody></tbody>
-                </table>
-                <button class="btn-success" id="btnAttendance" onclick="startAttendance()">🚀 Tiến Hành Điểm Danh Tất Cả</button>
+        <div class="card-body">
+            <div class="info-box">
+                <i class="fa-solid fa-circle-info info-icon"></i>
+                <div>
+                    <strong>Tính năng Đồng bộ Tự động:</strong> Cung cấp tài khoản ClassHub của bạn tại đây để hệ thống PEM có thể tự động đẩy điểm số và dữ liệu điểm danh trực tiếp lên Sở GD&ĐT mà không cần bạn phải thao tác bằng tay.
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label>Tên đăng nhập ClassHub (Mã GV)</label>
+                <div class="input-wrapper">
+                    <i class="fa-regular fa-user"></i>
+                    <input type="text" id="username" placeholder="Ví dụ: vuhoanglinh@pas.edu.vn">
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label>Mật khẩu ClassHub</label>
+                <div class="input-wrapper">
+                    <i class="fa-solid fa-key"></i>
+                    <input type="password" id="password" placeholder="••••••••">
+                </div>
             </div>
         </div>
 
-        <!-- CONSOLE LOG -->
+        <div class="card-footer" style="display: flex; gap: 10px; justify-content: flex-end;">
+            <!-- Nút chức năng động (Quét Lớp / Điểm Danh) -->
+            <button class="btn-submit" id="btnAction" onclick="scanClasses()" style="display: none; background: #eab308; color: white;">
+                <i class="fa-solid fa-magnifying-glass"></i> Quét Lớp
+            </button>
+            
+            <button class="btn-submit" id="btnSave" onclick="saveConnection()">
+                <i class="fa-regular fa-floppy-disk"></i> Lưu Kết Nối
+            </button>
+        </div>
+    </div>
+
+    <!-- LOG CONSOLE (Để theo dõi tiến trình ngầm) -->
+    <div id="console-wrapper">
+        <div class="console-header">
+            <span>Tiến trình đồng bộ ngầm</span>
+            <span id="syncStatus">Đang chờ...</span>
+        </div>
         <div id="console-log">
-            <div class="log-line">Khởi tạo hệ thống... Chờ kết nối SSE.</div>
+            <div class="log-line log-info">Hệ thống sẵn sàng...</div>
         </div>
     </div>
 
@@ -101,122 +284,145 @@
                 appendLog(data.message);
             };
             sseSource.onerror = function() {
-                appendLog("⚠️ [SYSTEM] Mất kết nối luồng Log từ máy chủ!");
+                appendLog("⚠️ [SYSTEM] Mất kết nối luồng Log từ máy chủ!", "error");
                 sseSource.close();
             };
         }
 
-        function appendLog(msg) {
+        function appendLog(msg, type = "info") {
             const consoleDiv = document.getElementById('console-log');
             const line = document.createElement('div');
-            line.className = 'log-line';
+            
+            // Đổ màu theo log
+            if (msg.includes("✅") || type === "success") line.className = 'log-line log-success';
+            else if (msg.includes("❌") || type === "error") line.className = 'log-line log-error';
+            else if (msg.includes("⚠️") || type === "warn") line.className = 'log-line log-warn';
+            else line.className = 'log-line log-info';
+
             line.textContent = `[${new Date().toLocaleTimeString()}] ${msg}`;
             consoleDiv.appendChild(line);
             consoleDiv.scrollTop = consoleDiv.scrollHeight; // Tự cuộn xuống dưới cùng
         }
 
-        async function connectSystem() {
-            const teacherName = document.getElementById('teacherName').value.trim();
-            const rawCookie = document.getElementById('rawCookie').value.trim();
+        // Bắt đầu ngay SSE khi load trang
+        window.onload = initSSE;
+
+        async function saveConnection() {
             const username = document.getElementById('username').value.trim();
             const password = document.getElementById('password').value.trim();
 
-            if (!teacherName) {
-                alert("Vui lòng điền Tên Giáo viên!");
+            if (!username || !password) {
+                alert("Vui lòng nhập đầy đủ Tài khoản và Mật khẩu!");
                 return;
             }
 
-            appendLog(`Đang gửi yêu cầu kết nối cho GV: ${teacherName}...`);
-            document.getElementById('btnConnect').innerText = "Đang kết nối...";
-            document.getElementById('btnConnect').disabled = true;
+            const btnSave = document.getElementById('btnSave');
+            btnSave.disabled = true;
+            btnSave.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Đang kết nối...';
+            
+            document.getElementById('syncStatus').innerText = 'Đang xử lý...';
+            document.getElementById('statusBadge').className = 'status-badge';
+            document.getElementById('statusBadge').innerText = 'Đang xử lý...';
+
+            appendLog(`🚀 Đang kết nối tới hệ thống Ohke cho: ${username}...`);
 
             try {
                 let res = await fetch(`${baseUrl}/connect`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        loginUrl: "https://idcloud.vn/61892/appstart/digitalismspace/login", 
-                        username, password, teacherName, tenantId: "61892", rawCookie
+                    body: JSON.stringify({ 
+                        loginUrl: "https://idcloud.vn/61892/appstart/digitalismspace/login",
+                        username: username,
+                        password: password,
+                        tenantId: "61892",
+                        teacherName: "" // Để trống để server tự Hunt
                     })
                 });
+
                 let data = await res.json();
-                
                 if (data.success) {
-                    appendLog("✅ KẾT NỐI THÀNH CÔNG: " + data.message);
-                    document.getElementById('step-1').classList.add('hidden');
-                    document.getElementById('step-2').classList.remove('hidden');
-                    initSSE(); // Chỉ init SSE sau khi kết nối để bắt đầu hứng log quét lớp
+                    appendLog(`🎉 ${data.message}`, "success");
+                    document.getElementById('statusBadge').className = 'status-badge connected';
+                    document.getElementById('statusBadge').innerText = 'Đã kết nối';
+                    document.getElementById('syncStatus').innerText = 'Sẵn sàng Quét';
+                    btnSave.innerHTML = '<i class="fa-solid fa-check"></i> Đã Lưu';
+                    
+                    // Hiển thị nút Quét Lớp
+                    document.getElementById('btnAction').style.display = 'flex';
                 } else {
-                    appendLog("❌ KẾT NỐI THẤT BẠI: " + data.message);
-                    alert("Kết nối thất bại: " + data.message);
+                    appendLog(`❌ Lỗi: ${data.message}`, "error");
+                    document.getElementById('statusBadge').innerText = 'Lỗi kết nối';
+                    document.getElementById('syncStatus').innerText = 'Lỗi';
+                    btnSave.innerHTML = '<i class="fa-regular fa-floppy-disk"></i> Lưu Kết Nối';
+                    btnSave.disabled = false;
                 }
-            } catch(e) {
-                appendLog("❌ LỖI HỆ THỐNG: " + e.message);
+            } catch (e) {
+                appendLog(`❌ Lỗi hệ thống: ${e.message}`, "error");
+                btnSave.disabled = false;
+                btnSave.innerHTML = '<i class="fa-regular fa-floppy-disk"></i> Lưu Kết Nối';
             }
-            
-            document.getElementById('btnConnect').innerText = "Kết Nối Hệ Thống";
-            document.getElementById('btnConnect').disabled = false;
         }
 
         async function scanClasses() {
-            document.getElementById('btnScan').innerText = "Đang quét...";
-            document.getElementById('btnScan').disabled = true;
-            appendLog("Đang gọi API Quét Lớp...");
+            const btnAction = document.getElementById('btnAction');
+            btnAction.disabled = true;
+            btnAction.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Đang Quét...';
+            document.getElementById('syncStatus').innerText = 'Đang quét lớp...';
 
             try {
                 let res = await fetch(`${baseUrl}/scan`, { method: 'POST' });
                 let data = await res.json();
                 
-                if (data.success) {
-                    appendLog(`✅ QUÉT XONG: Tìm thấy ${data.count} lớp.`);
+                if (data.success && data.classes && data.classes.length > 0) {
+                    appendLog(`✅ Tìm thấy ${data.classes.length} lớp học cần điểm danh.`, "success");
+                    document.getElementById('syncStatus').innerText = `Chờ điểm danh (${data.classes.length} lớp)`;
                     
-                    // Render bảng
-                    const tbody = document.querySelector('#classesTable tbody');
-                    tbody.innerHTML = '';
-                    if (data.count > 0) {
-                        data.classes.forEach(c => {
-                            let tr = document.createElement('tr');
-                            let className = c.entity ? c.entity.class_name : 'Unknown';
-                            let classTime = c.entity ? c.entity.class_hour_start_time : 'Unknown';
-                            let classDate = c.entity && c.entity.class_schedule_date ? c.entity.class_schedule_date : 'Unknown';
-                            tr.innerHTML = `<td>${className}</td><td>${classTime} (${classDate})</td>`;
-                            tbody.appendChild(tr);
-                        });
-                        document.getElementById('classListContainer').classList.remove('hidden');
-                        document.getElementById('btnScan').classList.add('hidden'); // Giấu nút quét
-                    } else {
-                        appendLog("⚠️ Không tìm thấy lớp nào của bạn. Hãy kiểm tra lại Tên Giáo Viên hoặc Cookie.");
-                    }
+                    // Đổi nút thành Điểm Danh
+                    btnAction.disabled = false;
+                    btnAction.style.background = '#22c55e'; // Xanh lá
+                    btnAction.innerHTML = '<i class="fa-solid fa-rocket"></i> Điểm Danh';
+                    btnAction.onclick = startAttendance;
                 } else {
-                    appendLog("❌ LỖI QUÉT: " + data.message);
+                    appendLog(`⚠️ ${data.message || "Không tìm thấy lớp nào chưa điểm danh."}`, "warn");
+                    document.getElementById('syncStatus').innerText = 'Không có lớp';
+                    
+                    // Khôi phục nút Quét
+                    btnAction.disabled = false;
+                    btnAction.innerHTML = '<i class="fa-solid fa-magnifying-glass"></i> Quét Lớp';
                 }
-            } catch(e) {
-                appendLog("❌ LỖI HỆ THỐNG: " + e.message);
+            } catch (e) {
+                appendLog(`❌ Lỗi quét lớp: ${e.message}`, "error");
+                btnAction.disabled = false;
+                btnAction.innerHTML = '<i class="fa-solid fa-magnifying-glass"></i> Quét Lớp';
             }
-
-            document.getElementById('btnScan').innerText = "🔍 Bắt đầu Quét Lớp";
-            document.getElementById('btnScan').disabled = false;
         }
 
         async function startAttendance() {
-            document.getElementById('btnAttendance').innerText = "Đang điểm danh ngầm...";
-            document.getElementById('btnAttendance').disabled = true;
-            appendLog("Đang gọi API Điểm Danh...");
+            const btnAction = document.getElementById('btnAction');
+            btnAction.disabled = true;
+            btnAction.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Đang Điểm Danh...';
+            document.getElementById('syncStatus').innerText = 'Đang đồng bộ...';
 
             try {
                 let res = await fetch(`${baseUrl}/attendance`, { method: 'POST' });
                 let data = await res.json();
+                
                 if (data.success) {
-                    appendLog("ℹ️ Lệnh điểm danh đã được máy chủ tiếp nhận, đang chạy ngầm...");
+                    appendLog(`🎉 ${data.message}`, "success");
+                    document.getElementById('syncStatus').innerText = 'Hoàn tất điểm danh';
                 } else {
-                    appendLog("❌ LỖI GỬI LỆNH: " + data.message);
-                    document.getElementById('btnAttendance').disabled = false;
-                    document.getElementById('btnAttendance').innerText = "🚀 Tiến Hành Điểm Danh Tất Cả";
+                    appendLog(`❌ ${data.message}`, "error");
+                    document.getElementById('syncStatus').innerText = 'Lỗi điểm danh';
                 }
-            } catch(e) {
-                appendLog("❌ LỖI HỆ THỐNG: " + e.message);
-                document.getElementById('btnAttendance').disabled = false;
-                document.getElementById('btnAttendance').innerText = "🚀 Tiến Hành Điểm Danh Tất Cả";
+            } catch (e) {
+                appendLog(`❌ Lỗi điểm danh: ${e.message}`, "error");
+                document.getElementById('syncStatus').innerText = 'Lỗi điểm danh';
+            } finally {
+                // Đổi nút về Quét Lớp
+                btnAction.disabled = false;
+                btnAction.style.background = '#eab308'; // Vàng
+                btnAction.innerHTML = '<i class="fa-solid fa-magnifying-glass"></i> Quét Lớp';
+                btnAction.onclick = scanClasses;
             }
         }
     </script>
