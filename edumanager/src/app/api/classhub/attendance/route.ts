@@ -18,9 +18,10 @@ export async function POST(request: Request) {
 
     return NextResponse.json(result);
   } catch (error: any) {
-    console.error("[Attendance API Error]:", error);
-    return NextResponse.json({ 
-      error: error.message || "Lỗi đồng bộ điểm danh"
-    }, { status: 500 });
+    console.error("Auto Attendance Error:", error);
+    return NextResponse.json(
+      { success: false, message: error.message || "Lỗi hệ thống khi điểm danh tự động" },
+      { status: 500 }
+    );
   }
 }

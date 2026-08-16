@@ -3,7 +3,7 @@
 import React from "react";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import { useAuth } from "@/contexts/AuthContext";
-import { LogOut, Home, FileText, Settings, Users, Menu, X, Bell, Building2, ShieldAlert, GraduationCap, Calendar, Award, User, ClipboardList } from "lucide-react";
+import { LogOut, Home, FileText, Settings, Users, Menu, X, Bell, Building2, ShieldAlert, GraduationCap, Calendar, Award, User, ClipboardList, ClipboardCheck } from "lucide-react";
 import { auth, db } from "@/lib/firebase/client";
 import { signOut } from "firebase/auth";
 import toast from "react-hot-toast";
@@ -33,7 +33,8 @@ export default function DashboardLayout({
     grades: true,
     evaluations: true,
     schedule: true,
-    certificates: true
+    certificates: true,
+    classhubAttendance: false
   });
   const [loadingConfig, setLoadingConfig] = useState(true);
 
@@ -49,6 +50,7 @@ export default function DashboardLayout({
             evaluations: data.features.evaluations ?? true,
             schedule: data.features.schedule ?? true,
             certificates: data.features.certificates ?? true,
+            classhubAttendance: data.features.classhubAttendance ?? false,
           });
         }
       }
@@ -117,12 +119,21 @@ export default function DashboardLayout({
     "/dashboard/evaluations": "evaluations",
     "/dashboard/schedule": "schedule",
     "/dashboard/certificates": "certificates",
+    "/dashboard/classhub-attendance": "classhubAttendance",
+    "/dashboard/profile": "classhubAttendance",
   };
 
   const currentFeatureKey = Object.keys(featureMap).find(path => pathname.startsWith(path));
   const featureName = currentFeatureKey ? featureMap[currentFeatureKey] : null;
 
-  const isFeatureLocked = featureName && !features[featureName] && actualProfile?.role !== "ADMIN" && actualProfile?.role !== "SUPER_ADMIN";
+  let isFeatureLocked = false;
+  if (featureName) {
+    if (featureName === "classhubAttendance") {
+      isFeatureLocked = !(features.classhubAttendance || profile?.canUseAutoAttendance === true || actualProfile?.role === "SUPER_ADMIN");
+    } else {
+      isFeatureLocked = !features[featureName] && actualProfile?.role !== "ADMIN" && actualProfile?.role !== "SUPER_ADMIN";
+    }
+  }
 
   return (
     <ProtectedRoute>
@@ -158,7 +169,14 @@ export default function DashboardLayout({
           <div className="flex-1 overflow-y-auto py-6 px-4 space-y-2">
             <p className="px-3 text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Quản lý chung</p>
             <NavLink href="/dashboard" icon={Home}>Tổng quan KPI</NavLink>
-            <NavLink href="/dashboard/profile" icon={User}>Hồ sơ cá nhân</NavLink>
+            
+            {(features.classhubAttendance || profile?.canUseAutoAttendance === true || actualProfile?.role === "SUPER_ADMIN") && (
+              <>
+                <NavLink href="/dashboard/profile" icon={User}>Hồ sơ cá nhân</NavLink>
+                <NavLink href="/dashboard/classhub-attendance" icon={ClipboardCheck}>Điểm danh 1-chạm</NavLink>
+              </>
+            )}
+
             <NavLink href="/dashboard/classes" icon={GraduationCap} locked={!features.classes && actualProfile?.role !== "ADMIN" && actualProfile?.role !== "SUPER_ADMIN"}>Quản lý Lớp học</NavLink>
             <NavLink href="/dashboard/grades" icon={BookOpen} locked={!features.grades && actualProfile?.role !== "ADMIN" && actualProfile?.role !== "SUPER_ADMIN"}>Sổ điểm</NavLink>
             <NavLink href="/dashboard/evaluations" icon={FileText} locked={!features.evaluations && actualProfile?.role !== "ADMIN" && actualProfile?.role !== "SUPER_ADMIN"}>Phiếu Đánh giá</NavLink>

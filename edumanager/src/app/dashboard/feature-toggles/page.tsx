@@ -5,7 +5,7 @@ import ProtectedRoute from "@/components/ProtectedRoute";
 import { db } from "@/lib/firebase/client";
 import { doc, getDoc, setDoc } from "firebase/firestore";
 import toast from "react-hot-toast";
-import { Loader2, Settings, ShieldAlert, GraduationCap, BookOpen, FileText, Calendar, Award } from "lucide-react";
+import { Loader2, Settings, ShieldAlert, GraduationCap, BookOpen, FileText, Calendar, Award, ClipboardCheck } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 
 export default function FeatureTogglesPage() {
@@ -15,7 +15,8 @@ export default function FeatureTogglesPage() {
     grades: true,
     evaluations: true,
     schedule: true,
-    certificates: true
+    certificates: true,
+    classhubAttendance: false
   });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -67,7 +68,8 @@ export default function FeatureTogglesPage() {
     { key: "grades", name: "Sổ điểm", icon: BookOpen, desc: "Cho phép giáo viên nhập điểm, sửa điểm và xem bảng điểm." },
     { key: "evaluations", name: "Phiếu Đánh giá", icon: FileText, desc: "Đánh giá học sinh hàng tháng và ghi chú của giáo viên." },
     { key: "schedule", name: "Thời khóa biểu", icon: Calendar, desc: "Xem lịch dạy, lịch học và cập nhật thời khóa biểu." },
-    { key: "certificates", name: "Giấy Khen & Chứng Nhận", icon: Award, desc: "Cấp phát và in giấy khen cho học sinh." }
+    { key: "certificates", name: "Giấy Khen & Chứng Nhận", icon: Award, desc: "Cấp phát và in giấy khen cho học sinh." },
+    { key: "classhubAttendance", name: "Hồ sơ cá nhân & ClassHub", icon: ClipboardCheck, desc: "Tính năng hồ sơ cá nhân và đồng bộ điểm danh 1-chạm." }
   ];
 
   return (

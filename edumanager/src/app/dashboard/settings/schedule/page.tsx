@@ -221,6 +221,32 @@ export default function ScheduleSettingsPage() {
         }
       }
 
+      // 3. Bổ sung các tiết bị thiếu từ TKB SangChieu sang TKB GV (Do lỗi file Excel của BGH khiến TKB GV bị thiếu một số lớp như 9A-C)
+      for (const className in classesSchedule) {
+        for (const curDay in classesSchedule[className]) {
+          for (const classPeriod of classesSchedule[className][curDay]) {
+            if (classPeriod.teacher) {
+              const tNames = normalizeTeacherNames(classPeriod.teacher);
+              for (const tName of tNames) {
+                if (!teachersSchedule[tName]) teachersSchedule[tName] = {};
+                if (!teachersSchedule[tName][curDay]) teachersSchedule[tName][curDay] = [];
+                
+                const existingT = teachersSchedule[tName][curDay].find((p: any) => p.period === classPeriod.period);
+                if (!existingT) {
+                  teachersSchedule[tName][curDay].push({
+                    period: classPeriod.period,
+                    time: classPeriod.time,
+                    className: className,
+                    subject: classPeriod.subject,
+                    teacher: tName
+                  });
+                }
+              }
+            }
+          }
+        }
+      }
+
       setParsedData({
         updatedAt: new Date().toISOString(),
         updatedBy: profile?.fullName || "Admin",

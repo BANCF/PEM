@@ -41,7 +41,8 @@ const ScheduleGrid = ({
     }
   };
 
-  const allPeriodsSet = new Set<string>();
+  // Luôn hiển thị ít nhất 9 tiết
+  const allPeriodsSet = new Set<string>(["1", "2", "3", "4", "5", "6", "7", "8", "9"]);
   let totalPeriods = 0;
   Object.values(scheduleData).forEach(dayArr => {
     dayArr.forEach(item => {

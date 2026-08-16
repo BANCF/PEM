@@ -141,37 +141,263 @@ export class ClassHubService {
     return { success: true };
   }
 
+  static async rpcCall(url: string, payload: any, cookie: string) {
+    const fullUrl = url.startsWith('http') ? url : `https://idcloud.vn${url}`;
+    try {
+      const response = await fetch(fullUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Cookie': cookie,
+          'ohke-ajax': '1',
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+        },
+        body: JSON.stringify(payload)
+      });
+      
+      const text = await response.text();
+      try {
+        return JSON.parse(text);
+      } catch (e) {
+        return { html: text, isRawHtml: true };
+      }
+    } catch (err: any) {
+      return { status: "error", error: err.message };
+    }
+  }
+
+  static getClassUnlockInfo(entityData: any, bufferMinutes = 5) {
+      if (!entityData) return { isSafe: true, unlockTimestamp: 0, timeString: "" };
+      let dateStr = entityData.class_schedule_date || entityData.date || entityData.start_date || "";
+      if (!dateStr) return { isSafe: true, unlockTimestamp: 0, timeString: "" };
+      
+      try {
+          let timeStr = entityData.class_hour_start_time || entityData.start_time || "00:00:00";
+          let year, month, day;
+          
+          if (dateStr.includes('/')) {
+              let parts = dateStr.split('/');
+              day = parseInt(parts[0], 10); month = parseInt(parts[1], 10) - 1; year = parseInt(parts[2], 10);
+          } else if (dateStr.includes('-')) {
+              let parts = dateStr.split('-');
+              year = parseInt(parts[0], 10); month = parseInt(parts[1], 10) - 1; day = parseInt(parts[2], 10);
+          } else {
+              return { isSafe: true, unlockTimestamp: 0, timeString: "" };
+          }
+
+          let timeParts = timeStr.split(':');
+          let hours = parseInt(timeParts[0], 10) || 0;
+          let minutes = parseInt(timeParts[1], 10) || 0;
+          
+          let startTimestamp = new Date(year, month, day, hours, minutes, 0).getTime();
+          if (isNaN(startTimestamp)) return { isSafe: true, unlockTimestamp: 0, timeString: "" };
+
+          let unlockTimestamp = startTimestamp + (bufferMinutes * 60 * 1000);
+          let now = Date.now();
+          let unlockDate = new Date(unlockTimestamp);
+          let timeString = `${String(unlockDate.getHours()).padStart(2, '0')}:${String(unlockDate.getMinutes()).padStart(2, '0')}`;
+          
+          return { isSafe: now >= unlockTimestamp, unlockTimestamp: unlockTimestamp, timeString: timeString };
+      } catch (e) { return { isSafe: true, unlockTimestamp: 0, timeString: "" }; }
+  }
+
+  static async submitAttendanceFlow(uid: string, classItem: any) {
+    const cookie = await this.getValidSession(uid);
+    const tenantId = "47817"; // Hardcode for Pascal school for now
+    const entity = classItem.raw_data;
+    const masterKey = String(classItem.id);
+    
+    let status = String(entity.attendance_sheet_status || entity.status || "").toUpperCase();
+    if (status.includes("ACCEPTED")) {
+        return { success: true, message: `Lớp ${masterKey} đã chốt sổ.`, skipped: true };
+    }
+    
+    let unlockInfo = this.getClassUnlockInfo(entity, 5);
+    if (!unlockInfo.isSafe) {
+        return { success: true, message: `Chưa đến giờ (Mở khóa lúc ${unlockInfo.timeString}).`, skipped: true };
+    }
+
+    try {
+        // BƯỚC 1: API Hunt Giáo viên
+        let fetchPayload = {
+            master_key: masterKey,
+            father_master_key: masterKey,
+            master_object_class_name: "study_student_attendance_sheet",
+            master_object_class_code: "DOCTYPE-7004",
+            id: null
+        };
+        let apiUrl = `/${tenantId}/appstart/classhub/x24F76_Model`;
+        let resModel = await this.rpcCall(apiUrl, fetchPayload, cookie);
+        
+        let instructorId: string | null = null;
+        let instructorUpdateTime = "";
+
+        if (resModel) {
+            if (resModel.data && Array.isArray(resModel.data) && resModel.data.length > 0) {
+                let tRec = resModel.data[0];
+                if (tRec && tRec.id && String(tRec.id) !== masterKey) {
+                    instructorId = String(tRec.id);
+                    if (tRec.update_time) instructorUpdateTime = tRec.update_time;
+                }
+            }
+            if (!instructorId && resModel.html) {
+                let mId = resModel.html.match(/data-id="(\d+)"/i) || resModel.html.match(/id:\s*["']?(\d+)["']?/i);
+                if (mId && mId[1] && mId[1] !== masterKey) {
+                    instructorId = mId[1];
+                    let mTime = resModel.html.match(/(?:data-update-time|update_time)="([^"]+)"/i);
+                    if (mTime && mTime[1]) instructorUpdateTime = mTime[1];
+                }
+            }
+        }
+
+        if (!instructorId) {
+            instructorId = entity.instructor_sheet_id || entity.instructor_id || masterKey;
+        }
+
+        let tUpdateTime = instructorUpdateTime || "";
+        if (tUpdateTime === entity.update_time) tUpdateTime = "";
+
+        // BƯỚC 1: Tick Giáo viên Có mặt
+        let payloadTeacherTick = {
+            id: parseInt(instructorId as string),
+            field_name: "status",
+            begin_state: "INSTRUCTOR_ATTENDANCE_STATUS_NO_ATTENDANCE",
+            to_state: "INSTRUCTOR_ATTENDANCE_STATUS_PRESENT",
+            end_state: "INSTRUCTOR_ATTENDANCE_STATUS_PRESENT",
+            is_reversal: 0,
+            update_time: tUpdateTime,
+            mode: "V",
+            entity: { id: parseInt(instructorId as string), status: "INSTRUCTOR_ATTENDANCE_STATUS_NO_ATTENDANCE" },
+            env: { id: parseInt(instructorId as string), master_key: masterKey, father_master_key: masterKey }
+        };
+
+        await this.rpcCall(`/${tenantId}/appstart/classhub/x24F76_jsonPostTransition`, payloadTeacherTick, cookie);
+        
+        // BƯỚC 2: Chốt sổ Giáo viên
+        let payloadTeacherLock = {
+            id: masterKey,
+            field_name: "instructor_attendance_status",
+            begin_state: entity.instructor_attendance_status || "INSTRUCTOR_ATTENDANCE_SHEET_STATUS_PENDING",
+            to_state: "INSTRUCTOR_ATTENDANCE_SHEET_STATUS_ACCEPTED",
+            end_state: "INSTRUCTOR_ATTENDANCE_SHEET_STATUS_ACCEPTED",
+            is_reversal: 0,
+            update_time: entity.update_time || "",
+            mode: "V",
+            entity: entity,
+            env: { id: parseInt(masterKey) }
+        };
+        await this.rpcCall(`/${tenantId}/appstart/classhub/x35FD3_jsonPostTransition`, payloadTeacherLock, cookie);
+
+        // BƯỚC 3: Chốt sổ Học sinh
+        let classHourCode = entity.class_hour_code || '';
+        let isLessonZero = (classHourCode === 'H0' || String(classHourCode).startsWith('H0.'));
+        
+        let checkModes = [
+            { name: "Tiết trước", endpoint: `/${tenantId}/appstart/classhub/bttAction_x2447C_` },
+            { name: "Tất cả có mặt", endpoint: `/${tenantId}/appstart/classhub/bttAction_x2447B_` }
+        ];
+        if (isLessonZero) checkModes.shift(); 
+
+        let isTrulySuccess = false;
+
+        for (let mode of checkModes) {
+            try {
+                await this.rpcCall(mode.endpoint, { id: masterKey }, cookie);
+            } catch (e3) { }
+
+            let realEnv: any = { id: masterKey, master_key: masterKey, father_master_key: masterKey };
+            let currentEntity = Object.assign({}, entity);
+
+            try {
+                let resRefresh = await this.rpcCall(`/${tenantId}/appstart/classhub/x35FD2_Viewer`, { id: masterKey }, cookie);
+                if (resRefresh) {
+                    if (resRefresh.data) {
+                        Object.assign(currentEntity, resRefresh.data);
+                        if (resRefresh.data.update_time) currentEntity.update_time = resRefresh.data.update_time;
+                    }
+                    if (resRefresh.html) {
+                        let prefixMatch = resRefresh.html.match(/name="ohke_prefix"\s+value="([^"]+)"/);
+                        let queryIdMatch = resRefresh.html.match(/name="data_query_id"\s+value="([^"]+)"/);
+                        if (prefixMatch) realEnv.ohke_prefix = prefixMatch[1];
+                        if (queryIdMatch) realEnv.data_query_id = queryIdMatch[1];
+                    }
+                }
+            } catch (eRefresh) { }
+
+            let payloadApi4 = {
+                id: parseInt(masterKey),
+                field_name: "attendance_sheet_status",
+                begin_state: currentEntity.attendance_sheet_status || "CLASS_SCHEDULE_SLOT_STATUS_PENDING",
+                to_state: "CLASS_SCHEDULE_SLOT_STATUS_ACCEPTED",
+                end_state: "CLASS_SCHEDULE_SLOT_STATUS_ACCEPTED",
+                is_reversal: 0, 
+                update_time: currentEntity.update_time || entity.update_time || "",
+                mode: "V", 
+                entity: currentEntity, 
+                env: realEnv
+            };
+            
+            try {
+                let res4 = await this.rpcCall(`/${tenantId}/appstart/classhub/x35FD2_jsonPostTransition`, payloadApi4, cookie);
+                if (res4 && res4.type === "success") {
+                    isTrulySuccess = true;
+                    break;
+                } else if (res4 && res4.type === "error" && res4.code === "ERR_STUDENT_ATTENDANCE_INCOMPLETED") {
+                    continue; // Thử chế độ tiếp theo
+                }
+            } catch (e4) { }
+        }
+
+        if (!isTrulySuccess) {
+             return { success: false, message: "Điểm danh học sinh thất bại", class: masterKey };
+        }
+
+        return { success: true, class: classItem.id, message: "Điểm danh thành công" };
+    } catch(e: any) {
+        return { success: false, error: e.message };
+    }
+  }
+
   /**
-   * API Tự động điểm danh thông qua AttendanceBot (Puppeteer)
+   * API Tự động điểm danh hàng loạt (Dùng RPC siêu tốc, thay thế Puppeteer)
    */
   static async pushAttendance(uid: string) {
-    const cookieHeader = await this.getValidSession(uid);
-    
-    // Extract PHPSESSID from cookie string (e.g. "PHPSESSID=bkat9mn614s7m8rm5o4lrujosk; path=/")
-    const match = cookieHeader.match(/PHPSESSID=([^;]+)/);
-    if (!match) {
-      throw new Error("Không tìm thấy PHPSESSID hợp lệ.");
-    }
-    const phpsessid = match[1];
+    try {
+      const classesResponse = await this.fetchClasses(uid);
+      if (!classesResponse.success || !classesResponse.data || classesResponse.data.length === 0) {
+        throw new Error("Không tìm thấy danh sách lớp nào trên ClassHub.");
+      }
 
-    // 1. Lấy danh sách tất cả các lớp của giáo viên này trên ClassHub
-    const classesResponse = await this.fetchClasses(uid);
-    if (!classesResponse.success || !classesResponse.data || classesResponse.data.length === 0) {
-      throw new Error("Không tìm thấy danh sách lớp nào trên ClassHub.");
-    }
+      const pendingClasses = classesResponse.data.filter((c: any) => 
+        !String(c.studyClassStatus || "").toUpperCase().includes("ACCEPTED") && 
+        !String(c.raw_data?.status || "").toUpperCase().includes("ACCEPTED")
+      );
 
-    const classIds = classesResponse.data.map((cls: any) => cls.id);
-    console.log(`[ClassHub] Tìm thấy ${classIds.length} lớp. Bắt đầu chạy Bot quét điểm danh...`);
-    
-    // 2. Import dynamically to avoid loading puppeteer on edge/client if ever imported there
-    const { AttendanceBot } = await import('./attendance.bot');
-    
-    const result = await AttendanceBot.runBulkAttendance(phpsessid, classIds);
-    
-    if (!result.success) {
-      throw new Error(result.message);
+      if (pendingClasses.length === 0) {
+        return { success: true, message: "Tất cả các lớp đã được điểm danh." };
+      }
+
+      let successCount = 0;
+      let errorCount = 0;
+
+      for (const classItem of pendingClasses) {
+        const result = await this.submitAttendanceFlow(uid, classItem);
+        if (result.success && !result.skipped) {
+          successCount++;
+        } else if (!result.success) {
+          errorCount++;
+        }
+        // Giãn cách request tránh rate limit
+        await new Promise(r => setTimeout(r, 500));
+      }
+
+      return { 
+        success: true, 
+        message: `Đã hoàn tất điểm danh. Thành công: ${successCount}, Lỗi: ${errorCount}`
+      };
+    } catch (error: any) {
+      console.error("[ClassHub Push Attendance Error]", error);
+      return { success: false, message: error.message };
     }
-    
-    return result;
   }
 }
