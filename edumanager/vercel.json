@@ -1,8 +1,0 @@
-{
-  "crons": [
-    {
-      "path": "/api/cron/reminders/class-start",
-      "schedule": "* * * * *"
-    }
-  ]
-}
