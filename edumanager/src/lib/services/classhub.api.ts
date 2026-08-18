@@ -100,7 +100,7 @@ export class ClasshubAPI {
             // Ohke tự động băm (hash) SHA-256 đối với mật khẩu trước khi gửi
             let hashedPassword = crypto.createHash('sha256').update(password).digest('hex');
 
-            let payload = {
+            let payload: any = {
                 "login-form": {
                     username: username,
                     password: hashedPassword,
@@ -284,7 +284,7 @@ export class ClasshubAPI {
 
             let page = 0;
             while(true) {
-                let payload = {
+                let payload: any = {
                     ":exchange": { "p2c": { "end_date": null, "start_date": null }, "c2p": {} },
                     ":field_subform_id": parseInt(tab.id, 10),
                     ":master_readonly": null,
@@ -396,7 +396,7 @@ export class ClasshubAPI {
     }
 
     // Helper giải mã HTML entities tiếng Việt
-    decodeHtmlEntities(str) {
+    decodeHtmlEntities(str: any) {
         if (!str) return '';
         return str.replace(/&Agrave;/g, 'À').replace(/&Aacute;/g, 'Á').replace(/&Acirc;/g, 'Â').replace(/&Atilde;/g, 'Ã')
                   .replace(/&Egrave;/g, 'È').replace(/&Eacute;/g, 'É').replace(/&Ecirc;/g, 'Ê')
@@ -416,7 +416,7 @@ export class ClasshubAPI {
     }
 
     // 4. Lọc lớp học
-    filterMyClasses(allClasses) {
+    filterMyClasses(allClasses: any) {
         let myClasses = [];
         let myNameLower = this.teacherName.toLowerCase();
         
@@ -441,7 +441,7 @@ export class ClasshubAPI {
             rawTeachers = rawTeachers.replace(/<[^>]*>?/gm, ' ').replace(/\s+/g, ' ').trim().toLowerCase();
             
             // Tách các giáo viên
-            let parts = rawTeachers.split(/[,;\-]/).map(t => t.trim()).filter(t => t.length > 0);
+            let parts = rawTeachers.split(/[,;\-]/).map((t: any) => t.trim()).filter((t: any) => t.length > 0);
             
             let isMine = false;
             if (parts.length > 0) {
@@ -452,8 +452,8 @@ export class ClasshubAPI {
                         break;
                     }
                     // Tính độ tương đồng từ vựng nếu cần thiết (Ở đây giữ logic cơ bản cho API)
-                    let pTokens = p.split(' ').filter(x=>x);
-                    let myTokens = myNameLower.split(' ').filter(x=>x);
+                    let pTokens = p.split(' ').filter((x: any) =>x);
+                    let myTokens = myNameLower.split(' ').filter((x: any) =>x);
                     let matches = 0;
                     for (let t of myTokens) {
                         if (pTokens.includes(t)) matches++;
@@ -473,7 +473,7 @@ export class ClasshubAPI {
         return myClasses;
     }
 
-    getClassUnlockInfo(entityData, bufferMinutes = 5) {
+    getClassUnlockInfo(entityData: any, bufferMinutes = 5) {
         if (!entityData) return { isSafe: false, unlockTimestamp: Infinity, timeString: "Lỗi dữ liệu" };
         let dateStr = entityData.class_schedule_date || entityData.date || entityData.start_date || entityData.teaching_date || "";
         if (!dateStr) return { isSafe: false, unlockTimestamp: Infinity, timeString: "Không có lịch" };
@@ -509,7 +509,7 @@ export class ClasshubAPI {
         } catch (e: any) { return { isSafe: true, unlockTimestamp: 0, timeString: "" }; }
     }
 
-    getEligibleClasses(myClasses) {
+    getEligibleClasses(myClasses: any) {
         let eligible = [];
         for (let c of myClasses) {
             let entity = c.entity;
@@ -524,7 +524,7 @@ export class ClasshubAPI {
         return eligible;
     }
 
-    async revertFutureClasses(myClasses) {
+    async revertFutureClasses(myClasses: any) {
         this.log(`DEBUG: Nhận được ${myClasses.length} lớp từ scanAllClasses!`);
         let futureClasses = [];
         for (let c of myClasses) {
@@ -562,7 +562,7 @@ export class ClasshubAPI {
         return { success: true, count: futureClasses.length };
     }
 
-    async revertAttendanceFlow(classItem) {
+    async revertAttendanceFlow(classItem: any) {
         let entity = classItem.entity;
         let masterKey = classItem.id;
         
@@ -626,7 +626,7 @@ export class ClasshubAPI {
         return { success: true };
     }
 
-    async submitAttendanceFlow(classItem) {
+    async submitAttendanceFlow(classItem: any) {
         let entity = classItem.entity;
         let masterKey = classItem.id;
         
@@ -658,7 +658,7 @@ export class ClasshubAPI {
             let apiUrl = `/${this.tenantId}/appstart/classhub/x24F76_Model`;
             let resModel = await this.rpcCall(apiUrl, fetchPayload);
             
-            let instructorId = null;
+            let instructorId: any = null;
             let instructorUpdateTime = "";
             let instructorBeginState = "INSTRUCTOR_ATTENDANCE_STATUS_NO_ATTENDANCE";
 
@@ -742,7 +742,7 @@ export class ClasshubAPI {
                 // Ưu tiên 2: JSON Data (Sử dụng hàm trích xuất string để chống lỗi Unicode Escape)
                 if (!instructorId && resModel.data && Array.isArray(resModel.data) && resModel.data.length > 0) {
                     if (this.myNameLower) {
-                        const extractStr = (obj) => {
+                        const extractStr = (obj: any) => {
                             let s = "";
                             if (typeof obj === 'string') return obj.toLowerCase() + " ";
                             if (typeof obj === 'object' && obj !== null) {
@@ -849,7 +849,7 @@ export class ClasshubAPI {
             } else {
                 this.log(`  ├─ ✔️ Tick Có mặt GV thành công!`);
             }
-            await new Promise(r => setTimeout(r, 100));
+            await new Promise((r: any) => setTimeout(r, 100));
 
             // BƯỚC 2: Chốt sổ Giáo viên sang ACCEPTED (x35FD3_jsonPostTransition)
             this.log(`⏳ [Bước 2/4] Chốt sổ Giáo viên (ACCEPTED)...`);
@@ -875,7 +875,7 @@ export class ClasshubAPI {
             } else {
                 this.log(`  ├─ ✔️ Chốt sổ GV thành công!`);
             }
-            await new Promise(r => setTimeout(r, 100));
+            await new Promise((r: any) => setTimeout(r, 100));
 
             // --- 3. CHỐT HỌC SINH (3-TIER TUẦN TỰ) ---
             let classHourCode = entity.class_hour_code || '';
@@ -897,7 +897,7 @@ export class ClasshubAPI {
                     await this.rpcCall(mode.endpoint, { id: String(masterKey) });
                 } catch (e3) { }
 
-                let realEnv = {
+                let realEnv: any = {
                     id: String(masterKey),
                     master_key: String(masterKey),
                     father_master_key: String(masterKey)
@@ -961,5 +961,6 @@ export class ClasshubAPI {
         }
     }
 }
+
 
 
