@@ -33,7 +33,7 @@ export class ClasshubAPI {
             for (let c of cookies) {
                 try {
                     if (c.trim()) this.jar.setCookieSync(c.trim(), this.baseUrl);
-                } catch (e) {}
+                } catch (e: any) {}
             }
         }
         
@@ -86,7 +86,7 @@ export class ClasshubAPI {
             });
             let text = res.data;
             if (typeof text === 'object') return text;
-            try { return JSON.parse(text); } catch (e) { return { html: text, isRawHtml: true }; }
+            try { return JSON.parse(text); } catch (e: any) { return { html: text, isRawHtml: true }; }
         } catch (err: any) { return { status: "error", error: err.message }; }
     }
     async login(loginUrl: string, username: string, password: string) {
@@ -127,7 +127,7 @@ export class ClasshubAPI {
                 this.log(`⚠️ Đăng nhập thất bại:`, res.data);
                 return { success: false, error: res.data.error || "Sai tài khoản hoặc mật khẩu" };
             }
-        } catch (err) {
+        } catch (err: any) {
             this.log("❌ Lỗi Đăng nhập:", err.message);
             return { success: false, error: err.message };
         }
@@ -149,7 +149,7 @@ export class ClasshubAPI {
                     if (worker && worker.name) {
                         foundName = worker.name.trim();
                     }
-                } catch(e) {}
+                } catch (e: any) {}
             }
 
             // Ưu tiên 2: Tìm định dạng "[ID] Họ và Tên" (Ví dụ: "[123456] Vũ Hoàng Linh")
@@ -173,7 +173,7 @@ export class ClasshubAPI {
                 this.log("⚠️ Không thể tự động quét ra tên Giáo viên từ HTML.");
                 return { success: false };
             }
-        } catch (e) {
+        } catch (e: any) {
             this.log("❌ Lỗi khi quét tên Giáo viên:", e.message);
             return { success: false, error: e.message };
         }
@@ -187,7 +187,7 @@ export class ClasshubAPI {
         try {
             let res = await this.clientGet(targetUrl);
             html = res.data;
-        } catch(e) {
+        } catch (e: any) {
             this.log("❌ Lỗi lấy trang chủ:", e.message);
             return [];
         }
@@ -203,7 +203,7 @@ export class ClasshubAPI {
                     if (json.ohke_prefix && json[':field_subform_id']) {
                         tabs.push({ prefix: json.ohke_prefix, id: json[':field_subform_id'] });
                     }
-                } catch(e) {}
+                } catch (e: any) {}
             }
         }
 
@@ -232,7 +232,7 @@ export class ClasshubAPI {
                             tabs.push({ prefix: json.ohke_prefix, id: json[':field_subform_id'] });
                             this.log(`🔍 [Phát hiện Tab từ data-env] Prefix: ${json.ohke_prefix}, ID: ${json[':field_subform_id']}`);
                         }
-                    } catch(e) {}
+                    } catch (e: any) {}
                 }
             }
         }
@@ -351,7 +351,7 @@ export class ClasshubAPI {
                                         }
                                         parsed.sourceApi = modelUrl;
                                         extracted.push(parsed);
-                                    } catch(err) {}
+                                    } catch (err: any) {}
                                 }
                             }
                             allClasses.push(...extracted);
@@ -382,7 +382,7 @@ export class ClasshubAPI {
                     // Trong Node.js ta bóc tách Base64 hoặc URI
                     if (decodedStr.includes('%')) decodedStr = decodeURIComponent(decodedStr);
                     entityObj = JSON.parse(decodedStr);
-                } catch(e) {
+                } catch (e: any) {
                     entityObj = r; // Fallback
                 }
             } else {
@@ -506,7 +506,7 @@ export class ClasshubAPI {
             let timeString = `${String(unlockDate.getHours()).padStart(2, '0')}:${String(unlockDate.getMinutes()).padStart(2, '0')}`;
             
             return { isSafe: now >= unlockTimestamp, unlockTimestamp: unlockTimestamp, timeString: timeString };
-        } catch (e) { return { isSafe: true, unlockTimestamp: 0, timeString: "" }; }
+        } catch (e: any) { return { isSafe: true, unlockTimestamp: 0, timeString: "" }; }
     }
 
     getEligibleClasses(myClasses) {
@@ -579,7 +579,7 @@ export class ClasshubAPI {
                 let mTime = cvRes.html.match(/(?:data-update-time|update_time)="([^"]+)"/i);
                 if (mTime && mTime[1]) classUpdateTime = mTime[1];
             }
-        } catch(e) {}
+        } catch (e: any) {}
 
         // 1. Hủy chốt sổ Học sinh
         try {
@@ -599,7 +599,7 @@ export class ClasshubAPI {
             } else {
                 this.log(`  ├─ ⚠️ Lỗi hủy Học sinh: ${JSON.stringify(resStudent)}`);
             }
-        } catch(e) {
+        } catch (e: any) {
             this.log(`  ├─ ❌ Lỗi gọi API hủy HS: ${e.message}`);
         }
 
@@ -620,7 +620,7 @@ export class ClasshubAPI {
             } else {
                 this.log(`  ├─ ⚠️ Lỗi hủy Giáo viên: ${JSON.stringify(resTeacher)}`);
             }
-        } catch(e) {
+        } catch (e: any) {
             this.log(`  ├─ ❌ Lỗi gọi API hủy GV: ${e.message}`);
         }
         return { success: true };
@@ -714,7 +714,7 @@ export class ClasshubAPI {
                 } else if (!cvRes || !cvRes.html) {
                     this.log(`  ├─ ⚠️ [SUPER HUNT MAX] API ${exactViewerEndpoint} trả về rỗng hoặc lỗi phân quyền.`);
                 }
-            } catch(e) {
+            } catch (e: any) {
                 this.log(`  ├─ ⚠️ [SUPER HUNT MAX] Lỗi kết nối: ${e.message}`);
             }
 
@@ -813,7 +813,7 @@ export class ClasshubAPI {
                         let mStatus = tViewerRes.html.match(/status="([^"]+)"/i) || tViewerRes.html.match(/name="status"\s+value="([^"]+)"/i);
                         if (mStatus && mStatus[1]) instructorBeginState = mStatus[1];
                     }
-                } catch(e) {
+                } catch (e: any) {
                     this.log(`  ├─ ⚠️ [Rescue Hunt] Gọi x24F76_Viewer thất bại: ${e.message}`);
                 }
             }
@@ -955,7 +955,7 @@ export class ClasshubAPI {
             }
 
             return { success: true, class: classItem.id };
-        } catch(e) {
+        } catch (e: any) {
             this.log("❌ Lỗi xử lý lớp:", e.message);
             return { success: false, error: e.message };
         }
