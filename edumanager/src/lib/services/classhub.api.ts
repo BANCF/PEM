@@ -418,6 +418,71 @@ export class ClasshubAPI {
     }
 
     // 4. Lọc lớp học
+
+    advancedUnicodeSanitize(str: any) {
+        if (!str) return "";
+        return String(str)
+            .normalize('NFC')
+            .replace(/[\u200B-\u200D\uFEFF]/g, '')
+            .replace(/\xA0/g, ' ')
+            .replace(/\s+/g, ' ')
+            .trim()
+            .toLowerCase();
+    }
+
+    stripVietnameseTones(str: string) {
+        if (!str) return "";
+        return String(str).normalize('NFD')
+            .replace(/[\u0300-\u036f]/g, '')
+            .replace(/đ/g, 'd').replace(/Đ/g, 'D');
+    }
+
+    calculate3TierNameScore(blockText: any, nameLower: string) {
+        if (!nameLower) return 0;
+
+        let cleanBlock = this.advancedUnicodeSanitize(blockText);
+        let cleanMyName = this.advancedUnicodeSanitize(nameLower);
+
+        if (cleanBlock.includes(cleanMyName)) return 1000;
+
+        let pTokens = cleanBlock.split(/[\s,\.\-]+/).filter((x: any) => x);
+        let myTokens = cleanMyName.split(/[\s,\.\-]+/).filter((x: any) => x);
+        
+        let exactMatches = 0;
+        for (let t of myTokens) {
+            if (pTokens.includes(t)) exactMatches++;
+        }
+        if (exactMatches >= Math.ceil(myTokens.length * 0.6)) {
+            return 500 + exactMatches;
+        }
+
+        let unaccentBlockTokens = pTokens.map((t: string) => this.stripVietnameseTones(t));
+        let unaccentMyTokens = myTokens.map((t: string) => this.stripVietnameseTones(t));
+
+        let unaccentMatches = 0;
+        for (let t of unaccentMyTokens) {
+            if (unaccentBlockTokens.includes(t)) unaccentMatches++;
+        }
+        
+        return unaccentMatches;
+    }
+
+    findBestMatchBlock(blocks: any[], nameLower: string) {
+        let bestBlock = null;
+        let highestScore = 0;
+        let myTokensLen = nameLower ? nameLower.split(/[\s,\.\-]+/).filter((x: any) => x).length : 0;
+        let threshold = Math.ceil(myTokensLen * 0.5);
+
+        for (let b of blocks) {
+            let score = this.calculate3TierNameScore(this.decodeHtmlEntities(b), nameLower);
+            if (score > highestScore && score >= threshold) {
+                highestScore = score;
+                bestBlock = b;
+            }
+        }
+        return bestBlock;
+    }
+
     filterMyClasses(allClasses: any) {
         let myClasses = [];
         let myNameLower = this.teacherName.toLowerCase();
@@ -446,27 +511,17 @@ export class ClasshubAPI {
             let parts = rawTeachers.split(/[,;\-]/).map((t: any) => t.trim()).filter((t: any) => t.length > 0);
             
             let isMine = false;
+            let myTokensLen = myNameLower.split(/[\s,\.\-]+/).filter((x: any) => x).length;
+            let threshold = Math.ceil(myTokensLen * 0.5);
             if (parts.length > 0) {
-                // Thuật toán Proximity (Độ gần)
                 for (let p of parts) {
-                    if (p === myNameLower || p.includes(myNameLower)) {
-                        isMine = true;
-                        break;
-                    }
-                    // Tính độ tương đồng từ vựng nếu cần thiết (Ở đây giữ logic cơ bản cho API)
-                    let pTokens = p.split(' ').filter((x: any) =>x);
-                    let myTokens = myNameLower.split(' ').filter((x: any) =>x);
-                    let matches = 0;
-                    for (let t of myTokens) {
-                        if (pTokens.includes(t)) matches++;
-                    }
-                    if (matches >= 2 && matches >= Math.ceil(myTokens.length * 0.6)) {
+                    if (this.calculate3TierNameScore(p, myNameLower) >= threshold) {
                         isMine = true;
                         break;
                     }
                 }
             } else {
-                if (rawTeachers.includes(myNameLower)) isMine = true;
+                if (this.calculate3TierNameScore(rawTeachers, myNameLower) >= threshold) isMine = true;
             }
             
             if (isMine) myClasses.push(c);
@@ -685,10 +740,7 @@ export class ClasshubAPI {
                 if (cvRes && cvRes.html && this.myNameLower) {
                     let blocks = cvRes.html.split(/<tr|<li|<div\s+class="card"/i);
                     // Lọc thẻ HTML để so sánh tên chính xác
-                    let targetBlock = blocks.find((b: any) => {
-                        let cleanText = this.decodeHtmlEntities(b).replace(/<[^>]*>?/gm, ' ').replace(/\s+/g, ' ').toLowerCase();
-                        return cleanText.includes(this.myNameLower);
-                    });
+                    let targetBlock = this.findBestMatchBlock(blocks, this.myNameLower);
                     
                     if (!targetBlock) {
                         this.log(`  ├─ ⚠️ [SUPER HUNT MAX] Không tìm thấy tên "${this.myNameLower}" trong ${blocks.length} block HTML của ${exactViewerEndpoint}`);
@@ -737,7 +789,7 @@ export class ClasshubAPI {
                 // Ưu tiên 1: Quét HTML Block từ resModel
                 if (resModel.html && this.myNameLower) {
                     let blocks = resModel.html.split(/<tr|<li|<div\s+class="card"/i);
-                    let targetBlock = blocks.find((b: any) => this.decodeHtmlEntities(b).toLowerCase().includes(this.myNameLower));
+                    let targetBlock = this.findBestMatchBlock(blocks, this.myNameLower);
                     if (targetBlock) {
                         let mId = targetBlock.match(/(?:data-id|data-record)="?(\d+)"?/i) || targetBlock.match(/name="id"\s+value="(\d+)"/i);
                         if (mId && mId[1] && mId[1] !== String(masterKey) && parseInt(mId[1]) > 1000) {
@@ -764,7 +816,17 @@ export class ClasshubAPI {
                             }
                             return s;
                         };
-                        let tRec = resModel.data.find((r: any) => this.decodeHtmlEntities(extractStr(r)).includes(this.myNameLower));
+                        let tRec = null;
+                        let highestScore = 0;
+                        let myTokensLen = this.myNameLower.split(/[\s,\.\-]+/).filter((x: any) => x).length;
+                        let threshold = Math.ceil(myTokensLen * 0.5);
+                        for (let r of resModel.data) {
+                            let score = this.calculate3TierNameScore(extractStr(r), this.myNameLower);
+                            if (score > highestScore && score >= threshold) {
+                                highestScore = score;
+                                tRec = r;
+                            }
+                        }
                         if (tRec && tRec.id && String(tRec.id) !== String(masterKey)) {
                             instructorId = String(tRec.id);
                             this.log(`  ├─ 🎯 [API Hunt] BẮT ĐƯỢC ID TỪ JSON MODEL (KHỚP TÊN): ${instructorId}`);
@@ -811,7 +873,8 @@ export class ClasshubAPI {
             }
 
             if (!instructorId) {
-                instructorId = entity.instructor_sheet_id || entity.instructor_id || masterKey;
+                this.log(`  ├─ ❌ [CRITICAL ERROR] Không xác định được ID giáo viên chuẩn (So khớp tên 3-Tier thất bại). Tạm dừng điểm danh lớp này!`);
+                return { success: false, class: masterKey, error: "Không tìm thấy ID giáo viên chuẩn" };
             }
 
             // Gọi Viewer để xác nhận chính xác update_time và trạng thái hiện tại (Chống lỗi OCC)
