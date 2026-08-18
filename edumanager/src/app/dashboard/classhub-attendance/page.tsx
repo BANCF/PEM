@@ -2,14 +2,16 @@
 
 import React, { useState, useEffect } from "react";
 import { useAuth } from "@/contexts/AuthContext";
-import { ClipboardCheck, Loader2, RefreshCw, AlertTriangle, CheckCircle } from "lucide-react";
+import { ClipboardCheck, Loader2, RefreshCw, AlertTriangle, CheckCircle, Search, Terminal } from "lucide-react";
 import toast from "react-hot-toast";
 
 export default function ClasshubAttendancePage() {
   const { profile, user } = useAuth();
   const [classes, setClasses] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
+  const [hasFetched, setHasFetched] = useState(false);
   const [attending, setAttending] = useState(false);
+  const [logs, setLogs] = useState<string[]>([]);
 
   const fetchClasses = async () => {
     setLoading(true);
@@ -29,8 +31,11 @@ export default function ClasshubAttendancePage() {
           !String(c.raw_data?.attendance_sheet_status || "").toUpperCase().includes("ACCEPTED")
         );
         setClasses(pending);
+        setHasFetched(true);
+        if (result.logs) setLogs(result.logs);
       } else {
         toast.error(result.message || "Không thể lấy danh sách lớp");
+        if (result.logs) setLogs(result.logs);
       }
     } catch (error) {
       console.error("Fetch classes error", error);
@@ -40,12 +45,7 @@ export default function ClasshubAttendancePage() {
     }
   };
 
-  useEffect(() => {
-    if (profile) {
-      fetchClasses();
-    }
-  }, [profile]);
-
+  
   const handleAutoAttend = async () => {
     if (classes.length === 0) return;
     
@@ -70,6 +70,7 @@ export default function ClasshubAttendancePage() {
         fetchClasses();
       } else {
         toast.error(result.message || "Có lỗi xảy ra", { id: toastId });
+        if (result.logs) setLogs(result.logs);
       }
     } catch (error) {
       console.error("Auto attend error", error);
@@ -97,8 +98,8 @@ export default function ClasshubAttendancePage() {
             disabled={loading || attending}
             className="flex items-center gap-2 bg-slate-100 hover:bg-slate-200 text-slate-700 px-4 py-2.5 rounded-xl font-medium transition-colors disabled:opacity-50"
           >
-            <RefreshCw size={18} className={loading ? "animate-spin" : ""} />
-            Làm mới
+            <Search size={18} className={loading ? "animate-spin" : ""} />
+            Quét lớp chưa điểm danh
           </button>
           <button 
             onClick={handleAutoAttend} 
@@ -106,7 +107,7 @@ export default function ClasshubAttendancePage() {
             className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white px-5 py-2.5 rounded-xl font-medium transition-colors shadow-sm shadow-emerald-600/20 disabled:opacity-50"
           >
             {attending ? <Loader2 size={18} className="animate-spin" /> : <CheckCircle size={18} />}
-            Điểm danh tất cả ({classes.length})
+            Điểm danh 1 chạm
           </button>
         </div>
       </div>
