@@ -10,17 +10,6 @@ import { doc, getDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase/client";
 import { Loader2 } from "lucide-react";
 
-// Format: First Last Middle -> Last Middle First
-// Example: Bằng Phạm Văn -> Phạm Văn Bằng
-function formatVietnameseName(fullName: string) {
-  if (!fullName) return "";
-  const parts = fullName.trim().split(" ");
-  if (parts.length > 1) {
-    const firstName = parts.shift();
-    return parts.join(" ") + " " + firstName;
-  }
-  return fullName;
-}
 
 export default function PrintMonthlyEvaluation() {
   const searchParams = useSearchParams();
@@ -104,8 +93,7 @@ export default function PrintMonthlyEvaluation() {
         if (gvcnAssign) {
           const tDoc = await getDoc(doc(db, "users", gvcnAssign.teacherId));
           if (tDoc.exists()) {
-            // Apply name formatting to teacher!
-            setTeacherName(formatVietnameseName(tDoc.data().fullName || ""));
+            setTeacherName(tDoc.data().fullName || "");
           }
         }
 

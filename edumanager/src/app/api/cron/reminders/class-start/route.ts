@@ -105,6 +105,10 @@ export async function GET(request: Request) {
       
       if (fcmTokens && fcmTokens.length > 0) {
         const message = {
+          notification: {
+            title: `🔔 Nhắc nhở vào tiết: Lớp ${notificationInfo.className}`,
+            body: `Còn 5 phút nữa là bắt đầu tiết ${notificationInfo.subject} ở lớp ${notificationInfo.className}. Mời thầy/cô chuẩn bị vào lớp!`
+          },
           data: {
             title: `🔔 Nhắc nhở vào tiết: Lớp ${notificationInfo.className}`,
             body: `Còn 5 phút nữa là bắt đầu tiết ${notificationInfo.subject} ở lớp ${notificationInfo.className}. Mời thầy/cô chuẩn bị vào lớp!`,

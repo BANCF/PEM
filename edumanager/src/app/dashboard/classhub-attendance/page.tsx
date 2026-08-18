@@ -12,12 +12,13 @@ export default function ClasshubAttendancePage() {
   const [hasFetched, setHasFetched] = useState(false);
   const [attending, setAttending] = useState(false);
   const [logs, setLogs] = useState<string[]>([]);
+  const [isDeepScan, setIsDeepScan] = useState(false);
 
   const fetchClasses = async () => {
     setLoading(true);
     try {
       const idToken = await user?.getIdToken();
-      const response = await fetch("/api/classhub/sync/classes", {
+      const response = await fetch(`/api/classhub/sync/classes?deep=${isDeepScan}`, {
         headers: {
           Authorization: `Bearer ${idToken}`,
         },
@@ -60,7 +61,9 @@ export default function ClasshubAttendancePage() {
         method: "POST",
         headers: {
           Authorization: `Bearer ${idToken}`,
+          "Content-Type": "application/json"
         },
+        body: JSON.stringify({ isDeepScan })
       });
       const result = await response.json();
       
@@ -92,23 +95,34 @@ export default function ClasshubAttendancePage() {
           </h1>
           <p className="text-slate-500 mt-1">Đồng bộ và điểm danh siêu tốc trực tiếp từ hệ thống, không cần Extension.</p>
         </div>
-        <div className="flex gap-3">
-          <button 
-            onClick={fetchClasses} 
-            disabled={loading || attending}
-            className="flex items-center gap-2 bg-slate-100 hover:bg-slate-200 text-slate-700 px-4 py-2.5 rounded-xl font-medium transition-colors disabled:opacity-50"
-          >
-            <Search size={18} className={loading ? "animate-spin" : ""} />
-            Quét lớp chưa điểm danh
-          </button>
-          <button 
-            onClick={handleAutoAttend} 
-            disabled={classes.length === 0 || loading || attending}
-            className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white px-5 py-2.5 rounded-xl font-medium transition-colors shadow-sm shadow-emerald-600/20 disabled:opacity-50"
-          >
-            {attending ? <Loader2 size={18} className="animate-spin" /> : <CheckCircle size={18} />}
-            Điểm danh 1 chạm
-          </button>
+        <div className="flex flex-col items-end gap-2">
+          <div className="flex gap-3">
+            <button 
+              onClick={fetchClasses} 
+              disabled={loading || attending}
+              className="flex items-center gap-2 bg-slate-100 hover:bg-slate-200 text-slate-700 px-4 py-2.5 rounded-xl font-medium transition-colors disabled:opacity-50"
+            >
+              <Search size={18} className={loading ? "animate-spin" : ""} />
+              Quét lớp chưa điểm danh
+            </button>
+            <button 
+              onClick={handleAutoAttend} 
+              disabled={classes.length === 0 || loading || attending}
+              className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white px-5 py-2.5 rounded-xl font-medium transition-colors shadow-sm shadow-emerald-600/20 disabled:opacity-50"
+            >
+              {attending ? <Loader2 size={18} className="animate-spin" /> : <CheckCircle size={18} />}
+              Điểm danh 1 chạm
+            </button>
+          </div>
+          <label className="flex items-center gap-2 text-sm text-slate-500 cursor-pointer hover:text-slate-700 mt-1">
+            <input 
+              type="checkbox" 
+              checked={isDeepScan} 
+              onChange={(e) => setIsDeepScan(e.target.checked)} 
+              className="rounded border-slate-300 text-emerald-600 focus:ring-emerald-500 w-4 h-4" 
+            />
+            Quét lại toàn bộ lịch sử (Chậm)
+          </label>
         </div>
       </div>
 

@@ -43,7 +43,7 @@ export class ClassHubService {
     return setCookieHeader;
   }
 
-  static async fetchClasses(uid: string) {
+  static async fetchClasses(uid: string, isDeepScan: boolean = false) {
     const cookie = await this.getValidSession(uid);
     console.log("[ClassHub] Fetching classes using cookie");
     const api = new ClasshubAPI("61892", "", cookie, (msg: string) => console.log(msg));
@@ -52,7 +52,8 @@ export class ClassHubService {
     await api.autoHuntTeacherName();
     
     // 2. Quét tất cả các lớp
-    const allClasses = await api.scanAllClasses();
+    const maxPages = isDeepScan ? -1 : 2;
+    const allClasses = await api.scanAllClasses(maxPages);
     
     // 3. Lọc ra các lớp của mình
     let myClasses = allClasses;
@@ -85,13 +86,14 @@ export class ClassHubService {
     };
   }
 
-  static async pushAttendance(uid: string) {
+  static async pushAttendance(uid: string, isDeepScan: boolean = false) {
     try {
       const cookie = await this.getValidSession(uid);
       const api = new ClasshubAPI("61892", "", cookie, (msg: string) => console.log(msg));
       
       await api.autoHuntTeacherName();
-      const allClasses = await api.scanAllClasses();
+      const maxPages = isDeepScan ? -1 : 2;
+      const allClasses = await api.scanAllClasses(maxPages);
       let myClasses = allClasses;
       if (api.teacherName) {
          myClasses = api.filterMyClasses(allClasses);

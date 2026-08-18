@@ -1,11 +1,13 @@
 "use client";
 
 import React, { useState } from "react";
-import { Upload, FileSpreadsheet, Save, Calendar, AlertCircle } from "lucide-react";
+import { Upload, FileSpreadsheet, Save, Calendar, AlertCircle, Search, X } from "lucide-react";
 import * as XLSX from "xlsx";
 import toast from "react-hot-toast";
 import { useAuth } from "@/contexts/AuthContext";
-import { saveSchedule, getDraftSchedule, saveDraftSchedule, publishDraftSchedule, deleteDraftSchedule, FullScheduleData } from "@/lib/services/schedule.service";
+import { saveSchedule, getDraftSchedule, saveDraftSchedule, publishDraftSchedule, deleteDraftSchedule, FullScheduleData, getScheduleSettings, saveScheduleSettings, ScheduleSettings } from "@/lib/services/schedule.service";
+import { db } from "@/lib/firebase/client";
+import { collection, getDocs, query, where } from "firebase/firestore";
 
 const TEACHER_ALIASES: Record<string, string> = {
   "Linh": "Vũ Linh",
@@ -28,6 +30,10 @@ export default function ScheduleSettingsPage() {
   const [parsedData, setParsedData] = useState<FullScheduleData | null>(null);
   const [hasDraft, setHasDraft] = useState(false);
   const [draftCheckLoading, setDraftCheckLoading] = useState(true);
+  const [teachersList, setTeachersList] = useState<any[]>([]);
+  const [clbTeachers, setClbTeachers] = useState<string[]>([]);
+  const [isSavingSettings, setIsSavingSettings] = useState(false);
+  const [searchTeacher, setSearchTeacher] = useState("");
 
   React.useEffect(() => {
     const checkDraft = async () => {
@@ -41,6 +47,27 @@ export default function ScheduleSettingsPage() {
       }
     };
     checkDraft();
+
+    const fetchSettingsAndTeachers = async () => {
+      try {
+        const settings = await getScheduleSettings();
+        if (settings && settings.clbTeachers) {
+          setClbTeachers(settings.clbTeachers);
+        }
+
+        const q = query(collection(db, "users"));
+        const querySnapshot = await getDocs(q);
+        const teachers: any[] = [];
+        querySnapshot.forEach((doc) => {
+          const data = doc.data();
+          if (data.fullName) teachers.push({ id: doc.id, fullName: data.fullName });
+        });
+        setTeachersList(teachers);
+      } catch (e) {
+        console.error(e);
+      }
+    };
+    fetchSettingsAndTeachers();
   }, []);
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -48,6 +75,18 @@ export default function ScheduleSettingsPage() {
     if (selectedFile) {
       setFile(selectedFile);
       setParsedData(null);
+    }
+  };
+
+  const handleSaveClbSettings = async () => {
+    setIsSavingSettings(true);
+    try {
+      await saveScheduleSettings({ clbTeachers });
+      toast.success("Đã lưu cấu hình Giáo viên CLB");
+    } catch (e) {
+      toast.error("Lỗi lưu cấu hình");
+    } finally {
+      setIsSavingSettings(false);
     }
   };
 
@@ -129,10 +168,16 @@ export default function ScheduleSettingsPage() {
 
           const timeClean = rawTime ? rawTime.toString().trim() : "";
           const subject = row[c];
-          const teacherStr = row[c + 1];
+          let teacherStr = row[c + 1];
 
           if (subject && typeof subject === 'string') {
             const subjectTrimmed = subject.trim();
+            
+            // Bắt các tiết CLB và gán cho giáo viên CLB đã chọn
+            if (subjectTrimmed.toLowerCase().includes("clb") && clbTeachers.length > 0) {
+              teacherStr = clbTeachers.join(", ");
+            }
+
             if (!subjectTrimmed || subjectTrimmed === '0') continue;
 
             if (!classesSchedule[className]) classesSchedule[className] = {};
@@ -362,6 +407,80 @@ export default function ScheduleSettingsPage() {
           </div>
         </div>
       )}
+
+      <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 mb-6">
+        <div className="flex items-start justify-between mb-4">
+          <div>
+            <h2 className="text-lg font-bold text-slate-800 flex items-center gap-2">
+              <Calendar size={20} className="text-purple-600" />
+              Giáo viên phụ trách Câu Lạc Bộ (CLB)
+            </h2>
+            <p className="text-sm text-slate-500 mt-1">Các tiết học có chữ "CLB" trong TKB Sáng Chiều sẽ tự động được gán cho những giáo viên này.</p>
+          </div>
+          <button
+            onClick={handleSaveClbSettings}
+            disabled={isSavingSettings}
+            className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-xl font-medium transition-colors whitespace-nowrap"
+          >
+            {isSavingSettings ? "Đang lưu..." : "Lưu cấu hình"}
+          </button>
+        </div>
+        
+        {/* Vùng hiển thị các giáo viên đã chọn (Tags) */}
+        <div className="flex flex-wrap gap-2 mb-4">
+          {clbTeachers.map(name => (
+            <div key={name} className="bg-purple-50 text-purple-700 border border-purple-200 px-3 py-1.5 rounded-full flex items-center gap-2 text-sm font-medium">
+              {name}
+              <button 
+                onClick={() => setClbTeachers(prev => prev.filter(n => n !== name))}
+                className="hover:bg-purple-200 rounded-full p-0.5 transition-colors"
+              >
+                <X size={14} />
+              </button>
+            </div>
+          ))}
+          {clbTeachers.length === 0 && (
+            <span className="text-sm text-slate-400 italic py-1.5">Chưa có giáo viên nào được chọn</span>
+          )}
+        </div>
+
+        {/* Ô tìm kiếm và thêm giáo viên */}
+        <div className="relative max-w-md">
+          <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+            <Search size={18} className="text-slate-400" />
+          </div>
+          <input
+            type="text"
+            placeholder="Tìm kiếm và thêm giáo viên..."
+            value={searchTeacher}
+            onChange={(e) => setSearchTeacher(e.target.value)}
+            className="w-full pl-10 pr-4 py-2 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500"
+          />
+          
+          {/* Dropdown kết quả tìm kiếm */}
+          {searchTeacher.trim() !== "" && (
+            <div className="absolute top-full left-0 right-0 mt-2 bg-white border border-slate-100 rounded-xl shadow-lg max-h-60 overflow-y-auto z-10 p-1">
+              {teachersList
+                .filter(t => t.fullName.toLowerCase().includes(searchTeacher.toLowerCase()) && !clbTeachers.includes(t.fullName))
+                .map(t => (
+                  <button
+                    key={t.id}
+                    onClick={() => {
+                      setClbTeachers([...clbTeachers, t.fullName]);
+                      setSearchTeacher("");
+                    }}
+                    className="w-full text-left px-3 py-2 hover:bg-slate-50 rounded-lg text-sm text-slate-700 font-medium transition-colors"
+                  >
+                    {t.fullName}
+                  </button>
+                ))}
+              {teachersList.filter(t => t.fullName.toLowerCase().includes(searchTeacher.toLowerCase()) && !clbTeachers.includes(t.fullName)).length === 0 && (
+                <div className="px-3 py-3 text-sm text-slate-400 text-center">Không tìm thấy giáo viên phù hợp</div>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">

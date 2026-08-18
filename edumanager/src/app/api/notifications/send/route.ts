@@ -27,6 +27,10 @@ export async function POST(req: Request) {
 
         const response = await messaging.sendEachForMulticast({
           tokens: fcmTokens,
+          notification: {
+            title: pushTitle,
+            body: pushMessage
+          },
           data: {
             title: pushTitle,
             message: pushMessage,

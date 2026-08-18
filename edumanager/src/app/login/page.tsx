@@ -17,9 +17,10 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [isNewUser, setIsNewUser] = useState(false);
-  const [pendingUser, setPendingUser] = useState<any>(null);
+  const [pendingUser, setPendingUser] = useState<User | null>(null);
   const [departments, setDepartments] = useState<string[]>([]);
   const [selectedDepartment, setSelectedDepartment] = useState("");
+  const [fullName, setFullName] = useState("");
   const router = useRouter();
 
   const handleLogin = async (e: React.FormEvent) => {
@@ -82,6 +83,7 @@ export default function LoginPage() {
         setDepartments(depsData);
         if (depsData.length > 0) setSelectedDepartment(depsData[0]);
         
+        setFullName(user.displayName || "");
         setIsNewUser(true);
         setLoading(false);
         return; // Dừng lại ở đây, chờ user chọn tổ bộ môn
@@ -109,7 +111,7 @@ export default function LoginPage() {
       const userRef = doc(db, "users", pendingUser.uid);
       await setDoc(userRef, {
         email: pendingUser.email,
-        fullName: pendingUser.displayName || "Giáo viên",
+        fullName: fullName.trim() || pendingUser.displayName || "Giáo viên",
         role: "TEACHER",
         department: selectedDepartment,
         createdAt: new Date().toISOString(),
@@ -155,6 +157,19 @@ export default function LoginPage() {
                 </div>
                 
                 <div className="space-y-6">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Họ và tên chuẩn</label>
+                    <input
+                      type="text"
+                      value={fullName}
+                      onChange={(e) => setFullName(e.target.value)}
+                      className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-colors text-gray-900 bg-white"
+                      placeholder="Nhập chính xác Họ và Tên của bạn"
+                      required
+                    />
+                    <p className="text-xs text-amber-600 mt-1">Vui lòng kiểm tra kỹ! Tên sẽ được dùng để in lên mọi phiếu điểm và văn bản của hệ thống.</p>
+                  </div>
+
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Tổ bộ môn</label>
                     <select

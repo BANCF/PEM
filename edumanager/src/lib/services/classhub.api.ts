@@ -180,7 +180,7 @@ export class ClasshubAPI {
     }
 
     // Quét API ngầm
-    async scanAllClasses() {
+    async scanAllClasses(maxPages: number = 2) {
         this.log("🚀 [API SCANNER] Bắt đầu quét nền tảng ngầm...");
         let targetUrl = `/${this.tenantId}/appstart/classhub/`;
         let html = "";
@@ -311,6 +311,7 @@ export class ClasshubAPI {
                         });
                         allClasses.push(...items);
                         page++;
+                        if (maxPages !== -1 && page >= maxPages) break;
                     } else if (res.html) {
                         // Trường hợp Ohke trả về HTML chứa data-entity
                         let entityMatches = res.html.match(/data-entity=(['"])(.*?)\1/g);
@@ -356,6 +357,7 @@ export class ClasshubAPI {
                             }
                             allClasses.push(...extracted);
                             page++; // Tăng page để lấy trang tiếp theo
+                            if (maxPages !== -1 && page >= maxPages) break;
                         } else {
                             this.log(`[Tab ${tab.id}][Trang ${page}] HTML không chứa data-entity.`);
                             break;
