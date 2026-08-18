@@ -57,6 +57,33 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     } else if (msg.action === 'DISABLE_DAILY_CRON') {
         chrome.alarms.clear('daily_attendance');
         sendResponse({status: "Alarm cleared"});
+    } else if (msg.action === 'START_GHOST_HEADLESS') {
+        const targetUrl = 'https://idcloud.vn/61892/appstart/classhub/?ghost=true';
+        chrome.tabs.create({ url: targetUrl, active: false }, (tab) => {
+            chrome.storage.local.set({ 'ghost_tab_id': tab.id });
+        });
+        sendResponse({status: 'Ghost tab created'});
+    } else if (msg.action === 'GHOST_HEADLESS_PROGRESS' || msg.action === 'GHOST_HEADLESS_DONE' || msg.action === 'GHOST_HEADLESS_ERROR') {
+        // Forward message to all Classhub tabs
+        chrome.tabs.query({}, (tabs) => {
+            for (let t of tabs) {
+                if (t.url && t.url.includes('idcloud.vn')) {
+                    if (!sender.tab || t.id !== sender.tab.id) {
+                        chrome.tabs.sendMessage(t.id, msg).catch(() => {});
+                    }
+                }
+            }
+        });
+        
+        if (msg.action === 'GHOST_HEADLESS_DONE' || msg.action === 'GHOST_HEADLESS_ERROR') {
+            if (sender.tab && sender.tab.id) {
+                setTimeout(() => {
+                    chrome.tabs.remove(sender.tab.id).catch(() => {});
+                }, 1000);
+            }
+
+        }
+        sendResponse({status: 'Message forwarded'});
     } else if (msg.action === 'OPEN_CLASSHUB_TAB') {
         // Mở tab mới khi user bấm nút Bật Auto từ trang ngoài
         chrome.storage.local.get(['pending_action'], (res) => {
@@ -96,8 +123,9 @@ chrome.alarms.onAlarm.addListener((alarm) => {
         let classId = alarm.name.replace('in_class_', '');
         chrome.tabs.create({ 
             url: "https://idcloud.vn/61892/appstart/classhub?mode=ghost_attendance&id=" + classId, 
-            active: true, 
-            pinned: true 
+            active: false
+        }, (tab) => {
+            chrome.storage.local.set({ 'ghost_tab_id': tab.id });
         });
     }
 });

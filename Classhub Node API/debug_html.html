@@ -1,0 +1,354 @@
+<!DOCTYPE html>
+ <html lang="en" translate="no">
+<head>
+  <title>PASCAL 2026-2027</title>
+  <meta charset="utf-8">
+<meta http-equiv="X-UA-Compatible" content="IE=100"/>
+<meta name="copyright" content="OHKE"/>
+<meta name="author" content="OHKE"/>
+<meta name="robots" content="index,follow"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="MobileOptimized" content="320"/>
+<meta name="HandheldFriendly" content="true"/>
+<meta name="format-detection" content="telephone=no">
+  <link href="/appstart/resource/common/images/favicon.png?v=62d32f3d" rel="shortcut icon">
+
+  <!-- CORE CSS -->
+  <link href="/appstart/resource/common/css/w3.css?v=1.0.257" rel="stylesheet">
+  <link href="/appstart/resource/common/css/font-awesome.min.css?v=1.0.257" rel="stylesheet">
+
+  <!-- THEME -->
+  <link href="/appstart/resource/palette/COLOR-0000007.css?v=1776310477" rel="stylesheet">
+  <link href="/appstart/resource/look/default_look_and_feel/z-index.css?v=1785579999" rel="stylesheet">
+  <link href="/appstart/resource/look/default_look_and_feel/ohke.css?v=1785579999" rel="stylesheet">
+  <link href="/appstart/resource/look/default_look_and_feel/inno-button.css?v=1785579999" rel="stylesheet">
+  <link href="/appstart/resource/look/default_look_and_feel/job.css?v=1785579999" rel="stylesheet">
+  <link href="/appstart/resource/look/default_look_and_feel/id-layout.css?v=1785579999" rel="stylesheet">
+  <link href="/appstart/resource/look/default_look_and_feel/g-app.css?v=1785579999" rel="stylesheet">
+  <link href="/appstart/resource/look/default_look_and_feel/ohke-wizard.css?v=1785579999" rel="stylesheet">
+  <link href="/appstart/resource/look/default_look_and_feel/ohke-switch.css?v=1785579999" rel="stylesheet">
+  <link href="/appstart/resource/look/default_look_and_feel/ohke-adv-combo.css?v=1785579999" rel="stylesheet">
+  <link href="/appstart/resource/look/default_look_and_feel/ohke-mc-combo.css?v=1785579999" rel="stylesheet">
+  <link href="/appstart/resource/look/default_look_and_feel/sidebar.css?v=1785579999" rel="stylesheet">
+  <link href="/appstart/resource/look/default_look_and_feel/tooltip.css?v=1785579999" rel="stylesheet">
+  <link href="/appstart/resource/look/default_look_and_feel/chosen.ext.css?v=1785579999" rel="stylesheet">
+  <link href="/appstart/resource/look/default_look_and_feel/date-picker.css?v=1785579999" rel="stylesheet">
+  <link href="/appstart/resource/look/default_look_and_feel/ohke-color-picker.css?v=1785579999" rel="stylesheet">
+  <link href="/appstart/resource/look/default_look_and_feel/ohke-slideshow.css?v=1785579999" rel="stylesheet">
+  <link href="/appstart/resource/look/default_look_and_feel/ohke-tab.css?v=1785579999" rel="stylesheet">
+  <link href="/appstart/resource/look/default_look_and_feel/media.css?v=1785579999" rel="stylesheet">
+  <link href="/appstart/resource/look/default_look_and_feel/calendar.css?v=1785579999" rel="stylesheet">
+  <link href="/appstart/resource/look/default_look_and_feel/list-header-x.css?v=1785579999" rel="stylesheet">
+  <link href="/appstart/resource/look/default_look_and_feel/floating-toolbar.css?v=1785579999" rel="stylesheet">
+  <link href="/appstart/resource/look/default_look_and_feel/katex-math.css?v=1785579999" rel="stylesheet">
+  <link href="/appstart/resource/look/default_look_and_feel/inno.geo.css?v=1785579999" rel="stylesheet">
+  <link href="/appstart/resource/look/default_look_and_feel/filter.css?v=1785579999" rel="stylesheet">
+  <link href="/appstart/resource/look/default_look_and_feel/chunk-uploader.css?v=1785579999" rel="stylesheet">
+  <link href="/appstart/resource/look/default_look_and_feel/video.css?v=1785579999" rel="stylesheet">
+  <link href="/appstart/resource/look/default_look_and_feel/payment-qr.css?v=1785579999" rel="stylesheet">
+
+<template id="ohke_popup_tmpl">
+  <div class="w3-modal ohke_popup_instance">
+    <div class="w3-modal-content w3-animate-zoom ohke-popup">
+      <div class="ohke-popup-header {type}">
+        <i class="ohke-popup-icon fa {type_icon}"></i>
+        <a class="close-btn">
+          <i class="fa fa-2x fa-close"></i>
+        </a>
+        <h4>
+          {header}
+        </h4>
+      </div>
+      <form class="ohke-popup-body" onsubmit="return false">
+        {body}
+      </form>
+      <div class="ohke-popup-footer">
+      </div>
+    </div>
+  </div>
+</template>
+<template id="ohke_loading_tmpl">
+  <div class="ohke-content-loading">
+    <i class="fa fa-cog fa-spin"></i> {message}
+  </div>
+</template>
+<template id="ohke_file_viewer_tmpl">
+  <div class="w3-modal ohke-file-viewer w3-show w3-animate-zoom">
+    <div class="w3-modal-content">
+      <div class="ohke-header">
+        <div class="action">
+          <a onclick="Ohke.modal.close(this)" class="close-btn">
+            <i class="fa fa-2x fa-close"></i></a>
+        </div>
+        <div class="title">
+          <i class="fa fa-eye"></i>
+          <span>{title}</span>
+        </div>
+      </div>
+      <div class="ohke-content">
+        <file-viewer filename="{name}" url="{url}"></file-viewer>
+      </div>
+    </div>
+  </div>
+</template>
+<template id="ohke_general_modal_tmpl">
+  <div class="w3-modal w3-show w3-animate-zoom form-modal modal-{size} {size} {top}">
+    <div class="w3-modal-content">
+      <div class="ohke-header">
+        <div class="action">
+          <a onclick="Ohke.modal.close(this)" class="close-btn">
+            <i class="fa fa-2x fa-close"></i></a>
+        </div>
+        <div class="title">
+          <span>{title}</span>
+        </div>
+      </div>
+      <div class="ohke-content padding-4">
+        {body}
+      </div>
+    </div>
+  </div>
+</template>
+
+  <!-- COMMON CSS -->
+  <link href="/appstart/resource/common/css/svg-file-type.min.css?v=1.0.257" rel="stylesheet">
+  <link href="/appstart/resource/common/css/svg-background.min.css?v=1.0.257" rel="stylesheet">
+
+  <!-- CORE JS -->
+  <script src="/appstart/resource/common/js/plugin/es6-supported.min.js?v=1.1.144"></script>
+  <script src="/appstart/resource/common/js/plugin/support-detector.min.js?v=1.1.144"></script>
+  <script src="/appstart/resource/vendor/jquery-3.2.1.min.js?v=62d32f3d"></script>
+  <script src="/appstart/resource/vendor/moment-2.18.1.min.js?v=62d32f3d"></script>
+  <script src="/appstart/resource/vendor/tinymce-v5.2.0/tinymce.min.js?v=62d32f3d"></script>
+  <script src="/appstart/resource/vendor/sha256.min.js?v=62d32f3d"></script>
+  <script src="/appstart/resource/common/js/ohke.min.js?v=1.1.144"></script>
+  <script src="/appstart/resource/common/js/locale/en.js?v=62d32f3d"></script>
+
+  <!-- LEGACY OHKE -->
+  <script>
+    Ohke.version = '1.1.144';
+    Ohke.canTranslate = '';
+    Ohke.worker = {"id":0,"member_of_site_id":0,"user_id":0,"username":"anonymous","name":"Anonymous","device_key":"","session_id":"","lang":"en","avatar":"","site_model_name":"PEOPLE","permission_codes":"ANON","update_timestamp":0,"is_anonymous":true,"is_authenticated":false,"is_guess":false,"is_employee":false};
+    Ohke.SITE = {"id":"61892","name":"PASCAL 2026-2027","code":"PASCAL.2026","name_en":"PASCAL 2026-2027","site_model_name":"STUDY_ACADEMIC_YEAR","site_model_type":"ORG","avatar":"https:\/\/idcloud.vn\/61892\/appstart\/reader\/MEdReFlDMExYOGZsc3FqWXNzQ3pMSVBrTlJ2cncxWmQ3bE5TZVg2SWRFND0=\/0\/0-0\/paste_c89cef9.png","update_timestamp":"1773909752","base_currency":"VND","currency_symbol":"\u20ab","owner_site_id":"47809","working_site_id":"61892","parent_id":"32282","lang":"en","look_code":"DEFAULT_LOOK_AND_FEEL","color_palette":"COLOR-0000007","having":{"environment":"development","google_api_key":null,"site_copyright":""},"closing_status":"UNSP","closing_type":1};
+    Ohke.BASE_URL = '/61892/appstart';
+    Ohke.APP_URL = '/61892/appstart/digitalismspace';
+    Ohke.API_URL = 'https://idcloud.vn';
+    window.ojs = {};
+  </script>
+
+<script>
+window.inno = window.inno || {};
+window.inno.asset = window.inno.asset || {};
+window.inno.asset.cfg = {"assetVersion":"62d32f3d","cssVersion":"1.0.257","jsVersion":"1.1.144","cssUri":"/appstart/resource/look/default_look_and_feel","cssTs":"1785579999"};
+window.inno.env = Object.assign(window.inno.env || {}, {"baseUrl":"/61892/appstart","appUrl":"/61892/appstart/digitalismspace","appAccessibleHash":"766bdb38","jobHeartbeatCsrf":"2068ba7b5f1d6d1e78e4b8b5ab92593b"})
+</script>
+<script src="/appstart/resource/bundle/prod/inno-main-688beba1116332b43309.js"></script>
+  <!-- PLUGINS -->
+  <script src="/appstart/resource/common/js/plugin/ohke-dom-remove.min.js?v=1.1.144"></script>
+  <script src="/appstart/resource/common/js/plugin/ohke-dom-movable.min.js?v=1.1.144"></script>
+  <script src="/appstart/resource/common/js/plugin/ohke-floating-header.min.js?v=1.1.144"></script>
+  <script src="/appstart/resource/common/js/plugin/jquery.binarytransport.js?v=1.1.144"></script>
+  <link href="/appstart/resource/common/js/plugin/inno-drawing/inno-drawing.min.css?v=62d32f3d" rel="stylesheet">
+  <script src="/appstart/resource/common/js/plugin/inno-drawing/inno-drawing.min.js?v=62d32f3d"></script>
+  <link href="/appstart/resource/common/js/plugin/agent-list-slideshow.min.css?v=62d32f3d" rel="stylesheet">
+  <script src="/appstart/resource/common/js/plugin/agent-list-slideshow.min.js?v=62d32f3d"></script>
+  <link href="/appstart/resource/common/js/plugin/id-ratio.min.css?v=62d32f3d" rel="stylesheet">
+  <script src="/appstart/resource/common/js/plugin/id-ratio.min.js?v=62d32f3d"></script>
+
+  <link href="/appstart/resource/common/js/chosen_v1.8.7/chosen.min.css?v=62d32f3d" rel="stylesheet">
+  <script src="/appstart/resource/common/js/chosen_v1.8.7/chosen.jquery.ext.min.js?v=62d32f3d"></script>
+  <script src="/appstart/resource/common/js/sidebar/sidebar.min.js?v=1.1.144"></script>
+  <script src="/appstart/resource/common/js/chunk_upload.min.js?v=1.1.144"></script>
+  <script src="/appstart/resource/common/js/plugin/id-rpc.min.js?v=1.1.144"></script>
+
+  <script src="/appstart/resource/common/js/widget/ohke-agent-field.min.js?v=1.1.144"></script>
+  <script src="/appstart/resource/common/js/widget/limit-date.min.js?v=1.1.144"></script>
+  <script src="/appstart/resource/common/js/widget/filter-list.min.js?v=1.1.144"></script>
+  <script src="/appstart/resource/common/js/widget/ohke-switch.min.js?v=1.1.144"></script>
+  <script src="/appstart/resource/common/js/widget/ohke-adv-combo.min.js?v=1.1.144"></script>
+  <script src="/appstart/resource/common/js/widget/ohke-mc-combo.min.js?v=1.1.144"></script>
+  <script src="/appstart/resource/common/js/widget/ohke-color-picker.min.js?v=1.1.144"></script>
+  <script src="/appstart/resource/common/js/widget/ohke-slideshow.min.js?v=1.1.144"></script>
+  <script src="/appstart/resource/common/js/widget/ohke-popup.min.js?v=1.1.144"></script>
+  <script src="/appstart/resource/common/js/widget/ohke-help.min.js?v=1.1.144"></script>
+  <script src="/appstart/resource/common/js/widget/ohke-inline-editor.min.js?v=1.1.144"></script>
+  <script src="/appstart/resource/common/js/widget/ohke-mobile.min.js?v=1.1.144"></script>
+  <script src="/appstart/resource/common/js/widget/ohke-hover.min.js?v=1.1.144"></script>
+
+  <link rel="stylesheet" href="/61892/appstart/digitalismspace/public/css/login.min.css?202111191258">
+</head>
+<body class="bg-geometric-intersection" style="min-height:100vh">
+<noscript>
+  <h3 class="w3-center">Vui lòng bật Javascript trong trình duyệt của bạn để tiếp tục!</h3>
+  <h3 class="w3-center">Please enable Javascript in your browser to continue!</h3>
+</noscript>
+<div class="login-container w3-hide" id="inno-g-app">
+  <div class="site-header">
+  <a class="logo" href="/61892/appstart" title="HomePage">
+    <img class="fit" src="https://idcloud.vn/61892/appstart/reader/TDNPTWVhQ25nczcxWEN2blJ1SmFzc2FGb251Wm9QRnFXQTdEdmlDbjV6c0VHdHpqdTFxZGo1dFBmY3VMb2c0SThjNHZjZ3BoNlN4NkJXa0s0OWpOdXc9PQ==/0/0-0/paste_c89cef9.png" alt="logo">
+  </a>
+  <div class="space"></div>
+  <a class="login-link" href="/61892/appstart/digitalismspace/login">
+    Sign in  </a>
+</div>
+<div class="login-wrapper w3-light-grey w3-round agent-container" style="max-width: 450px;margin: 0 auto;">
+  <form id="login-form" method="POST" onsubmit="login(this);return false;">
+    <div class="form-header">
+      <div class="title">
+        Sign In To Digitalism Space of PASCAL 2026-2027      </div>
+      <div class="sub-title">
+        If you forget your password, click <a href="/61892/appstart/digitalismspace/forgot_password">here</a> to recover your account.      </div>
+    </div>
+    <div class="ohke-control">
+      <label for="username">Username</label>
+      <input class="w3-input" type="text" autocomplete="new-password"
+             placeholder=""
+             name="username" id="username">
+      <div class="help-block">
+        Your username, usually is your phone number or your email      </div>
+    </div>
+    <div class="ohke-control">
+      <label for="password">Password</label>
+      <input class="w3-input" type="password" autocomplete="new-password"
+             placeholder=""
+             name="password" id="password">
+    </div>
+          <div class="ohke-control">
+        <label class="remember-me">
+          <input type="checkbox" name="remember_me" id="login-remember-me">
+          <span>
+          Remember me          </span>
+        </label>
+      </div>
+        <div class="invalid-container ohke-control">
+          </div>
+    <div class="ohke-control">
+      <button class="ohke-btn" type="submit" id="login-submit-btn">
+        Sign In        <i class="fa fa-cog fa-spin w3-hide"></i>
+      </button>
+    </div>
+    <div class="w3-row more-action">
+              <div class="w3-col s12 w3-center">
+          <a href="/61892/appstart/digitalismspace/forgot_password">
+            Forgot Password          </a>
+        </div>
+          </div>
+    <div id="app-icons" style="margin-top: 15px;text-align: center;display: none">
+  <a id="ios-icon" href="https://apps.apple.com/app/id1664334829" target="_blank">
+    <img src="/appstart/resource/common/images/download-on-the-app-store.svg" alt="Download on App Store" style="height:50px;">
+  </a>
+  <span id="icon-separator" style="display: inline-block;width: 15px"></span>
+  <a id="android-icon" href="https://play.google.com/store/apps/details?id=innodigi.tech.idcloud" target="_blank">
+    <img src="/appstart/resource/common/images/get-it-on-google-play.svg" alt="Get it on Google Play" style="height:50px;">
+  </a>
+</div>
+<script>
+  $(() => {
+    const iosIcon = document.getElementById('ios-icon');
+    const androidIcon = document.getElementById('android-icon');
+    const separator = document.getElementById('icon-separator');
+    const container = document.getElementById('app-icons');
+
+    if (inno.env.isInApp) {
+      container.remove()
+    } else if (inno.env.isIOS) {
+      androidIcon.remove()
+      separator.remove()
+      container.style.display = 'block';
+    } else if (inno.env.isAndroid) {
+      iosIcon.remove()
+      separator.remove()
+      container.style.display = 'block';
+    } else {
+      container.style.display = 'block';
+    }
+  })
+</script>      </form>
+</div>
+<script>
+    $(() => {
+    let $remember = $('#login-remember-me');
+    if (localStorage.getItem('login-form-remember-me')) {
+      $remember.attr('checked', true);
+      autoLogin();
+    }
+    $remember.change(e => {
+      let checked = e.target.checked ? 1 : 0;
+      localStorage.setItem('login-form-remember-me', checked);
+    })
+  })
+
+  function autoLogin() {
+    var $loading = $('#login-submit-btn').find('.fa');
+    if (!$loading.length || !$loading.hasClass('w3-hide')) return;
+    $loading.removeClass('w3-hide');
+    Ohke.rpc2(`${Ohke.APP_URL}/jsonPostAutoSignIn`, {
+      background: 1,
+      method: 'POST',
+      data: {
+        'login-form': {
+        }
+      }
+    }).then(res => {
+      if (res && res.type == 'success' && res.data && res.data.redirect) {
+        location.href = res.data.redirect;
+      }
+      $loading.addClass('w3-hide');
+    }, e => {
+      $loading.addClass('w3-hide');
+    });
+  }
+  
+  function login(form) {
+    var $loading = $(form).find('button[type=submit] .fa');
+    if (!$loading.length || !$loading.hasClass('w3-hide')) return;
+    $loading.removeClass('w3-hide');
+    var data = Ohke.form.getData(form);
+    Ohke.rpc2(`${Ohke.APP_URL}/jsonPostSignIn`, {
+      background: 1,
+      method: 'POST',
+      data: {
+        'login-form': data
+      },
+      form: '#login-form'
+    }).then(res => {
+      $loading.addClass('w3-hide');
+      if (res && res.type == 'success') {
+        data = res.data;
+        if (data.redirect) {
+          location.href = data.redirect;
+        } else if (data.error)
+          Ohke.popup.error({text: data.error})
+        else if (data.info)
+          Ohke.popup.info({text: data.info})
+      }
+    }, () => {
+      $loading.addClass('w3-hide');
+    });
+  }
+
+  function warningLongTime() {
+    let $form = $('#login-form');
+    let $div = $('<div class="ohke-control">');
+    let msg = 'You stay in this form too long time! This form will auto reload after %s second(s)';
+    let countDown = 30;
+    msg = msg.replace('%s', `<b id="reload-timer">${countDown}</b>`);
+    $div.html(`<ul class="invalid-message"><li>${msg}</li></ul>`);
+    $div.find('li').css('font-size', '1.5em');
+    let $timer = $div.find('#reload-timer');
+    $div.insertBefore($form.find('.invalid-container'));
+    setInterval(() => {
+      $timer.text(--countDown);
+      if (countDown <= 0) {
+        location.reload();
+      }
+    }, 1000);
+  }
+
+  Ohke.form.init('#login-form');
+  setTimeout(warningLongTime, 15 * 60 * 1000)
+</script>
+</div>
+</body>
+</html>
+

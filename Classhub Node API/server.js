@@ -104,6 +104,21 @@ app.post('/api/attendance', async (req, res) => {
     })();
 });
 
+// 4. Kênh Hủy Điểm Danh Tương Lai
+app.post('/api/revert-future', async (req, res) => {
+    if (!currentAPI) {
+        return res.status(400).json({ success: false, message: "Chưa kết nối Ohke" });
+    }
+
+    try {
+        let allMyClasses = await currentAPI.scanAllClasses();
+        let revertRes = await currentAPI.revertFutureClasses(allMyClasses);
+        res.json({ success: true, count: revertRes.count });
+    } catch(e) {
+        res.status(500).json({ success: false, message: e.message });
+    }
+});
+
 const PORT = 3000;
 app.listen(PORT, () => {
     console.log(`🚀 Classhub Backend Server đang chạy tại http://localhost:${PORT}`);

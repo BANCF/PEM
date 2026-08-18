@@ -265,6 +265,10 @@
         <div class="console-header">
             <span>Tiến trình đồng bộ ngầm</span>
             <span id="syncStatus">Đang chờ...</span>
+            <div>
+                <button id="runBtn" disabled>▶ Chạy Điểm Danh</button>
+                <button id="revertBtn" class="danger" disabled>⎌ Hủy Điểm Danh Tương Lai Bị Lỗi</button>
+            </div>
         </div>
         <div id="console-log">
             <div class="log-line log-info">Hệ thống sẵn sàng...</div>
@@ -349,6 +353,10 @@
                     
                     // Hiển thị nút Quét Lớp
                     document.getElementById('btnAction').style.display = 'flex';
+                    
+                    // Enable buttons
+                    document.getElementById('runBtn').disabled = false;
+                    document.getElementById('revertBtn').disabled = false;
                 } else {
                     appendLog(`❌ Lỗi: ${data.message}`, "error");
                     document.getElementById('statusBadge').innerText = 'Lỗi kết nối';
@@ -362,6 +370,33 @@
                 btnSave.innerHTML = '<i class="fa-regular fa-floppy-disk"></i> Lưu Kết Nối';
             }
         }
+
+        // Chạy Điểm Danh
+        document.getElementById('runBtn').addEventListener('click', async () => {
+            document.getElementById('runBtn').disabled = true;
+            document.getElementById('revertBtn').disabled = true;
+            try {
+                await fetch('http://localhost:3000/api/run', { method: 'POST' });
+            } catch(e) {
+                appendLog("Lỗi gọi API điểm danh: " + e.message, "error");
+            }
+            document.getElementById('runBtn').disabled = false;
+            document.getElementById('revertBtn').disabled = false;
+        });
+
+        // Hủy Điểm Danh Lỗi
+        document.getElementById('revertBtn').addEventListener('click', async () => {
+            document.getElementById('runBtn').disabled = true;
+            document.getElementById('revertBtn').disabled = true;
+            appendLog("Bắt đầu quét và Hủy điểm danh các lớp tương lai bị lỗi...", "info");
+            try {
+                await fetch('http://localhost:3000/api/revert-future', { method: 'POST' });
+            } catch(e) {
+                appendLog("Lỗi gọi API hủy điểm danh: " + e.message, "error");
+            }
+            document.getElementById('runBtn').disabled = false;
+            document.getElementById('revertBtn').disabled = false;
+        });
 
         async function scanClasses() {
             const btnAction = document.getElementById('btnAction');

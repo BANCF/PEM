@@ -285,7 +285,11 @@ class ClasshubAPI {
                 if (res) {
                     if (res.data && res.data.length > 0) {
                         this.log(`[Tab ${tab.id}][Trang ${page}] Thu được ${res.data.length} dòng (JSON).`);
-                        allClasses.push(...res.data);
+                        let items = res.data.map(item => {
+                            if (typeof item === 'object') item.sourceApi = modelUrl;
+                            return item;
+                        });
+                        allClasses.push(...items);
                         page++;
                     } else if (res.html) {
                         // Trường hợp Ohke trả về HTML chứa data-entity
@@ -325,6 +329,7 @@ class ClasshubAPI {
                                                 parsed.lesson_id = parsed.id; // Fallback
                                             }
                                         }
+                                        parsed.sourceApi = modelUrl;
                                         extracted.push(parsed);
                                     } catch(err) {}
                                 }
@@ -363,7 +368,7 @@ class ClasshubAPI {
             } else {
                 entityObj = r;
             }
-            decodedClasses.push({ id: r.id, entity: entityObj, originalData: r });
+            decodedClasses.push({ id: r.id, entity: entityObj, sourceApi: r.sourceApi || entityObj.sourceApi, originalData: r });
         }
 
         this.log(`🎉 [API SCANNER] Tổng thu hoạch: ${decodedClasses.length} lớp học!`);
@@ -403,6 +408,9 @@ class ClasshubAPI {
             if (entity[':field_teacher']) rawTeachers += " " + entity[':field_teacher'];
             if (entity['__main_instructor']) rawTeachers += " " + entity['__main_instructor'];
             if (entity['__instructor_site_ids']) rawTeachers += " " + entity['__instructor_site_ids'];
+            if (entity.instructor && entity.instructor.name) rawTeachers += " " + entity.instructor.name;
+            if (entity.instructor_name) rawTeachers += " " + entity.instructor_name;
+            if (entity.teacher_name) rawTeachers += " " + entity.teacher_name;
             
             if (!rawTeachers.trim()) continue;
             
@@ -446,12 +454,12 @@ class ClasshubAPI {
     }
 
     getClassUnlockInfo(entityData, bufferMinutes = 5) {
-        if (!entityData) return { isSafe: true, unlockTimestamp: 0, timeString: "" };
-        let dateStr = entityData.class_schedule_date || entityData.date || entityData.start_date || "";
-        if (!dateStr) return { isSafe: true, unlockTimestamp: 0, timeString: "" };
+        if (!entityData) return { isSafe: false, unlockTimestamp: Infinity, timeString: "Lỗi dữ liệu" };
+        let dateStr = entityData.class_schedule_date || entityData.date || entityData.start_date || entityData.teaching_date || "";
+        if (!dateStr) return { isSafe: false, unlockTimestamp: Infinity, timeString: "Không có lịch" };
         
         try {
-            let timeStr = entityData.class_hour_start_time || entityData.start_time || "00:00:00";
+            let timeStr = entityData.class_hour_start_time || entityData.start_time || entityData.teaching_start_time || "00:00:00";
             let year, month, day;
             
             if (dateStr.includes('/')) {
@@ -469,8 +477,9 @@ class ClasshubAPI {
             let minutes = parseInt(timeParts[1], 10) || 0;
             
             let startTimestamp = new Date(year, month, day, hours, minutes, 0).getTime();
-            if (isNaN(startTimestamp)) return { isSafe: true, unlockTimestamp: 0, timeString: "" };
+            if (isNaN(startTimestamp)) return { isSafe: false, unlockTimestamp: Infinity, timeString: "Lỗi định dạng giờ" };
 
+            // Yêu cầu: 5 phút SAU KHI tiết học bắt đầu mới cho điểm danh
             let unlockTimestamp = startTimestamp + (bufferMinutes * 60 * 1000);
             let now = Date.now();
             let unlockDate = new Date(unlockTimestamp);
@@ -493,6 +502,108 @@ class ClasshubAPI {
             eligible.push(c);
         }
         return eligible;
+    }
+
+    async revertFutureClasses(myClasses) {
+        this.log(`DEBUG: Nhận được ${myClasses.length} lớp từ scanAllClasses!`);
+        let futureClasses = [];
+        for (let c of myClasses) {
+            let entity = c.entity || {};
+            let studentStatus = String(entity.attendance_sheet_status || "").toUpperCase();
+            let teacherStatus = String(entity.instructor_attendance_status || entity.instructor_attendance_sheet_status || "").toUpperCase();
+            let oldStatus = String(entity.status || "").toUpperCase();
+            
+            let isSubmitted = studentStatus.includes("ACCEPTED") || teacherStatus.includes("ACCEPTED") || oldStatus.includes("ACCEPTED");
+            
+            this.log(`DEBUG Class [${entity.class_hour_code || entity.class_name}]: HS=${studentStatus}, GV=${teacherStatus}, T=${oldStatus} => isSubmitted=${isSubmitted}`);
+
+            if (!isSubmitted) continue; // Bỏ qua nếu chưa chốt
+
+            let unlockInfo = this.getClassUnlockInfo(entity, 5);
+            this.log(`DEBUG Class [${entity.class_hour_code || entity.class_name}]: isSafe=${unlockInfo.isSafe}`);
+
+            if (!unlockInfo.isSafe) { // Chưa đến giờ => Bị chốt nhầm ở tương lai
+                futureClasses.push(c);
+            }
+        }
+
+        if (futureClasses.length === 0) {
+            this.log("✅ Không có lớp tương lai nào bị chốt nhầm.");
+            return { success: true, count: 0 };
+        }
+
+        this.log(`⚠️ PHÁT HIỆN ${futureClasses.length} LỚP TƯƠNG LAI BỊ CHỐT NHẦM! Bắt đầu hủy chốt sổ...`);
+
+        for (let c of futureClasses) {
+            await this.revertAttendanceFlow(c);
+        }
+
+        this.log(`🎉 ĐÃ HỦY CHỐT SỔ THÀNH CÔNG CHO ${futureClasses.length} LỚP TƯƠNG LAI!`);
+        return { success: true, count: futureClasses.length };
+    }
+
+    async revertAttendanceFlow(classItem) {
+        let entity = classItem.entity;
+        let masterKey = classItem.id;
+        
+        this.log(`⚡ Đang HỦY chốt sổ tiết [${entity.class_hour_code || entity.class_name || masterKey}]...`);
+
+        // Lấy update_time mới nhất của class
+        let classUpdateTime = entity.update_time || "";
+        let exactViewerEndpoint = classItem.sourceApi ? classItem.sourceApi.replace('_Model', '_Viewer') : `/${this.tenantId}/appstart/classhub/x35FD2_Viewer`;
+        try {
+            let cvRes = await this.rpcCall(exactViewerEndpoint, { id: String(masterKey) });
+            if (cvRes && cvRes.data && cvRes.data.update_time) {
+                classUpdateTime = cvRes.data.update_time;
+            } else if (cvRes && cvRes.html) {
+                let mTime = cvRes.html.match(/(?:data-update-time|update_time)="([^"]+)"/i);
+                if (mTime && mTime[1]) classUpdateTime = mTime[1];
+            }
+        } catch(e) {}
+
+        // 1. Hủy chốt sổ Học sinh
+        try {
+            this.log(`  ⏳ Đang hủy chốt sổ Học sinh...`);
+            let studentPayload = {
+                id: String(masterKey),
+                field_name: 'attendance_sheet_status',
+                begin_state: 'CLASS_SCHEDULE_SLOT_STATUS_ACCEPTED',
+                end_state: 'CLASS_SCHEDULE_SLOT_STATUS_PENDING',
+                is_reversal: 0,
+                update_time: classUpdateTime
+            };
+            let resStudent = await this.rpcCall(`/${this.tenantId}/appstart/classhub/x35FD2_jsonPostTransition`, studentPayload);
+            if (resStudent && (resStudent.success || resStudent.type === "success")) {
+                this.log(`  ├─ ✔️ Hủy chốt sổ Học sinh thành công!`);
+                if (resStudent.data && resStudent.data.update_time) classUpdateTime = resStudent.data.update_time;
+            } else {
+                this.log(`  ├─ ⚠️ Lỗi hủy Học sinh: ${JSON.stringify(resStudent)}`);
+            }
+        } catch(e) {
+            this.log(`  ├─ ❌ Lỗi gọi API hủy HS: ${e.message}`);
+        }
+
+        // 2. Hủy chốt sổ Giáo viên
+        try {
+            this.log(`  ⏳ Đang hủy chốt sổ Giáo viên...`);
+            let teacherPayload = {
+                id: String(masterKey),
+                field_name: 'instructor_attendance_status',
+                begin_state: 'INSTRUCTOR_ATTENDANCE_SHEET_STATUS_ACCEPTED',
+                end_state: 'INSTRUCTOR_ATTENDANCE_SHEET_STATUS_PENDING',
+                is_reversal: 0,
+                update_time: classUpdateTime
+            };
+            let resTeacher = await this.rpcCall(`/${this.tenantId}/appstart/classhub/x35FD3_jsonPostTransition`, teacherPayload);
+            if (resTeacher && (resTeacher.success || resTeacher.type === "success")) {
+                this.log(`  ├─ ✔️ Hủy chốt sổ Giáo viên thành công!`);
+            } else {
+                this.log(`  ├─ ⚠️ Lỗi hủy Giáo viên: ${JSON.stringify(resTeacher)}`);
+            }
+        } catch(e) {
+            this.log(`  ├─ ❌ Lỗi gọi API hủy GV: ${e.message}`);
+        }
+        return { success: true };
     }
 
     async submitAttendanceFlow(classItem) {
@@ -529,45 +640,131 @@ class ClasshubAPI {
             
             let instructorId = null;
             let instructorUpdateTime = "";
+            let instructorBeginState = "INSTRUCTOR_ATTENDANCE_STATUS_NO_ATTENDANCE";
 
-            if (resModel) {
-                // Ưu tiên 1: JSON Data
-                if (resModel.data && Array.isArray(resModel.data) && resModel.data.length > 0) {
-                    let tRec = resModel.data[0];
-                    if (tRec && tRec.id && String(tRec.id) !== String(masterKey)) {
-                        instructorId = String(tRec.id);
-                        if (tRec.update_time) instructorUpdateTime = tRec.update_time;
+            // BƯỚC ĐỘT PHÁ (Priority 0): SUPER HUNT MAX
+            // Gọi thẳng API Viewer GỐC của Lớp học (lấy từ sourceApi) để lấy HTML render chuẩn xác nhất!
+            let exactViewerEndpoint = classItem.sourceApi ? classItem.sourceApi.replace('_Model', '_Viewer') : `/${this.tenantId}/appstart/classhub/x35FD2_Viewer`;
+            
+            try {
+                let cvRes = await this.rpcCall(exactViewerEndpoint, { id: String(masterKey) });
+                if (cvRes && cvRes.html && this.myNameLower) {
+                    let blocks = cvRes.html.split(/<tr|<li|<div\s+class="card"/i);
+                    // Lọc thẻ HTML để so sánh tên chính xác
+                    let targetBlock = blocks.find(b => {
+                        let cleanText = b.replace(/<[^>]*>?/gm, ' ').replace(/\s+/g, ' ').toLowerCase();
+                        return cleanText.includes(this.myNameLower);
+                    });
+                    
+                    if (!targetBlock) {
+                        this.log(`  ├─ ⚠️ [SUPER HUNT MAX] Không tìm thấy tên "${this.myNameLower}" trong ${blocks.length} block HTML của ${exactViewerEndpoint}`);
+                        // Nếu vẫn không tìm thấy bằng tên, thử tìm bằng ID fallback
+                        let fallbackId = entity.instructor_sheet_id || entity.instructor_id;
+                        if (fallbackId) {
+                            targetBlock = blocks.find(b => b.includes(`="${fallbackId}"`) || b.includes(`='${fallbackId}'`));
+                            if (!targetBlock) {
+                                this.log(`  ├─ ⚠️ [SUPER HUNT MAX] Cả fallback ID "${fallbackId}" cũng không có trong HTML.`);
+                            } else {
+                                this.log(`  ├─ 🎯 [SUPER HUNT MAX] Khớp bằng Fallback ID ${fallbackId} (Bỏ qua tên).`);
+                            }
+                        }
                     }
+
+                    if (targetBlock) {
+                        let mId = targetBlock.match(/(?:data-id|data-record|id)="?(\d+)"?/i) || targetBlock.match(/name="id"\s+value="(\d+)"/i);
+                        let fallbackId = entity.instructor_sheet_id || entity.instructor_id;
+                        if (!mId && fallbackId && targetBlock.includes(String(fallbackId))) {
+                            mId = [null, String(fallbackId)]; // Force use fallback ID if found in block
+                        }
+
+                        if (mId && mId[1] && mId[1] !== String(masterKey)) {
+                            instructorId = mId[1];
+                            let mTime = targetBlock.match(/(?:data-update-time|update_time)="([^"]+)"/i) || targetBlock.match(/name="update_time"\s+value="([^"]+)"/i);
+                            if (mTime && mTime[1]) instructorUpdateTime = mTime[1];
+                            
+                            let mStatus = targetBlock.match(/status="([^"]+)"/i) || targetBlock.match(/name="status"\s+value="([^"]+)"/i);
+                            if (mStatus && mStatus[1]) instructorBeginState = mStatus[1];
+
+                            this.log(`  ├─ 🎯 [SUPER HUNT MAX] BẮT ĐƯỢC ID TỪ CLASS VIEWER HTML: ${instructorId} (UpdateTime: ${instructorUpdateTime})`);
+                        } else {
+                            let snip = targetBlock.replace(/\s+/g, ' ').substring(0, 150);
+                            this.log(`  ├─ ⚠️ [SUPER HUNT MAX] Target block có nhưng không trích xuất được data-id. Snippet: ${snip}...`);
+                        }
+                    }
+                } else if (!cvRes || !cvRes.html) {
+                    this.log(`  ├─ ⚠️ [SUPER HUNT MAX] API ${exactViewerEndpoint} trả về rỗng hoặc lỗi phân quyền.`);
                 }
-                
-                // Ưu tiên 2: Emulate DOM Parser bằng cách chia block HTML
-                if (!instructorId && resModel.html) {
-                    let blocks = resModel.html.split(/<tr|<li|<div\s+class="card"/i);
-                    let targetBlock = null;
-                    if (this.myNameLower) {
-                        targetBlock = blocks.find(b => b.toLowerCase().includes(this.myNameLower));
-                    }
-                    if (!targetBlock && blocks.length > 1) targetBlock = blocks[1];
+            } catch(e) {
+                this.log(`  ├─ ⚠️ [SUPER HUNT MAX] Lỗi kết nối: ${e.message}`);
+            }
 
+            // Nếu Super Hunt thất bại, mới dùng Model API cũ
+            if (!instructorId && resModel) {
+                // Ưu tiên 1: Quét HTML Block từ resModel
+                if (resModel.html && this.myNameLower) {
+                    let blocks = resModel.html.split(/<tr|<li|<div\s+class="card"/i);
+                    let targetBlock = blocks.find(b => b.toLowerCase().includes(this.myNameLower));
                     if (targetBlock) {
                         let mId = targetBlock.match(/(?:data-id|data-record)="?(\d+)"?/i) || targetBlock.match(/name="id"\s+value="(\d+)"/i);
                         if (mId && mId[1] && mId[1] !== String(masterKey)) {
                             instructorId = mId[1];
                             let mTime = targetBlock.match(/(?:data-update-time|update_time)="([^"]+)"/i) || targetBlock.match(/name="update_time"\s+value="([^"]+)"/i);
                             if (mTime && mTime[1]) instructorUpdateTime = mTime[1];
-                            this.log(`  ├─ 🎯 [API Hunt] Bắt chính xác ID từ Block HTML: ${instructorId}`);
+                            
+                            let mStatus = targetBlock.match(/status="([^"]+)"/i) || targetBlock.match(/name="status"\s+value="([^"]+)"/i);
+                            if (mStatus && mStatus[1]) instructorBeginState = mStatus[1];
+
+                            this.log(`  ├─ 🎯 [API Hunt] BẮT ĐƯỢC ID TỪ HTML MODEL (KHỚP TÊN): ${instructorId} (UpdateTime: ${instructorUpdateTime})`);
                         }
                     }
                 }
 
-                // Ưu tiên 3: Regex Fallback
-                if (!instructorId) {
-                    let rawStr = resModel.html || JSON.stringify(resModel);
-                    let mId = rawStr.match(/data-id="(\d+)"/i) || rawStr.match(/id:\s*["']?(\d+)["']?/i);
-                    if (mId && mId[1] && mId[1] !== String(masterKey)) {
-                        instructorId = mId[1];
-                        let mTime = rawStr.match(/(?:data-update-time|update_time)="([^"]+)"/i);
-                        if (mTime && mTime[1]) instructorUpdateTime = mTime[1];
+                // Ưu tiên 2: JSON Data (Sử dụng hàm trích xuất string để chống lỗi Unicode Escape)
+                if (!instructorId && resModel.data && Array.isArray(resModel.data) && resModel.data.length > 0) {
+                    if (this.myNameLower) {
+                        const extractStr = (obj) => {
+                            let s = "";
+                            if (typeof obj === 'string') return obj.toLowerCase() + " ";
+                            if (typeof obj === 'object' && obj !== null) {
+                                for (let k in obj) s += extractStr(obj[k]);
+                            }
+                            return s;
+                        };
+                        let tRec = resModel.data.find(r => extractStr(r).includes(this.myNameLower));
+                        if (tRec && tRec.id && String(tRec.id) !== String(masterKey)) {
+                            instructorId = String(tRec.id);
+                            this.log(`  ├─ 🎯 [API Hunt] BẮT ĐƯỢC ID TỪ JSON MODEL (KHỚP TÊN): ${instructorId}`);
+                        }
+                    }
+                }
+
+                // Ưu tiên 3: Regex Fallback tìm trong HTML
+                if (!instructorId && resModel.html) {
+                    let targetBlock = null;
+                    let blocks = resModel.html.split(/<tr|<li|<div\s+class="card"/i);
+                    if (blocks.length > 1) targetBlock = blocks[1];
+                    if (targetBlock) {
+                        let mId = targetBlock.match(/(?:data-id|data-record)="?(\d+)"?/i) || targetBlock.match(/name="id"\s+value="(\d+)"/i);
+                        if (mId && mId[1] && mId[1] !== String(masterKey)) {
+                            instructorId = mId[1];
+                            let mTime = targetBlock.match(/(?:data-update-time|update_time)="([^"]+)"/i) || targetBlock.match(/name="update_time"\s+value="([^"]+)"/i);
+                            if (mTime && mTime[1]) instructorUpdateTime = mTime[1];
+                            
+                            let mStatus = targetBlock.match(/status="([^"]+)"/i) || targetBlock.match(/name="status"\s+value="([^"]+)"/i);
+                            if (mStatus && mStatus[1]) instructorBeginState = mStatus[1];
+
+                            this.log(`  ├─ ⚠️ [API Hunt] Fallback lấy ID từ HTML block đầu tiên: ${instructorId}`);
+                        }
+                    }
+                }
+
+                // ĐỒNG BỘ CHÍNH XÁC UPDATE_TIME VÀ STATUS TỪ JSON BẰNG ID VỪA CHỐT
+                if (instructorId && resModel.data && Array.isArray(resModel.data)) {
+                    let exactRec = resModel.data.find(r => String(r.id) === String(instructorId));
+                    if (exactRec) {
+                        if (exactRec.update_time) instructorUpdateTime = exactRec.update_time;
+                        if (exactRec.status) instructorBeginState = exactRec.status;
+                        this.log(`  ├─ 🔍 [Hunt Sync] Đã đồng bộ UpdateTime="${instructorUpdateTime}", Status="${instructorBeginState}" từ JSON.`);
                     }
                 }
             }
@@ -576,24 +773,53 @@ class ClasshubAPI {
                 instructorId = entity.instructor_sheet_id || entity.instructor_id || masterKey;
             }
 
+            // Gọi Viewer để xác nhận chính xác update_time và trạng thái hiện tại (Chống lỗi OCC)
+            if (instructorId && String(instructorId) !== String(masterKey)) {
+                try {
+                    let tViewerRes = await this.rpcCall(`/${this.tenantId}/appstart/classhub/x24F76_Viewer`, { id: String(instructorId) });
+                    if (tViewerRes && tViewerRes.data && tViewerRes.data.update_time) {
+                        instructorUpdateTime = tViewerRes.data.update_time;
+                        if (tViewerRes.data.status) instructorBeginState = tViewerRes.data.status;
+                        this.log(`  ├─ 🚑 [Rescue Hunt] Lấy update_time từ x24F76_Viewer (JSON): ${instructorUpdateTime}`);
+                    } else if (tViewerRes && tViewerRes.html) {
+                        let mTime = tViewerRes.html.match(/(?:data-update-time|update_time)="([^"]+)"/i) || tViewerRes.html.match(/name="update_time"\s+value="([^"]+)"/i);
+                        if (mTime && mTime[1]) {
+                            instructorUpdateTime = mTime[1];
+                            this.log(`  ├─ 🚑 [Rescue Hunt] Cứu vớt update_time từ x24F76_Viewer (HTML): ${instructorUpdateTime}`);
+                        } else {
+                            let snip = tViewerRes.html.replace(/\s+/g, ' ').substring(0, 150);
+                            this.log(`  ├─ ⚠️ [Rescue Hunt] HTML của x24F76_Viewer không chứa update_time! Snippet: ${snip}...`);
+                        }
+                        let mStatus = tViewerRes.html.match(/status="([^"]+)"/i) || tViewerRes.html.match(/name="status"\s+value="([^"]+)"/i);
+                        if (mStatus && mStatus[1]) instructorBeginState = mStatus[1];
+                    }
+                } catch(e) {
+                    this.log(`  ├─ ⚠️ [Rescue Hunt] Gọi x24F76_Viewer thất bại: ${e.message}`);
+                }
+            }
+
             // Nếu update_time rỗng, tuyệt đối KHÔNG mượn của entity Lớp học (Theo chuẩn V33)
             let tUpdateTime = instructorUpdateTime || "";
             if (tUpdateTime === entity.update_time) tUpdateTime = "";
 
-            this.log(`  ├─ ✔️ Sub-ID GV bóc tách được (V33): ${instructorId} (update_time: "${tUpdateTime}")`);
+            if (!instructorBeginState || !instructorBeginState.includes("INSTRUCTOR_ATTENDANCE_STATUS_")) {
+                instructorBeginState = "INSTRUCTOR_ATTENDANCE_STATUS_NO_ATTENDANCE";
+            }
+
+            this.log(`  ├─ ✔️ Sub-ID GV bóc tách được (V33): ${instructorId} (update_time: "${tUpdateTime}", status: "${instructorBeginState}")`);
 
             // BƯỚC 1: Tick Giáo viên Có mặt (Dùng đúng chuẩn V33)
             this.log(`⏳ [Bước 1/4] Tick trạng thái GV Có mặt...`);
             let payloadTeacherTick = {
                 id: parseInt(instructorId),
                 field_name: "status",
-                begin_state: "INSTRUCTOR_ATTENDANCE_STATUS_NO_ATTENDANCE",
+                begin_state: instructorBeginState,
                 to_state: "INSTRUCTOR_ATTENDANCE_STATUS_PRESENT",
                 end_state: "INSTRUCTOR_ATTENDANCE_STATUS_PRESENT",
                 is_reversal: 0,
                 update_time: tUpdateTime,
                 mode: "V",
-                entity: { id: parseInt(instructorId), status: "INSTRUCTOR_ATTENDANCE_STATUS_NO_ATTENDANCE" },
+                entity: { id: parseInt(instructorId), status: instructorBeginState },
                 env: { id: parseInt(instructorId), master_key: String(masterKey), father_master_key: String(masterKey) }
             };
 
