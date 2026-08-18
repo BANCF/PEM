@@ -17,7 +17,7 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [isNewUser, setIsNewUser] = useState(false);
-  const [pendingUser, setPendingUser] = useState<User | null>(null);
+  const [pendingUser, setPendingUser] = useState<any>(null);
   const [departments, setDepartments] = useState<string[]>([]);
   const [selectedDepartment, setSelectedDepartment] = useState("");
   const [fullName, setFullName] = useState("");
