@@ -711,7 +711,7 @@ export class ClasshubAPI {
                             mId = [null, String(fallbackId)]; // Force use fallback ID if found in block
                         }
 
-                        if (mId && mId[1] && mId[1] !== String(masterKey)) {
+                        if (mId && mId[1] && mId[1] !== String(masterKey) && parseInt(mId[1]) > 1000) {
                             instructorId = mId[1];
                             let mTime = targetBlock.match(/(?:data-update-time|update_time)="([^"]+)"/i) || targetBlock.match(/name="update_time"\s+value="([^"]+)"/i);
                             if (mTime && mTime[1]) instructorUpdateTime = mTime[1];
@@ -740,7 +740,7 @@ export class ClasshubAPI {
                     let targetBlock = blocks.find((b: any) => this.decodeHtmlEntities(b).toLowerCase().includes(this.myNameLower));
                     if (targetBlock) {
                         let mId = targetBlock.match(/(?:data-id|data-record)="?(\d+)"?/i) || targetBlock.match(/name="id"\s+value="(\d+)"/i);
-                        if (mId && mId[1] && mId[1] !== String(masterKey)) {
+                        if (mId && mId[1] && mId[1] !== String(masterKey) && parseInt(mId[1]) > 1000) {
                             instructorId = mId[1];
                             let mTime = targetBlock.match(/(?:data-update-time|update_time)="([^"]+)"/i) || targetBlock.match(/name="update_time"\s+value="([^"]+)"/i);
                             if (mTime && mTime[1]) instructorUpdateTime = mTime[1];
@@ -776,10 +776,17 @@ export class ClasshubAPI {
                 if (!instructorId && resModel.html) {
                     let targetBlock = null;
                     let blocks = resModel.html.split(/<tr|<li|<div\s+class="card"/i);
-                    if (blocks.length > 1) targetBlock = blocks[1];
+                    if (blocks.length === 2) {
+                        targetBlock = blocks[1];
+                    } else if (blocks.length > 2) {
+                        let fallbackId = entity.instructor_sheet_id || entity.instructor_id;
+                        if (fallbackId) {
+                            targetBlock = blocks.find((b: any) => b.includes(`="${fallbackId}"`) || b.includes(`='${fallbackId}'`));
+                        }
+                    }
                     if (targetBlock) {
                         let mId = targetBlock.match(/(?:data-id|data-record)="?(\d+)"?/i) || targetBlock.match(/name="id"\s+value="(\d+)"/i);
-                        if (mId && mId[1] && mId[1] !== String(masterKey)) {
+                        if (mId && mId[1] && mId[1] !== String(masterKey) && parseInt(mId[1]) > 1000) {
                             instructorId = mId[1];
                             let mTime = targetBlock.match(/(?:data-update-time|update_time)="([^"]+)"/i) || targetBlock.match(/name="update_time"\s+value="([^"]+)"/i);
                             if (mTime && mTime[1]) instructorUpdateTime = mTime[1];
