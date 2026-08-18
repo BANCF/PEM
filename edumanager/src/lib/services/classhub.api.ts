@@ -496,14 +496,26 @@ export class ClasshubAPI {
             let hours = parseInt(timeParts[0], 10) || 0;
             let minutes = parseInt(timeParts[1], 10) || 0;
             
-            let startTimestamp = new Date(year, month, day, hours, minutes, 0).getTime();
+            let yStr = String(year).padStart(4, '0');
+            let mStr = String(month + 1).padStart(2, '0');
+            let dStr = String(day).padStart(2, '0');
+            let hStr = String(hours).padStart(2, '0');
+            let minStr = String(minutes).padStart(2, '0');
+            
+            let isoStr = `${yStr}-${mStr}-${dStr}T${hStr}:${minStr}:00+07:00`;
+            let startTimestamp = new Date(isoStr).getTime();
+            
             if (isNaN(startTimestamp)) return { isSafe: false, unlockTimestamp: Infinity, timeString: "Lỗi định dạng giờ" };
 
-            // Yêu cầu: 5 phút SAU KHI tiết học bắt đầu mới cho điểm danh
             let unlockTimestamp = startTimestamp + (bufferMinutes * 60 * 1000);
             let now = Date.now();
-            let unlockDate = new Date(unlockTimestamp);
-            let timeString = `${String(unlockDate.getHours()).padStart(2, '0')}:${String(unlockDate.getMinutes()).padStart(2, '0')}`;
+            
+            let timeString = new Intl.DateTimeFormat('en-GB', {
+                timeZone: 'Asia/Ho_Chi_Minh',
+                hour: '2-digit',
+                minute: '2-digit',
+                hour12: false
+            }).format(new Date(unlockTimestamp));
             
             return { isSafe: now >= unlockTimestamp, unlockTimestamp: unlockTimestamp, timeString: timeString };
         } catch (e: any) { return { isSafe: true, unlockTimestamp: 0, timeString: "" }; }
