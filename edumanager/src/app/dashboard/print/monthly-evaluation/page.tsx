@@ -24,6 +24,7 @@ export default function PrintMonthlyEvaluation() {
 
   // Statistics
   const [rankings, setRankings] = useState<Record<string, number>>({});
+  const [classAverages, setClassAverages] = useState({ math: "...", lit: "...", eng: "..." });
 
   useEffect(() => {
     if (!classId) return;
@@ -57,6 +58,10 @@ export default function PrintMonthlyEvaluation() {
           return isNaN(n) ? null : n;
         };
 
+        let mathTotal = 0, mathCount = 0;
+        let litTotal = 0, litCount = 0;
+        let engTotal = 0, engCount = 0;
+
         stds.forEach(s => {
           const e = evalMap[s.id!];
           if (e) {
@@ -65,14 +70,28 @@ export default function PrintMonthlyEvaluation() {
             const l = parseScore(e.literatureScore);
             const eng = parseScore(e.englishScore);
 
-            if (m !== null) sTotal += m;
-            if (l !== null) sTotal += l;
-            if (eng !== null) sTotal += eng;
+            if (m !== null) { sTotal += m; mathTotal += m; mathCount++; }
+            if (l !== null) { sTotal += l; litTotal += l; litCount++; }
+            if (eng !== null) { sTotal += eng; engTotal += eng; engCount++; }
             
             studentTotals.push({ id: s.id!, total: sTotal });
           } else {
             studentTotals.push({ id: s.id!, total: 0 });
           }
+        });
+
+        // Format to remove trailing zeros after decimal (e.g. 9.50 -> 9.5, 9.00 -> 9)
+        const formatAvg = (val: number) => {
+          let str = val.toFixed(2);
+          if (str.endsWith("00")) return str.slice(0, -3);
+          if (str.endsWith("0")) return str.slice(0, -1);
+          return str;
+        };
+
+        setClassAverages({
+          math: mathCount > 0 ? formatAvg(mathTotal / mathCount) : "...",
+          lit: litCount > 0 ? formatAvg(litTotal / litCount) : "...",
+          eng: engCount > 0 ? formatAvg(engTotal / engCount) : "..."
         });
 
         // Rank students
@@ -243,9 +262,9 @@ export default function PrintMonthlyEvaluation() {
                 )}
                 <div className="font-bold mb-1">Điểm trung bình các môn lớp {classData.name}</div>
                 <div className="ml-6 space-y-0.5">
-                  <div>- Môn Toán: {ev.mathScore ?? "..."}</div>
-                  <div>- Môn Văn: {ev.literatureScore ?? "..."}</div>
-                  <div>- Môn Anh: {ev.englishScore ?? "..."}</div>
+                  <div>- Môn Toán: {classAverages.math}</div>
+                  <div>- Môn Văn: {classAverages.lit}</div>
+                  <div>- Môn Anh: {classAverages.eng}</div>
                 </div>
               </div>
 
