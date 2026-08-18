@@ -398,6 +398,8 @@ export class ClasshubAPI {
     // Helper giải mã HTML entities tiếng Việt
     decodeHtmlEntities(str: any) {
         if (!str) return '';
+        str = str.replace(/&#(\d+);/g, (match: any, dec: any) => String.fromCharCode(dec));
+        str = str.replace(/&#x([0-9a-fA-F]+);/g, (match: any, hex: any) => String.fromCharCode(parseInt(hex, 16)));
         return str.replace(/&Agrave;/g, 'À').replace(/&Aacute;/g, 'Á').replace(/&Acirc;/g, 'Â').replace(/&Atilde;/g, 'Ã')
                   .replace(/&Egrave;/g, 'È').replace(/&Eacute;/g, 'É').replace(/&Ecirc;/g, 'Ê')
                   .replace(/&Igrave;/g, 'Ì').replace(/&Iacute;/g, 'Í')
@@ -684,7 +686,7 @@ export class ClasshubAPI {
                     let blocks = cvRes.html.split(/<tr|<li|<div\s+class="card"/i);
                     // Lọc thẻ HTML để so sánh tên chính xác
                     let targetBlock = blocks.find((b: any) => {
-                        let cleanText = b.replace(/<[^>]*>?/gm, ' ').replace(/\s+/g, ' ').toLowerCase();
+                        let cleanText = this.decodeHtmlEntities(b).replace(/<[^>]*>?/gm, ' ').replace(/\s+/g, ' ').toLowerCase();
                         return cleanText.includes(this.myNameLower);
                     });
                     
@@ -703,7 +705,7 @@ export class ClasshubAPI {
                     }
 
                     if (targetBlock) {
-                        let mId = targetBlock.match(/(?:data-id|data-record|id)="?(\d+)"?/i) || targetBlock.match(/name="id"\s+value="(\d+)"/i);
+                        let mId = targetBlock.match(/(?:data-id|data-record)="?(\d+)"?/i) || targetBlock.match(/name="id"\s+value="(\d+)"/i);
                         let fallbackId = entity.instructor_sheet_id || entity.instructor_id;
                         if (!mId && fallbackId && targetBlock.includes(String(fallbackId))) {
                             mId = [null, String(fallbackId)]; // Force use fallback ID if found in block
@@ -735,7 +737,7 @@ export class ClasshubAPI {
                 // Ưu tiên 1: Quét HTML Block từ resModel
                 if (resModel.html && this.myNameLower) {
                     let blocks = resModel.html.split(/<tr|<li|<div\s+class="card"/i);
-                    let targetBlock = blocks.find((b: any) => b.toLowerCase().includes(this.myNameLower));
+                    let targetBlock = blocks.find((b: any) => this.decodeHtmlEntities(b).toLowerCase().includes(this.myNameLower));
                     if (targetBlock) {
                         let mId = targetBlock.match(/(?:data-id|data-record)="?(\d+)"?/i) || targetBlock.match(/name="id"\s+value="(\d+)"/i);
                         if (mId && mId[1] && mId[1] !== String(masterKey)) {
@@ -762,7 +764,7 @@ export class ClasshubAPI {
                             }
                             return s;
                         };
-                        let tRec = resModel.data.find((r: any) => extractStr(r).includes(this.myNameLower));
+                        let tRec = resModel.data.find((r: any) => this.decodeHtmlEntities(extractStr(r)).includes(this.myNameLower));
                         if (tRec && tRec.id && String(tRec.id) !== String(masterKey)) {
                             instructorId = String(tRec.id);
                             this.log(`  ├─ 🎯 [API Hunt] BẮT ĐƯỢC ID TỪ JSON MODEL (KHỚP TÊN): ${instructorId}`);
