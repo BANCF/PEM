@@ -903,8 +903,8 @@ export class ClasshubAPI {
             }
 
             // Nếu update_time rỗng, tuyệt đối KHÔNG mượn của entity Lớp học (Theo chuẩn V33)
+            // Đã xóa bỏ logic tự động xóa update_time khi trùng với entity để tránh lỗi OCC
             let tUpdateTime = instructorUpdateTime || "";
-            if (tUpdateTime === entity.update_time) tUpdateTime = "";
 
             if (!instructorBeginState || !instructorBeginState.includes("INSTRUCTOR_ATTENDANCE_STATUS_")) {
                 instructorBeginState = "INSTRUCTOR_ATTENDANCE_STATUS_NO_ATTENDANCE";
@@ -934,6 +934,14 @@ export class ClasshubAPI {
                 this.log(`  ├─ ✔️ Tick Có mặt GV thành công!`);
             }
             await new Promise((r: any) => setTimeout(r, 100));
+
+            // Làm mới update_time của Lớp học trước khi chốt Giáo viên để tránh lỗi OCC
+            try {
+                let resRefreshMaster = await this.rpcCall(`/${this.tenantId}/appstart/classhub/x35FD2_Viewer`, { id: String(masterKey) });
+                if (resRefreshMaster && resRefreshMaster.data && resRefreshMaster.data.update_time) {
+                    entity.update_time = resRefreshMaster.data.update_time;
+                }
+            } catch (eRefresh) { }
 
             // BƯỚC 2: Chốt sổ Giáo viên sang ACCEPTED (x35FD3_jsonPostTransition)
             this.log(`⏳ [Bước 2/4] Chốt sổ Giáo viên (ACCEPTED)...`);
