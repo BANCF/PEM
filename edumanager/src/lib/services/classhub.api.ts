@@ -58,7 +58,7 @@ export class ClasshubAPI {
     }
 
     log(...args: any[]) {
-        let msg = args.map(a => typeof a === 'object' ? JSON.stringify(a) : a).join(' ');
+        let msg = args.map((a: any) => typeof a === 'object' ? JSON.stringify(a) : a).join(' ');
         this.logBuffer.push(msg);
         console.log(msg);
         if (this.onLog) this.onLog(msg);
@@ -305,7 +305,7 @@ export class ClasshubAPI {
                 if (res) {
                     if (res.data && res.data.length > 0) {
                         this.log(`[Tab ${tab.id}][Trang ${page}] Thu được ${res.data.length} dòng (JSON).`);
-                        let items = res.data.map(item => {
+                        let items = res.data.map((item: any) => {
                             if (typeof item === 'object') item.sourceApi = modelUrl;
                             return item;
                         });
@@ -671,7 +671,7 @@ export class ClasshubAPI {
                 if (cvRes && cvRes.html && this.myNameLower) {
                     let blocks = cvRes.html.split(/<tr|<li|<div\s+class="card"/i);
                     // Lọc thẻ HTML để so sánh tên chính xác
-                    let targetBlock = blocks.find(b => {
+                    let targetBlock = blocks.find((b: any) => {
                         let cleanText = b.replace(/<[^>]*>?/gm, ' ').replace(/\s+/g, ' ').toLowerCase();
                         return cleanText.includes(this.myNameLower);
                     });
@@ -681,7 +681,7 @@ export class ClasshubAPI {
                         // Nếu vẫn không tìm thấy bằng tên, thử tìm bằng ID fallback
                         let fallbackId = entity.instructor_sheet_id || entity.instructor_id;
                         if (fallbackId) {
-                            targetBlock = blocks.find(b => b.includes(`="${fallbackId}"`) || b.includes(`='${fallbackId}'`));
+                            targetBlock = blocks.find((b: any) => b.includes(`="${fallbackId}"`) || b.includes(`='${fallbackId}'`));
                             if (!targetBlock) {
                                 this.log(`  ├─ ⚠️ [SUPER HUNT MAX] Cả fallback ID "${fallbackId}" cũng không có trong HTML.`);
                             } else {
@@ -723,7 +723,7 @@ export class ClasshubAPI {
                 // Ưu tiên 1: Quét HTML Block từ resModel
                 if (resModel.html && this.myNameLower) {
                     let blocks = resModel.html.split(/<tr|<li|<div\s+class="card"/i);
-                    let targetBlock = blocks.find(b => b.toLowerCase().includes(this.myNameLower));
+                    let targetBlock = blocks.find((b: any) => b.toLowerCase().includes(this.myNameLower));
                     if (targetBlock) {
                         let mId = targetBlock.match(/(?:data-id|data-record)="?(\d+)"?/i) || targetBlock.match(/name="id"\s+value="(\d+)"/i);
                         if (mId && mId[1] && mId[1] !== String(masterKey)) {
@@ -750,7 +750,7 @@ export class ClasshubAPI {
                             }
                             return s;
                         };
-                        let tRec = resModel.data.find(r => extractStr(r).includes(this.myNameLower));
+                        let tRec = resModel.data.find((r: any) => extractStr(r).includes(this.myNameLower));
                         if (tRec && tRec.id && String(tRec.id) !== String(masterKey)) {
                             instructorId = String(tRec.id);
                             this.log(`  ├─ 🎯 [API Hunt] BẮT ĐƯỢC ID TỪ JSON MODEL (KHỚP TÊN): ${instructorId}`);
@@ -780,7 +780,7 @@ export class ClasshubAPI {
 
                 // ĐỒNG BỘ CHÍNH XÁC UPDATE_TIME VÀ STATUS TỪ JSON BẰNG ID VỪA CHỐT
                 if (instructorId && resModel.data && Array.isArray(resModel.data)) {
-                    let exactRec = resModel.data.find(r => String(r.id) === String(instructorId));
+                    let exactRec = resModel.data.find((r: any) => String(r.id) === String(instructorId));
                     if (exactRec) {
                         if (exactRec.update_time) instructorUpdateTime = exactRec.update_time;
                         if (exactRec.status) instructorBeginState = exactRec.status;
