@@ -12,12 +12,13 @@ export default function ClasshubAttendancePage() {
   const [hasFetched, setHasFetched] = useState(false);
   const [attending, setAttending] = useState(false);
   const [logs, setLogs] = useState<string[]>([]);
+  const [forceSync, setForceSync] = useState(false);
 
   const fetchClasses = async () => {
     setLoading(true);
     try {
       const idToken = await user?.getIdToken();
-      const response = await fetch("/api/classhub/sync/classes", {
+      const response = await fetch(`/api/classhub/sync/classes?forceSync=${forceSync}`, {
         headers: {
           Authorization: `Bearer ${idToken}`,
         },
@@ -25,11 +26,15 @@ export default function ClasshubAttendancePage() {
       const result = await response.json();
       if (result.success && result.data) {
         // Filter out classes that are already ACCEPTED
-        const pending = result.data.filter((c: any) => 
-          !String(c.studyClassStatus || "").toUpperCase().includes("ACCEPTED") && 
-          !String(c.raw_data?.status || "").toUpperCase().includes("ACCEPTED") &&
-          !String(c.raw_data?.attendance_sheet_status || "").toUpperCase().includes("ACCEPTED")
-        );
+        const pending = result.data.filter((c: any) => {
+          let teacherStatus = String(c.raw_data?.instructor_attendance_status || c.raw_data?.instructor_attendance_sheet_status || "").toUpperCase();
+          if (teacherStatus.includes("ACCEPTED")) return false; // Mình đã chốt sổ
+          
+          let status = String(c.studyClassStatus || c.raw_data?.status || c.raw_data?.attendance_sheet_status || "").toUpperCase();
+          if (!teacherStatus && status.includes("ACCEPTED")) return false; 
+          
+          return true;
+        });
         setClasses(pending);
         setHasFetched(true);
         if (result.logs) setLogs(result.logs);
@@ -60,7 +65,9 @@ export default function ClasshubAttendancePage() {
         method: "POST",
         headers: {
           Authorization: `Bearer ${idToken}`,
+          "Content-Type": "application/json"
         },
+        body: JSON.stringify({ forceSync })
       });
       const result = await response.json();
       
@@ -92,23 +99,35 @@ export default function ClasshubAttendancePage() {
           </h1>
           <p className="text-slate-500 mt-1">Đồng bộ và điểm danh siêu tốc trực tiếp từ hệ thống, không cần Extension.</p>
         </div>
-        <div className="flex gap-3">
-          <button 
-            onClick={fetchClasses} 
-            disabled={loading || attending}
-            className="flex items-center gap-2 bg-slate-100 hover:bg-slate-200 text-slate-700 px-4 py-2.5 rounded-xl font-medium transition-colors disabled:opacity-50"
-          >
-            <Search size={18} className={loading ? "animate-spin" : ""} />
-            Quét lớp chưa điểm danh
-          </button>
-          <button 
-            onClick={handleAutoAttend} 
-            disabled={classes.length === 0 || loading || attending}
-            className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white px-5 py-2.5 rounded-xl font-medium transition-colors shadow-sm shadow-emerald-600/20 disabled:opacity-50"
-          >
-            {attending ? <Loader2 size={18} className="animate-spin" /> : <CheckCircle size={18} />}
-            Điểm danh 1 chạm
-          </button>
+        <div className="flex flex-col items-end gap-3">
+          <div className="flex gap-3">
+            <button 
+              onClick={fetchClasses} 
+              disabled={loading || attending}
+              className="flex items-center gap-2 bg-slate-100 hover:bg-slate-200 text-slate-700 px-4 py-2.5 rounded-xl font-medium transition-colors disabled:opacity-50"
+            >
+              <Search size={18} className={loading ? "animate-spin" : ""} />
+              Quét lớp chưa điểm danh
+            </button>
+            <button 
+              onClick={handleAutoAttend} 
+              disabled={classes.length === 0 || loading || attending}
+              className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white px-5 py-2.5 rounded-xl font-medium transition-colors shadow-sm shadow-emerald-600/20 disabled:opacity-50"
+            >
+              {attending ? <Loader2 size={18} className="animate-spin" /> : <CheckCircle size={18} />}
+              Điểm danh 1 chạm
+            </button>
+          </div>
+          <label className="flex items-center gap-2 text-sm text-slate-600 cursor-pointer hover:text-slate-800">
+            <input 
+              type="checkbox" 
+              className="w-4 h-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
+              checked={forceSync}
+              onChange={(e) => setForceSync(e.target.checked)}
+              disabled={loading || attending}
+            />
+            Bỏ qua giới hạn ngày (Quét toàn bộ tab)
+          </label>
         </div>
       </div>
 

@@ -43,25 +43,25 @@ export class ClassHubService {
     return setCookieHeader;
   }
 
-  static async fetchClasses(uid: string) {
+  static async fetchClasses(uid: string, forceSync: boolean = false) {
     const cookie = await this.getValidSession(uid);
-    console.log("[ClassHub] Fetching classes using cookie");
+    console.log("[ClassHub] Fetching classes using cookie. ForceSync:", forceSync);
     const api = new ClasshubAPI("61892", "", cookie, (msg: string) => console.log(msg));
     
     // 1. Tự động tìm tên giáo viên
     await api.autoHuntTeacherName();
     
     // 2. Quét tất cả các lớp
-    const allClasses = await api.scanAllClasses();
+    const allClasses = await api.scanAllClasses(forceSync);
     
-    // 3. Lọc ra các lớp của mình
-    let myClasses = allClasses;
+    // 3. Chỉ hiện các lớp ĐÃ BẮT ĐẦU HỌC (và chưa được điểm danh)
+    let eligibleClasses = api.getEligibleClasses(allClasses);
+
+    // 4. Lọc ra các lớp của mình (Hybrid Super Hunt)
+    let myClasses = eligibleClasses;
     if (api.teacherName) {
-       myClasses = api.filterMyClasses(allClasses);
+       myClasses = await api.filterMyClassesAsync(eligibleClasses);
     }
-    
-    // Chỉ hiện các lớp ĐÃ BẮT ĐẦU HỌC (và chưa được điểm danh)
-    myClasses = api.getEligibleClasses(myClasses);
     
     // 4. Transform data structure for frontend (matching old format)
     const resultClasses = myClasses.map((c: any) => {
@@ -85,35 +85,39 @@ export class ClassHubService {
     };
   }
 
-  static async pushAttendance(uid: string) {
+  static async pushAttendance(uid: string, forceSync: boolean = false) {
     try {
       const cookie = await this.getValidSession(uid);
       const api = new ClasshubAPI("61892", "", cookie, (msg: string) => console.log(msg));
       
       await api.autoHuntTeacherName();
-      const allClasses = await api.scanAllClasses();
-      let myClasses = allClasses;
+      const allClasses = await api.scanAllClasses(forceSync);
+      const eligibleClasses = api.getEligibleClasses(allClasses);
+      let myClasses = eligibleClasses;
       if (api.teacherName) {
-         myClasses = api.filterMyClasses(allClasses);
+         myClasses = await api.filterMyClassesAsync(eligibleClasses);
       }
-      
-      const eligibleClasses = api.getEligibleClasses(myClasses);
 
-      if (eligibleClasses.length === 0) {
+      if (myClasses.length === 0) {
         return { success: true, message: "Tất cả các lớp đã được điểm danh hoặc chưa đến giờ." };
       }
 
       let successCount = 0;
       let errorCount = 0;
+      const CONCURRENCY = 5; // Tăng concurrency để tận dụng tốt hơn Serverless
 
-      for (const classItem of eligibleClasses) {
-        const result = await api.submitAttendanceFlow(classItem);
-        if (result.success && !result.skipped) {
-          successCount++;
-        } else if (!result.success) {
-          errorCount++;
-        }
-        await new Promise(r => setTimeout(r, 500));
+      for (let i = 0; i < myClasses.length; i += CONCURRENCY) {
+        const batch = myClasses.slice(i, i + CONCURRENCY);
+        await Promise.all(batch.map(async (classItem: any) => {
+            const result = await api.submitAttendanceFlow(classItem);
+            if (result.success && !result.skipped) {
+              successCount++;
+            } else if (!result.success) {
+              errorCount++;
+            }
+        }));
+        // Giảm cực độ delay để tránh timeout trên Vercel (Hobby plan thường chỉ có 10s)
+        await new Promise(r => setTimeout(r, 50));
       }
 
       return { 
@@ -134,9 +138,10 @@ export class ClassHubService {
       
       await api.autoHuntTeacherName();
       const allClasses = await api.scanAllClasses();
-      let myClasses = allClasses;
+      const eligibleClasses = api.getEligibleClasses(allClasses);
+      let myClasses = eligibleClasses;
       if (api.teacherName) {
-         myClasses = api.filterMyClasses(allClasses);
+         myClasses = await api.filterMyClassesAsync(eligibleClasses);
       }
       
       const res = await api.revertFutureClasses(myClasses);

@@ -14,7 +14,10 @@ export async function GET(request: Request) {
     const decodedToken = await adminAuth.verifyIdToken(token);
     const uid = decodedToken.uid;
 
-    const result = await ClassHubService.fetchClasses(uid);
+    const { searchParams } = new URL(request.url);
+    const forceSync = searchParams.get('forceSync') === 'true';
+
+    const result = await ClassHubService.fetchClasses(uid, forceSync);
 
     return NextResponse.json(result);
   } catch (error: any) {
