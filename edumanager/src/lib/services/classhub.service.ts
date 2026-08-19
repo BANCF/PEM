@@ -73,7 +73,8 @@ export class ClassHubService {
            code: entity.code,
            numberOfStudents: parseInt(entity.number_of_students || "0"),
            studyClassStatus: entity.attendance_sheet_status || entity.status,
-           raw_data: entity
+           raw_data: entity,
+           raw_classItem: c
         };
     });
 
@@ -85,17 +86,23 @@ export class ClassHubService {
     };
   }
 
-  static async pushAttendance(uid: string, forceSync: boolean = false) {
+  static async pushAttendance(uid: string, forceSync: boolean = false, targetClasses?: any[]) {
     try {
       const cookie = await this.getValidSession(uid);
       const api = new ClasshubAPI("61892", "", cookie, (msg: string) => console.log(msg));
       
-      await api.autoHuntTeacherName();
-      const allClasses = await api.scanAllClasses(forceSync);
-      const eligibleClasses = api.getEligibleClasses(allClasses);
-      let myClasses = eligibleClasses;
-      if (api.teacherName) {
-         myClasses = await api.filterMyClassesAsync(eligibleClasses);
+      let myClasses = [];
+      
+      if (targetClasses && targetClasses.length > 0) {
+          myClasses = targetClasses;
+      } else {
+          await api.autoHuntTeacherName();
+          const allClasses = await api.scanAllClasses(forceSync);
+          const eligibleClasses = api.getEligibleClasses(allClasses);
+          myClasses = eligibleClasses;
+          if (api.teacherName) {
+             myClasses = await api.filterMyClassesAsync(eligibleClasses);
+          }
       }
 
       if (myClasses.length === 0) {

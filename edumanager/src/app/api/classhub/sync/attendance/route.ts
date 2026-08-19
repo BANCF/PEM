@@ -14,13 +14,11 @@ export async function POST(request: Request) {
     const decodedToken = await adminAuth.verifyIdToken(token);
     const uid = decodedToken.uid;
 
-    let forceSync = false;
-    try {
-        const body = await request.json();
-        forceSync = !!body.forceSync;
-    } catch (e) {}
+    const body = await request.json().catch(() => ({}));
+    const forceSync = body.forceSync === true;
+    const targetClasses = body.targetClasses || [];
 
-    const result = await ClassHubService.pushAttendance(uid, forceSync);
+    const result = await ClassHubService.pushAttendance(uid, forceSync, targetClasses);
 
     return NextResponse.json(result);
   } catch (error: any) {

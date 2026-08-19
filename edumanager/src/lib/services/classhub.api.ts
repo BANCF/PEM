@@ -258,9 +258,11 @@ export class ClasshubAPI {
         
         let startDateStr = "";
         let endDateStr = "";
+        
+        let maxPages = forceSync ? -1 : 2;
 
         if (!forceSync) {
-            // Chỉ lấy hôm nay
+            // Chỉ lấy hôm nay (Mặc dù Ohke có thể phớt lờ tham số này)
             let today = new Date();
             const formatDate = (d: Date) => {
                 let y = d.getFullYear();
@@ -270,7 +272,14 @@ export class ClasshubAPI {
             };
             startDateStr = formatDate(today);
             endDateStr = formatDate(today);
-            this.log(`📅 Đang quét lớp HÔM NAY (${startDateStr})...`);
+            
+            // Ưu tiên chỉ quét tab 152496 (Lịch dạy hôm nay) để tăng tốc độ nếu có
+            if (uniqueTabs.some((t: any) => String(t.id) === "152496")) {
+                uniqueTabs = uniqueTabs.filter((t: any) => String(t.id) === "152496");
+                this.log(`📅 Đang quét NHANH lớp HÔM NAY (Chỉ quét Tab 152496)...`);
+            } else {
+                this.log(`📅 Đang quét lớp HÔM NAY (${startDateStr})...`);
+            }
         } else {
             this.log(`📅 [FORCE SYNC] Đang quét TẤT CẢ CÁC LỚP (Bỏ qua giới hạn ngày)...`);
         }
@@ -334,6 +343,7 @@ export class ClasshubAPI {
                         });
                         allClasses.push(...items);
                         page++;
+                        if (maxPages !== -1 && page >= maxPages) break;
                     } else if (res.html) {
                         // Trường hợp Ohke trả về HTML chứa data-entity
                         let entityMatches = res.html.match(/data-entity=(['"])(.*?)\1/g);
@@ -379,6 +389,7 @@ export class ClasshubAPI {
                             }
                             allClasses.push(...extracted);
                             page++; // Tăng page để lấy trang tiếp theo
+                            if (maxPages !== -1 && page >= maxPages) break;
                         } else {
                             this.log(`[Tab ${tab.id}][Trang ${page}] HTML không chứa data-entity.`);
                             break;

@@ -67,7 +67,7 @@ export default function ClasshubAttendancePage() {
           Authorization: `Bearer ${idToken}`,
           "Content-Type": "application/json"
         },
-        body: JSON.stringify({ forceSync })
+        body: JSON.stringify({ forceSync, targetClasses: classes.map(c => c.raw_classItem) })
       });
       const result = await response.json();
       
