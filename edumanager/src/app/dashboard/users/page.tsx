@@ -169,8 +169,18 @@ export default function UsersManagementPage() {
                   {users.map((user) => (
                     <tr key={user.id} className="border-b border-slate-50 hover:bg-blue-50/30 transition-colors group">
                       <td className="p-4">
-                        <p className="font-bold text-slate-800 text-base">{user.fullName}</p>
-                        <p className="text-xs text-slate-500 font-medium">{user.email}</p>
+                        <input
+                          type="text"
+                          defaultValue={user.fullName}
+                          onBlur={(e) => {
+                            if (e.target.value.trim() !== "" && e.target.value.trim() !== user.fullName) {
+                              handleUpdate(user.id, "fullName" as any, e.target.value.trim());
+                            }
+                          }}
+                          className="font-bold text-slate-800 text-base bg-transparent border border-transparent hover:border-slate-300 focus:border-blue-500 focus:outline-none focus:bg-white w-full px-1 py-0.5 rounded transition cursor-text"
+                          title="Click để sửa họ tên"
+                        />
+                        <p className="text-xs text-slate-500 font-medium px-1">{user.email}</p>
                       </td>
                       <td className="p-4">
                         <div className="relative">

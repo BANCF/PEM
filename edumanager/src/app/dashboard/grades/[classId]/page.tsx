@@ -7,6 +7,7 @@ import { classService, ClassData } from "@/lib/services/class.service";
 import { gradeService, GradeData } from "@/lib/services/grade.service";
 import { assignmentService, ClassAssignmentData } from "@/lib/services/assignment.service";
 import MonthlyEvaluationsTab from "@/components/classes/MonthlyEvaluationsTab";
+import EarlyEvaluationsTab from "@/components/classes/EarlyEvaluationsTab";
 import { useAuth } from "@/contexts/AuthContext";
 import { useSearchParams, useRouter } from "next/navigation";
 import { Loader2, ArrowLeft, Save, Upload, Download, Calculator } from "lucide-react";
@@ -31,7 +32,7 @@ export default function GradeInputPage({ params }: { params: Promise<{ classId: 
   const [semester, setSemester] = useState<number>(1);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [activeTab, setActiveTab] = useState<"grades" | "evaluations">("grades");
+  const [activeTab, setActiveTab] = useState<"grades" | "evaluations" | "early-evaluations">("grades");
   const [assignments, setAssignments] = useState<ClassAssignmentData[]>([]);
 
   useEffect(() => {
@@ -458,6 +459,16 @@ export default function GradeInputPage({ params }: { params: Promise<{ classId: 
           >
             Đánh giá hằng tháng
           </button>
+          <button
+            onClick={() => setActiveTab("early-evaluations")}
+            className={`px-6 py-3 font-medium text-sm transition-colors border-b-2 ${
+              activeTab === "early-evaluations" 
+                ? "border-blue-600 text-blue-600" 
+                : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
+            }`}
+          >
+            Khảo sát đầu năm
+          </button>
         </div>
 
         {activeTab === "grades" && (
@@ -692,6 +703,15 @@ export default function GradeInputPage({ params }: { params: Promise<{ classId: 
 
         {activeTab === "evaluations" && classData && (
           <MonthlyEvaluationsTab
+            classData={classData}
+            students={students}
+            assignments={assignments}
+            profile={profile}
+          />
+        )}
+
+        {activeTab === "early-evaluations" && classData && (
+          <EarlyEvaluationsTab
             classData={classData}
             students={students}
             assignments={assignments}

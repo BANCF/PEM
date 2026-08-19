@@ -90,3 +90,31 @@ export const deleteDraftSchedule = async (): Promise<void> => {
     throw error;
   }
 };
+
+export interface ScheduleSettings {
+  clbTeachers: string[];
+}
+
+export const getScheduleSettings = async (): Promise<ScheduleSettings | null> => {
+  try {
+    const docRef = doc(db, "settings", "schedule");
+    const docSnap = await getDoc(docRef);
+    if (docSnap.exists()) {
+      return docSnap.data() as ScheduleSettings;
+    }
+    return null;
+  } catch (error) {
+    console.error("Error fetching schedule settings:", error);
+    return null;
+  }
+};
+
+export const saveScheduleSettings = async (settings: ScheduleSettings): Promise<void> => {
+  try {
+    const docRef = doc(db, "settings", "schedule");
+    await setDoc(docRef, settings, { merge: true });
+  } catch (error) {
+    console.error("Error saving schedule settings:", error);
+    throw error;
+  }
+};

@@ -10,17 +10,6 @@ import { doc, getDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase/client";
 import { Loader2 } from "lucide-react";
 
-// Format: First Last Middle -> Last Middle First
-// Example: Bằng Phạm Văn -> Phạm Văn Bằng
-function formatVietnameseName(fullName: string) {
-  if (!fullName) return "";
-  const parts = fullName.trim().split(" ");
-  if (parts.length > 1) {
-    const firstName = parts.shift();
-    return parts.join(" ") + " " + firstName;
-  }
-  return fullName;
-}
 
 export default function PrintMonthlyEvaluation() {
   const searchParams = useSearchParams();
@@ -35,6 +24,7 @@ export default function PrintMonthlyEvaluation() {
 
   // Statistics
   const [rankings, setRankings] = useState<Record<string, number>>({});
+  const [classAverages, setClassAverages] = useState({ math: "...", lit: "...", eng: "..." });
 
   useEffect(() => {
     if (!classId) return;
@@ -68,6 +58,10 @@ export default function PrintMonthlyEvaluation() {
           return isNaN(n) ? null : n;
         };
 
+        let mathTotal = 0, mathCount = 0;
+        let litTotal = 0, litCount = 0;
+        let engTotal = 0, engCount = 0;
+
         stds.forEach(s => {
           const e = evalMap[s.id!];
           if (e) {
@@ -76,14 +70,28 @@ export default function PrintMonthlyEvaluation() {
             const l = parseScore(e.literatureScore);
             const eng = parseScore(e.englishScore);
 
-            if (m !== null) sTotal += m;
-            if (l !== null) sTotal += l;
-            if (eng !== null) sTotal += eng;
+            if (m !== null) { sTotal += m; mathTotal += m; mathCount++; }
+            if (l !== null) { sTotal += l; litTotal += l; litCount++; }
+            if (eng !== null) { sTotal += eng; engTotal += eng; engCount++; }
             
             studentTotals.push({ id: s.id!, total: sTotal });
           } else {
             studentTotals.push({ id: s.id!, total: 0 });
           }
+        });
+
+        // Format to remove trailing zeros after decimal (e.g. 9.50 -> 9.5, 9.00 -> 9)
+        const formatAvg = (val: number) => {
+          let str = val.toFixed(2);
+          if (str.endsWith("00")) return str.slice(0, -3);
+          if (str.endsWith("0")) return str.slice(0, -1);
+          return str;
+        };
+
+        setClassAverages({
+          math: mathCount > 0 ? formatAvg(mathTotal / mathCount) : "...",
+          lit: litCount > 0 ? formatAvg(litTotal / litCount) : "...",
+          eng: engCount > 0 ? formatAvg(engTotal / engCount) : "..."
         });
 
         // Rank students
@@ -104,8 +112,7 @@ export default function PrintMonthlyEvaluation() {
         if (gvcnAssign) {
           const tDoc = await getDoc(doc(db, "users", gvcnAssign.teacherId));
           if (tDoc.exists()) {
-            // Apply name formatting to teacher!
-            setTeacherName(formatVietnameseName(tDoc.data().fullName || ""));
+            setTeacherName(tDoc.data().fullName || "");
           }
         }
 
@@ -247,15 +254,17 @@ export default function PrintMonthlyEvaluation() {
 
               {/* AVERAGES AND RANKING (Below Table) */}
               <div className="text-[16px] leading-relaxed">
-                <div className="flex mb-1">
-                  <span className="font-bold mr-2">Xếp hạng:</span>
-                  <span className="font-bold">{rank} / {students.length}</span>
-                </div>
+                {classData.name !== '8A' && (
+                  <div className="flex mb-1">
+                    <span className="font-bold mr-2">Xếp hạng:</span>
+                    <span className="font-bold">{rank} / {students.length}</span>
+                  </div>
+                )}
                 <div className="font-bold mb-1">Điểm trung bình các môn lớp {classData.name}</div>
                 <div className="ml-6 space-y-0.5">
-                  <div>- Môn Toán: {ev.mathScore ?? "..."}</div>
-                  <div>- Môn Văn: {ev.literatureScore ?? "..."}</div>
-                  <div>- Môn Anh: {ev.englishScore ?? "..."}</div>
+                  <div>- Môn Toán: {classAverages.math}</div>
+                  <div>- Môn Văn: {classAverages.lit}</div>
+                  <div>- Môn Anh: {classAverages.eng}</div>
                 </div>
               </div>
 
