@@ -254,7 +254,7 @@ export default function PrintMonthlyEvaluation() {
 
               {/* AVERAGES AND RANKING (Below Table) */}
               <div className="text-[16px] leading-relaxed">
-                {classData.name !== '8A' && (
+                {classData.name !== '8A' && classData.name !== '8CG' && (
                   <div className="flex mb-1">
                     <span className="font-bold mr-2">Xếp hạng:</span>
                     <span className="font-bold">{rank} / {students.length}</span>
