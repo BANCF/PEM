@@ -93,10 +93,11 @@ export class ClassHubService {
       
       let myClasses = [];
       
+      await api.autoHuntTeacherName();
+      
       if (targetClasses && targetClasses.length > 0) {
           myClasses = targetClasses;
       } else {
-          await api.autoHuntTeacherName();
           const allClasses = await api.scanAllClasses(forceSync);
           const eligibleClasses = api.getEligibleClasses(allClasses);
           myClasses = eligibleClasses;
