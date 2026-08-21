@@ -863,12 +863,13 @@ export class ClasshubAPI {
             let resModel: any = null;
 
                                     // Cơ chế Retry & Backoff cho Cold Session Concurrency Lock
-            for (let retry = 0; retry < 2; retry++) {
+            for (let retry = 0; retry < 3; retry++) {
                 resModel = await this.rpcCall(apiUrl, fetchPayload);
-                if (!resModel || (!resModel.data && !resModel.html)) {
-                    if (retry === 0) {
-                        this.log(`  🔄 [TIER 1] API trả về rỗng. Đang đợi 1000ms để thử lại (Tránh Ohke Cold Session)...`);
-                        await new Promise(r => setTimeout(r, 1000));
+                const isDataEmpty = !resModel || !resModel.data || (Array.isArray(resModel.data) && resModel.data.length === 0);
+                if (isDataEmpty && !resModel?.html) {
+                    if (retry < 2) {
+                        this.log(`  🔄 [TIER 1] API trả về rỗng. Đang đợi ${1000 * (retry + 1)}ms để thử lại (Tránh Ohke Cold Session)...`);
+                        await new Promise(r => setTimeout(r, 1000 * (retry + 1)));
                         continue;
                     }
                 } else {

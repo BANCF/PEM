@@ -118,7 +118,8 @@ export class ClassHubService {
       const tailClasses = myClasses.slice(1);
 
       // BƯỚC 1: Lớp Tiên phong (Làm nóng Ohke)
-      api.log(`🔥 [VANGUARD WARM-UP] Đang xử lý lớp mồi: [${headClass.class_hour_code || headClass.class_name}]...`);
+      const headName = headClass.entity?.class_hour_code || headClass.entity?.class_name || headClass.className || "Lớp ẩn danh";
+      api.log(`🔥 [VANGUARD WARM-UP] Đang xử lý lớp mồi: [${headName}]...`);
       const headResult = await api.submitAttendanceFlow(headClass);
       if (headResult.success && !headResult.skipped) successCount++;
       else if (!headResult.success) errorCount++;
@@ -129,11 +130,12 @@ export class ClassHubService {
           await new Promise(r => setTimeout(r, 500));
       }
 
-      // BƯỚC 3: Xử lý song song các lớp còn lại
+      // BƯỚC 3: Xử lý song song các lớp còn lại với Micro-Staggering
       const CONCURRENCY = 5;
       for (let i = 0; i < tailClasses.length; i += CONCURRENCY) {
         const batch = tailClasses.slice(i, i + CONCURRENCY);
-        await Promise.all(batch.map(async (classItem: any) => {
+        await Promise.all(batch.map(async (classItem: any, index: number) => {
+            if (index > 0) await new Promise(r => setTimeout(r, index * 300)); // Lệch pha 300ms mỗi request
             const result = await api.submitAttendanceFlow(classItem);
             if (result.success && !result.skipped) {
               successCount++;
