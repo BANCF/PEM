@@ -123,10 +123,10 @@ export class ClassHubService {
       if (headResult.success && !headResult.skipped) successCount++;
       else if (!headResult.success) errorCount++;
 
-      // BƯỚC 2: Trạm nghỉ 1.5 giây để Cache Ohke lan truyền tới các Worker khác
+      // BƯỚC 2: Trạm nghỉ 0.5 giây để Cache Ohke lan truyền tới các Worker khác
       if (tailClasses.length > 0) {
-          api.log(`⏳ Đã làm nóng Ohke. Chờ 1.5 giây để lan truyền Session Cache...`);
-          await new Promise(r => setTimeout(r, 1500));
+          api.log(`⏳ Đã làm nóng Ohke. Chờ 0.5 giây để lan truyền Session Cache...`);
+          await new Promise(r => setTimeout(r, 500));
       }
 
       // BƯỚC 3: Xử lý song song các lớp còn lại
