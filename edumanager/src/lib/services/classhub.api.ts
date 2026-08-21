@@ -862,20 +862,22 @@ export class ClasshubAPI {
             let apiUrl = `/${this.tenantId}/appstart/classhub/x24F76_Model`;
             let resModel: any = null;
 
-                                    // Cơ chế Retry & Backoff cho Cold Session Concurrency Lock
-            for (let retry = 0; retry < 3; retry++) {
+            let instructorId: any = null;
+            let instructorUpdateTime = "";
+            let instructorBeginState = "INSTRUCTOR_ATTENDANCE_STATUS_NO_ATTENDANCE";
+            let allCandidateIds: string[] = [];
+
+            // Outer Retry: Nếu 3-Tier matching thất bại (do Ohke Cold Cache trả data thiếu),
+            // chờ rồi gọi lại x24F76_Model. Logic 3-Tier bên trong KHÔNG bị thay đổi.
+            const MAX_HUNT_RETRIES = 2;
+            for (let huntAttempt = 0; huntAttempt <= MAX_HUNT_RETRIES; huntAttempt++) {
+                // Reset state cho mỗi lần thử
+                instructorId = null;
+                instructorUpdateTime = "";
+                instructorBeginState = "INSTRUCTOR_ATTENDANCE_STATUS_NO_ATTENDANCE";
+                allCandidateIds = [];
+
                 resModel = await this.rpcCall(apiUrl, fetchPayload);
-                const isDataEmpty = !resModel || !resModel.data || (Array.isArray(resModel.data) && resModel.data.length === 0);
-                if (isDataEmpty && !resModel?.html) {
-                    if (retry < 2) {
-                        this.log(`  🔄 [TIER 1] API trả về rỗng. Đang đợi ${1000 * (retry + 1)}ms để thử lại (Tránh Ohke Cold Session)...`);
-                        await new Promise(r => setTimeout(r, 1000 * (retry + 1)));
-                        continue;
-                    }
-                } else {
-                    break; // Thành công hoặc có data thì thoát vòng lặp
-                }
-            }
             
             if (resModel && !resModel.data && resModel.html) {
                 let entityMatches = resModel.html.match(/data-entity=(['"])(.*?)\1/g);
@@ -897,12 +899,6 @@ export class ClasshubAPI {
                     }
                 }
             }
-
-            let instructorId: any = null;
-            let instructorUpdateTime = "";
-            let instructorBeginState = "INSTRUCTOR_ATTENDANCE_STATUS_NO_ATTENDANCE";
-
-            let allCandidateIds: string[] = []; // Chứa danh sách ID cho chiến dịch Multi-Fire
 
             // CHIẾN DỊCH BẮT SÓNG ID GIÁO VIÊN VÀ UPDATE_TIME (100% THUẦN API - ZERO DOM)
             if (this.myNameLower) {
@@ -1076,6 +1072,18 @@ export class ClasshubAPI {
                     }
                 }
             }
+
+                // Kiểm tra kết quả matching
+                if (instructorId || allCandidateIds.length > 0) {
+                    break; // Matching thành công, thoát outer retry
+                }
+
+                // Matching thất bại — nếu còn lượt retry thì chờ rồi thử lại
+                if (huntAttempt < MAX_HUNT_RETRIES) {
+                    this.log(`  ├─ ⚠️ [COLD SESSION RETRY ${huntAttempt + 1}/${MAX_HUNT_RETRIES}] 3-Tier matching thất bại (Ohke Cold Cache). Chờ 800ms rồi thử lại...`);
+                    await new Promise(r => setTimeout(r, 800));
+                }
+            } // Kết thúc outer retry loop
 
             if (!instructorId && allCandidateIds.length === 0) {
                 this.log(`  ├─ ❌ [CRITICAL ERROR] Không xác định được ID giáo viên chuẩn (So khớp tên 3-Tier thất bại). Tạm dừng điểm danh lớp này!`);

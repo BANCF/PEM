@@ -2,6 +2,9 @@ import { NextResponse } from "next/server";
 import { adminAuth } from "@/lib/firebase/admin";
 import { ClassHubService } from "@/lib/services/classhub.service";
 
+// Vercel Hobby mặc định timeout 10s — nâng lên 60s để đủ xử lý Cold Session retry
+export const maxDuration = 60;
+
 export async function POST(request: Request) {
   try {
     const authHeader = request.headers.get("authorization");
