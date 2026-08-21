@@ -97,6 +97,7 @@ export class ClassHubService {
       
       if (targetClasses && targetClasses.length > 0) {
           myClasses = targetClasses;
+          // (Đã loại bỏ cơ chế mồi xSB_Model cũ vì không hiệu quả)
       } else {
           const allClasses = await api.scanAllClasses(forceSync);
           const eligibleClasses = api.getEligibleClasses(allClasses);
@@ -112,10 +113,26 @@ export class ClassHubService {
 
       let successCount = 0;
       let errorCount = 0;
-      const CONCURRENCY = 5; // Tăng concurrency để tận dụng tốt hơn Serverless
+      
+      const headClass = myClasses[0];
+      const tailClasses = myClasses.slice(1);
 
-      for (let i = 0; i < myClasses.length; i += CONCURRENCY) {
-        const batch = myClasses.slice(i, i + CONCURRENCY);
+      // BƯỚC 1: Lớp Tiên phong (Làm nóng Ohke)
+      api.log(`🔥 [VANGUARD WARM-UP] Đang xử lý lớp mồi: [${headClass.class_hour_code || headClass.class_name}]...`);
+      const headResult = await api.submitAttendanceFlow(headClass);
+      if (headResult.success && !headResult.skipped) successCount++;
+      else if (!headResult.success) errorCount++;
+
+      // BƯỚC 2: Trạm nghỉ 1.5 giây để Cache Ohke lan truyền tới các Worker khác
+      if (tailClasses.length > 0) {
+          api.log(`⏳ Đã làm nóng Ohke. Chờ 1.5 giây để lan truyền Session Cache...`);
+          await new Promise(r => setTimeout(r, 1500));
+      }
+
+      // BƯỚC 3: Xử lý song song các lớp còn lại
+      const CONCURRENCY = 5;
+      for (let i = 0; i < tailClasses.length; i += CONCURRENCY) {
+        const batch = tailClasses.slice(i, i + CONCURRENCY);
         await Promise.all(batch.map(async (classItem: any) => {
             const result = await api.submitAttendanceFlow(classItem);
             if (result.success && !result.skipped) {
@@ -124,7 +141,6 @@ export class ClassHubService {
               errorCount++;
             }
         }));
-        // Giảm cực độ delay để tránh timeout trên Vercel (Hobby plan thường chỉ có 10s)
         await new Promise(r => setTimeout(r, 50));
       }
 

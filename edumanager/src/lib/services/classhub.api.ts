@@ -22,10 +22,10 @@ export class ClasshubAPI {
         this.cookieString = cookieString;
         this.onLog = onLog;
         this.logBuffer = [];
-        
+
         // Khởi tạo trình duyệt ảo tự động quản lý Cookie
         this.jar = new CookieJar();
-        
+
         // Nạp cookie vào jar từ chuỗi cấu hình ban đầu
         if (cookieString) {
             // Chuỗi cookie từ header thường phân tách bằng dấu phẩy nếu ghép nhiều cookie, hoặc dấu chấm phẩy
@@ -33,10 +33,10 @@ export class ClasshubAPI {
             for (let c of cookies) {
                 try {
                     if (c.trim()) this.jar.setCookieSync(c.trim(), this.baseUrl);
-                } catch (e: any) {}
+                } catch (e: any) { }
             }
         }
-        
+
         this.client = wrapper(axios.create({
             baseURL: this.baseUrl,
             jar: this.jar,
@@ -52,7 +52,7 @@ export class ClasshubAPI {
         try {
             const res = await this.client.get(fullUrl);
             return { data: res.data };
-        } catch(e: any) {
+        } catch (e: any) {
             return { error: e.message };
         }
     }
@@ -95,7 +95,7 @@ export class ClasshubAPI {
     async login(loginUrl: string, username: string, password: string) {
         try {
             this.log(`🔑 Đang đăng nhập vào: ${loginUrl}`);
-            
+
             // Chuyển URL /login thành /jsonPostSignIn theo chuẩn Ohke
             let postUrl = loginUrl.replace(/\/login\/?$/, '/jsonPostSignIn');
             if (postUrl === loginUrl) postUrl += '/jsonPostSignIn'; // Fallback nếu không có đuôi /login
@@ -111,14 +111,14 @@ export class ClasshubAPI {
                     __password: "LAa0S"
                 }
             };
-            
+
             let res = await this.client.post(postUrl, payload, {
                 headers: {
                     'Content-Type': 'application/json',
                     'Accept': 'application/json, text/plain, */*'
                 }
             });
-            
+
             this.log("Phản hồi Login:", JSON.stringify(res.data).substring(0, 200));
 
             // Kiểm tra Cookie đã có chưa
@@ -141,7 +141,7 @@ export class ClasshubAPI {
             this.log("🔍 Đang tự động tìm Tên Giáo viên từ hệ thống...");
             let res = await this.clientGet(`/${this.tenantId}/appstart/classhub/`);
             let html = res.data;
-            
+
             let foundName = null;
 
             // Ưu tiên 1: Lấy trực tiếp từ biến Ohke.worker (Chính xác 100%)
@@ -152,7 +152,7 @@ export class ClasshubAPI {
                     if (worker && worker.name) {
                         foundName = worker.name.trim();
                     }
-                } catch (e: any) {}
+                } catch (e: any) { }
             }
 
             // Ưu tiên 2: Tìm định dạng "[ID] Họ và Tên" (Ví dụ: "[123456] Vũ Hoàng Linh")
@@ -160,7 +160,7 @@ export class ClasshubAPI {
                 let match = html.match(/\[\d+\]\s+([A-ZÀ-Ỹa-zà-ỹ\s]{4,50})/);
                 if (match && match[1]) foundName = match[1].trim().split('\n')[0].trim();
             }
-            
+
             // Ưu tiên 3: Định dạng <span class="title"> Vũ Hoàng Linh </span>
             if (!foundName) {
                 let match = html.match(/<span[^>]*class=["']title["'][^>]*>\s*([A-ZÀ-Ỹa-zà-ỹ\s]{4,50})\s*<\/span>/i);
@@ -206,7 +206,7 @@ export class ClasshubAPI {
                     if (json.ohke_prefix && json[':field_subform_id']) {
                         tabs.push({ prefix: json.ohke_prefix, id: json[':field_subform_id'] });
                     }
-                } catch (e: any) {}
+                } catch (e: any) { }
             }
         }
 
@@ -219,23 +219,23 @@ export class ClasshubAPI {
                     let content = m[2];
                     // Thay thế TẤT CẢ HTML Entities phổ biến
                     content = content.replace(/&quot;/g, '"')
-                                     .replace(/&lbrace;/g, '{')
-                                     .replace(/&lcub;/g, '{')
-                                     .replace(/&rbrace;/g, '}')
-                                     .replace(/&rcub;/g, '}')
-                                     .replace(/&lowbar;/g, '_')
-                                     .replace(/&colon;/g, ':')
-                                     .replace(/&comma;/g, ',')
-                                     .replace(/&amp;/g, '&')
-                                     .replace(/&lt;/g, '<')
-                                     .replace(/&gt;/g, '>');
+                        .replace(/&lbrace;/g, '{')
+                        .replace(/&lcub;/g, '{')
+                        .replace(/&rbrace;/g, '}')
+                        .replace(/&rcub;/g, '}')
+                        .replace(/&lowbar;/g, '_')
+                        .replace(/&colon;/g, ':')
+                        .replace(/&comma;/g, ',')
+                        .replace(/&amp;/g, '&')
+                        .replace(/&lt;/g, '<')
+                        .replace(/&gt;/g, '>');
                     try {
                         let json = JSON.parse(content);
                         if (json.ohke_prefix && json[':field_subform_id']) {
                             tabs.push({ prefix: json.ohke_prefix, id: json[':field_subform_id'] });
                             this.log(`🔍 [Phát hiện Tab từ data-env] Prefix: ${json.ohke_prefix}, ID: ${json[':field_subform_id']}`);
                         }
-                    } catch (e: any) {}
+                    } catch (e: any) { }
                 }
             }
         }
@@ -255,10 +255,10 @@ export class ClasshubAPI {
         }
 
         let allClasses: any[] = [];
-        
+
         let startDateStr = "";
         let endDateStr = "";
-        
+
         let maxPages = forceSync ? -1 : 2;
 
         if (!forceSync) {
@@ -272,7 +272,7 @@ export class ClasshubAPI {
             };
             startDateStr = formatDate(today);
             endDateStr = formatDate(today);
-            
+
             // Ưu tiên chỉ quét tab 152496 (Lịch dạy hôm nay) để tăng tốc độ nếu có
             if (uniqueTabs.some((t: any) => String(t.id) === "152496")) {
                 uniqueTabs = uniqueTabs.filter((t: any) => String(t.id) === "152496");
@@ -296,7 +296,7 @@ export class ClasshubAPI {
                     let m1 = snippet.match(/['"](\/[a-zA-Z0-9_]+\/appstart\/[a-zA-Z0-9_]+\/([a-zA-Z0-9_]+)_(?:Viewer|Model))['"]/);
                     // Dạng 2: Dùng template literal \`${inno.env.appUrl}/xTB_Viewer\`
                     let m2 = snippet.match(/inno\.env\.appUrl}\/([a-zA-Z0-9_]+)_(?:Viewer|Model)/);
-                    
+
                     if (m1) {
                         modelUrl = m1[1];
                     } else if (m2) {
@@ -311,11 +311,11 @@ export class ClasshubAPI {
             } else {
                 this.log(`⚠️ Không tìm thấy script cho tab ${tab.prefix}`);
             }
-            
+
             this.log(`🔍 [Tab ${tab.id}] Đang gọi API: ${modelUrl}`);
 
             let page = 0;
-            while(true) {
+            while (true) {
                 let payload: any = {
                     ":exchange": { "p2c": { "end_date": endDateStr, "start_date": startDateStr }, "c2p": {} },
                     ":field_subform_id": parseInt(tab.id, 10),
@@ -355,18 +355,18 @@ export class ClasshubAPI {
                                 if (m) {
                                     let str = m[2];
                                     str = str.replace(/&quot;/g, '"')
-                                             .replace(/&lbrace;/g, '{')
-                                             .replace(/&lcub;/g, '{')
-                                             .replace(/&rbrace;/g, '}')
-                                             .replace(/&rcub;/g, '}')
-                                             .replace(/&lbrack;/g, '[')
-                                             .replace(/&rsqb;/g, ']')
-                                             .replace(/&lowbar;/g, '_')
-                                             .replace(/&colon;/g, ':')
-                                             .replace(/&comma;/g, ',')
-                                             .replace(/&amp;/g, '&')
-                                             .replace(/&lt;/g, '<')
-                                             .replace(/&gt;/g, '>');
+                                        .replace(/&lbrace;/g, '{')
+                                        .replace(/&lcub;/g, '{')
+                                        .replace(/&rbrace;/g, '}')
+                                        .replace(/&rcub;/g, '}')
+                                        .replace(/&lbrack;/g, '[')
+                                        .replace(/&rsqb;/g, ']')
+                                        .replace(/&lowbar;/g, '_')
+                                        .replace(/&colon;/g, ':')
+                                        .replace(/&comma;/g, ',')
+                                        .replace(/&amp;/g, '&')
+                                        .replace(/&lt;/g, '<')
+                                        .replace(/&gt;/g, '>');
                                     try {
                                         let parsed = JSON.parse(str);
                                         // Ánh xạ lại các trường để phù hợp với hàm điểm danh
@@ -374,7 +374,7 @@ export class ClasshubAPI {
                                         if (parsed.study_class_id) {
                                             parsed.teaching_hour_id = parsed.id;
                                             parsed.class_id = parsed.study_class_id;
-                                            
+
                                             // Lấy lesson_id đầu tiên nếu có
                                             if (parsed.lessons && Array.isArray(parsed.lessons) && parsed.lessons.length > 0) {
                                                 parsed.lesson_id = parsed.lessons[0].id || parsed.lessons[0];
@@ -384,7 +384,7 @@ export class ClasshubAPI {
                                         }
                                         parsed.sourceApi = modelUrl;
                                         extracted.push(parsed);
-                                    } catch (err: any) {}
+                                    } catch (err: any) { }
                                 }
                             }
                             allClasses.push(...extracted);
@@ -435,20 +435,20 @@ export class ClasshubAPI {
         str = str.replace(/&#(\d+);/g, (match: any, dec: any) => String.fromCharCode(dec));
         str = str.replace(/&#x([0-9a-fA-F]+);/g, (match: any, hex: any) => String.fromCharCode(parseInt(hex, 16)));
         return str.replace(/&Agrave;/g, 'À').replace(/&Aacute;/g, 'Á').replace(/&Acirc;/g, 'Â').replace(/&Atilde;/g, 'Ã')
-                  .replace(/&Egrave;/g, 'È').replace(/&Eacute;/g, 'É').replace(/&Ecirc;/g, 'Ê')
-                  .replace(/&Igrave;/g, 'Ì').replace(/&Iacute;/g, 'Í')
-                  .replace(/&Ograve;/g, 'Ò').replace(/&Oacute;/g, 'Ó').replace(/&Ocirc;/g, 'Ô').replace(/&Otilde;/g, 'Õ')
-                  .replace(/&Ugrave;/g, 'Ù').replace(/&Uacute;/g, 'Ú')
-                  .replace(/&Yacute;/g, 'Ý')
-                  .replace(/&agrave;/g, 'à').replace(/&aacute;/g, 'á').replace(/&acirc;/g, 'â').replace(/&atilde;/g, 'ã')
-                  .replace(/&egrave;/g, 'è').replace(/&eacute;/g, 'é').replace(/&ecirc;/g, 'ê')
-                  .replace(/&igrave;/g, 'ì').replace(/&iacute;/g, 'í')
-                  .replace(/&ograve;/g, 'ò').replace(/&oacute;/g, 'ó').replace(/&ocirc;/g, 'ô').replace(/&otilde;/g, 'õ')
-                  .replace(/&ugrave;/g, 'ù').replace(/&uacute;/g, 'ú')
-                  .replace(/&yacute;/g, 'ý')
-                  .replace(/&utilde;/g, 'ũ').replace(/&Utilde;/g, 'Ũ')
-                  .replace(/&Dstrok;/g, 'Đ').replace(/&dstrok;/g, 'đ')
-                  .replace(/&quot;/g, '"').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>');
+            .replace(/&Egrave;/g, 'È').replace(/&Eacute;/g, 'É').replace(/&Ecirc;/g, 'Ê')
+            .replace(/&Igrave;/g, 'Ì').replace(/&Iacute;/g, 'Í')
+            .replace(/&Ograve;/g, 'Ò').replace(/&Oacute;/g, 'Ó').replace(/&Ocirc;/g, 'Ô').replace(/&Otilde;/g, 'Õ')
+            .replace(/&Ugrave;/g, 'Ù').replace(/&Uacute;/g, 'Ú')
+            .replace(/&Yacute;/g, 'Ý')
+            .replace(/&agrave;/g, 'à').replace(/&aacute;/g, 'á').replace(/&acirc;/g, 'â').replace(/&atilde;/g, 'ã')
+            .replace(/&egrave;/g, 'è').replace(/&eacute;/g, 'é').replace(/&ecirc;/g, 'ê')
+            .replace(/&igrave;/g, 'ì').replace(/&iacute;/g, 'í')
+            .replace(/&ograve;/g, 'ò').replace(/&oacute;/g, 'ó').replace(/&ocirc;/g, 'ô').replace(/&otilde;/g, 'õ')
+            .replace(/&ugrave;/g, 'ù').replace(/&uacute;/g, 'ú')
+            .replace(/&yacute;/g, 'ý')
+            .replace(/&utilde;/g, 'ũ').replace(/&Utilde;/g, 'Ũ')
+            .replace(/&Dstrok;/g, 'Đ').replace(/&dstrok;/g, 'đ')
+            .replace(/&quot;/g, '"').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>');
     }
 
     // 4. Lọc lớp học
@@ -481,7 +481,7 @@ export class ClasshubAPI {
 
         let pTokens = cleanBlock.split(/[\s,\.\-]+/).filter((x: any) => x);
         let myTokens = cleanMyName.split(/[\s,\.\-]+/).filter((x: any) => x);
-        
+
         let exactMatches = 0;
         for (let t of myTokens) {
             if (pTokens.includes(t)) exactMatches++;
@@ -497,7 +497,7 @@ export class ClasshubAPI {
         for (let t of unaccentMyTokens) {
             if (unaccentBlockTokens.includes(t)) unaccentMatches++;
         }
-        
+
         return unaccentMatches;
     }
 
@@ -520,10 +520,10 @@ export class ClasshubAPI {
     filterMyClasses(allClasses: any) {
         let myClasses = [];
         let myNameLower = this.teacherName.toLowerCase();
-        
+
         for (let c of allClasses) {
             let entity = c.entity || c;
-            
+
             // Các trường có thể chứa tên GV
             let rawTeachers = "";
             if (entity[':field_teacher']) rawTeachers += " " + entity[':field_teacher'];
@@ -532,18 +532,18 @@ export class ClasshubAPI {
             if (entity.instructor && entity.instructor.name) rawTeachers += " " + entity.instructor.name;
             if (entity.instructor_name) rawTeachers += " " + entity.instructor_name;
             if (entity.teacher_name) rawTeachers += " " + entity.teacher_name;
-            
+
             if (!rawTeachers.trim()) continue;
-            
+
             // Giải mã HTML Entities
             rawTeachers = this.decodeHtmlEntities(rawTeachers);
-            
+
             // Xóa HTML tags và chuẩn hóa
             rawTeachers = rawTeachers.replace(/<[^>]*>?/gm, ' ').replace(/\s+/g, ' ').trim().toLowerCase();
-            
+
             // Tách các giáo viên
             let parts = rawTeachers.split(/[,;\-]/).map((t: any) => t.trim()).filter((t: any) => t.length > 0);
-            
+
             let isMine = false;
             let myTokensLen = myNameLower.split(/[\s,\.\-]+/).filter((x: any) => x).length;
             let threshold = Math.ceil(myTokensLen * 0.5);
@@ -557,10 +557,10 @@ export class ClasshubAPI {
             } else {
                 if (this.calculate3TierNameScore(rawTeachers, myNameLower) >= threshold) isMine = true;
             }
-            
+
             if (isMine) myClasses.push(c);
         }
-        
+
         return myClasses;
     }
 
@@ -568,10 +568,10 @@ export class ClasshubAPI {
         let matchedClasses: any[] = [];
         let unverifiedClasses: any[] = [];
         let myNameLower = this.teacherName.toLowerCase();
-        
+
         for (let c of allClasses) {
             let entity = c.entity || c;
-            
+
             // Các trường có thể chứa tên GV
             const extractNames = (field: any): string => {
                 if (!field) return "";
@@ -591,12 +591,12 @@ export class ClasshubAPI {
             rawTeachers += " " + extractNames(entity.instructor);
             rawTeachers += " " + extractNames(entity.instructor_name);
             rawTeachers += " " + extractNames(entity.teacher_name);
-            
+
             let isMine = false;
             let parts = rawTeachers.split(',').map(s => s.trim()).filter(s => s);
             let myTokensLen = myNameLower.split(/[\s,\.\-]+/).filter((x: any) => x).length;
             let threshold = Math.ceil(myTokensLen * 0.5);
-            
+
             if (parts.length > 0) {
                 for (let p of parts) {
                     if (this.calculate3TierNameScore(p, myNameLower) >= threshold) {
@@ -607,7 +607,7 @@ export class ClasshubAPI {
             } else {
                 if (this.calculate3TierNameScore(rawTeachers, myNameLower) >= threshold) isMine = true;
             }
-            
+
             // Fallback JSON string
             if (!isMine) {
                 let rawEntityString = JSON.stringify(entity).toLowerCase();
@@ -617,20 +617,20 @@ export class ClasshubAPI {
                     isMine = true;
                 }
             }
-            
+
             if (isMine) {
                 matchedClasses.push(c);
             } else {
                 unverifiedClasses.push(c);
             }
         }
-        
+
         // Giai đoạn 2: SUPER HUNT MAX cho Unverified Classes
         if (unverifiedClasses.length > 0) {
             this.log(`🔍 [HYBRID SUPER HUNT] Có ${unverifiedClasses.length} tiết nghi ngờ có trợ giảng nhưng API giấu tên. Đang kích hoạt Hunt HTML...`);
             let rescueCount = 0;
             const CONCURRENCY = 5;
-            
+
             for (let i = 0; i < unverifiedClasses.length; i += CONCURRENCY) {
                 const batch = unverifiedClasses.slice(i, i + CONCURRENCY);
                 await Promise.all(batch.map(async (c) => {
@@ -640,7 +640,7 @@ export class ClasshubAPI {
                         if (!exactViewerEndpoint.startsWith('/')) {
                             exactViewerEndpoint = `/${this.tenantId}/appstart/classhub/${exactViewerEndpoint}`;
                         }
-                        
+
                         let cvRes = await this.rpcCall(exactViewerEndpoint, { id: String(masterKey) });
                         if (cvRes && cvRes.html) {
                             let cleanHtml = cvRes.html.replace(/<[^>]*>?/gm, ' ').replace(/\s+/g, ' ').toLowerCase();
@@ -661,7 +661,7 @@ export class ClasshubAPI {
                 this.log(`[HYBRID SUPER HUNT] Hoàn tất.`);
             }
         }
-        
+
         return matchedClasses;
     }
 
@@ -669,11 +669,11 @@ export class ClasshubAPI {
         if (!entityData) return { isSafe: false, unlockTimestamp: Infinity, timeString: "Lỗi dữ liệu" };
         let dateStr = entityData.class_schedule_date || entityData.date || entityData.start_date || entityData.teaching_date || "";
         if (!dateStr) return { isSafe: false, unlockTimestamp: Infinity, timeString: "Không có lịch" };
-        
+
         try {
             let timeStr = entityData.class_hour_start_time || entityData.start_time || entityData.teaching_start_time || "00:00:00";
             let year, month, day;
-            
+
             if (dateStr.includes('/')) {
                 let parts = dateStr.split('/');
                 day = parseInt(parts[0], 10); month = parseInt(parts[1], 10) - 1; year = parseInt(parts[2], 10);
@@ -687,28 +687,28 @@ export class ClasshubAPI {
             let timeParts = timeStr.split(':');
             let hours = parseInt(timeParts[0], 10) || 0;
             let minutes = parseInt(timeParts[1], 10) || 0;
-            
+
             let yStr = String(year).padStart(4, '0');
             let mStr = String(month + 1).padStart(2, '0');
             let dStr = String(day).padStart(2, '0');
             let hStr = String(hours).padStart(2, '0');
             let minStr = String(minutes).padStart(2, '0');
-            
+
             let isoStr = `${yStr}-${mStr}-${dStr}T${hStr}:${minStr}:00+07:00`;
             let startTimestamp = new Date(isoStr).getTime();
-            
+
             if (isNaN(startTimestamp)) return { isSafe: false, unlockTimestamp: Infinity, timeString: "Lỗi định dạng giờ" };
 
             let unlockTimestamp = startTimestamp + (bufferMinutes * 60 * 1000);
             let now = Date.now();
-            
+
             let timeString = new Intl.DateTimeFormat('en-GB', {
                 timeZone: 'Asia/Ho_Chi_Minh',
                 hour: '2-digit',
                 minute: '2-digit',
                 hour12: false
             }).format(new Date(unlockTimestamp));
-            
+
             return { isSafe: now >= unlockTimestamp, unlockTimestamp: unlockTimestamp, timeString: timeString };
         } catch (e: any) { return { isSafe: true, unlockTimestamp: 0, timeString: "" }; }
     }
@@ -719,10 +719,10 @@ export class ClasshubAPI {
             let entity = c.entity;
             let status = String(entity.attendance_sheet_status || entity.status || "").toUpperCase();
             if (status.includes("ACCEPTED")) continue; // Đã chốt sổ
-            
+
             let unlockInfo = this.getClassUnlockInfo(entity, 5);
             if (!unlockInfo.isSafe) continue; // Chưa đến giờ
-            
+
             eligible.push(c);
         }
         return eligible;
@@ -736,9 +736,9 @@ export class ClasshubAPI {
             let studentStatus = String(entity.attendance_sheet_status || "").toUpperCase();
             let teacherStatus = String(entity.instructor_attendance_status || entity.instructor_attendance_sheet_status || "").toUpperCase();
             let oldStatus = String(entity.status || "").toUpperCase();
-            
+
             let isSubmitted = studentStatus.includes("ACCEPTED") || teacherStatus.includes("ACCEPTED") || oldStatus.includes("ACCEPTED");
-            
+
             this.log(`DEBUG Class [${entity.class_hour_code || entity.class_name}]: HS=${studentStatus}, GV=${teacherStatus}, T=${oldStatus} => isSubmitted=${isSubmitted}`);
 
             if (!isSubmitted) continue; // Bỏ qua nếu chưa chốt
@@ -769,7 +769,7 @@ export class ClasshubAPI {
     async revertAttendanceFlow(classItem: any) {
         let entity = classItem.entity;
         let masterKey = classItem.id;
-        
+
         this.log(`⚡ Đang HỦY chốt sổ tiết [${entity.class_hour_code || entity.class_name || masterKey}]...`);
 
         // Lấy update_time mới nhất của class
@@ -783,7 +783,7 @@ export class ClasshubAPI {
                 let mTime = cvRes.html.match(/(?:data-update-time|update_time)="([^"]+)"/i);
                 if (mTime && mTime[1]) classUpdateTime = mTime[1];
             }
-        } catch (e: any) {}
+        } catch (e: any) { }
 
         // 1. Hủy chốt sổ Học sinh
         try {
@@ -833,13 +833,13 @@ export class ClasshubAPI {
     async submitAttendanceFlow(classItem: any) {
         let entity = classItem.entity;
         let masterKey = classItem.id;
-        
+
         let status = String(entity.attendance_sheet_status || entity.status || "").toUpperCase();
         if (status.includes("ACCEPTED")) {
             this.log(`✅ Lớp [${entity.class_hour_code || entity.class_name || masterKey}] đã chốt sổ (ACCEPTED). Bỏ qua.`);
             return { success: true, class: masterKey, skipped: true };
         }
-        
+
         let unlockInfo = this.getClassUnlockInfo(entity, 5);
         if (!unlockInfo.isSafe) {
             this.log(`⏳ Tiết [${entity.class_hour_code || entity.class_name || masterKey}] chưa đến giờ (Mở khóa lúc ${unlockInfo.timeString}). Bỏ qua.`);
@@ -860,7 +860,21 @@ export class ClasshubAPI {
                 id: null
             };
             let apiUrl = `/${this.tenantId}/appstart/classhub/x24F76_Model`;
-            let resModel = await this.rpcCall(apiUrl, fetchPayload);
+            let resModel: any = null;
+
+                                    // Cơ chế Retry & Backoff cho Cold Session Concurrency Lock
+            for (let retry = 0; retry < 2; retry++) {
+                resModel = await this.rpcCall(apiUrl, fetchPayload);
+                if (!resModel || (!resModel.data && !resModel.html)) {
+                    if (retry === 0) {
+                        this.log(`  🔄 [TIER 1] API trả về rỗng. Đang đợi 1000ms để thử lại (Tránh Ohke Cold Session)...`);
+                        await new Promise(r => setTimeout(r, 1000));
+                        continue;
+                    }
+                } else {
+                    break; // Thành công hoặc có data thì thoát vòng lặp
+                }
+            }
             
             if (resModel && !resModel.data && resModel.html) {
                 let entityMatches = resModel.html.match(/data-entity=(['"])(.*?)\1/g);
@@ -886,7 +900,7 @@ export class ClasshubAPI {
             let instructorId: any = null;
             let instructorUpdateTime = "";
             let instructorBeginState = "INSTRUCTOR_ATTENDANCE_STATUS_NO_ATTENDANCE";
-            
+
             let allCandidateIds: string[] = []; // Chứa danh sách ID cho chiến dịch Multi-Fire
 
             // CHIẾN DỊCH BẮT SÓNG ID GIÁO VIÊN VÀ UPDATE_TIME (100% THUẦN API - ZERO DOM)
@@ -915,7 +929,7 @@ export class ClasshubAPI {
                         if (r.instructor_name) nameToTest += r.instructor_name + " ";
                         if (r.instructor && r.instructor.name) nameToTest += r.instructor.name + " ";
                         if (r.instructor && r.instructor.worker_site_name) nameToTest += r.instructor.worker_site_name + " ";
-                        
+
                         nameToTest = this.decodeHtmlEntities(nameToTest); // Giải mã HTML Entities cho các tên phức tạp
                         let score = this.calculate3TierNameScore(nameToTest.toLowerCase(), this.myNameLower);
                         if (score > highestScore && score >= threshold) {
@@ -935,7 +949,7 @@ export class ClasshubAPI {
                 if (!instructorId) {
                     let rawStr = resModel ? (resModel.html || JSON.stringify(resModel)) : "";
                     rawStr = this.decodeHtmlEntities(rawStr); // Giải mã HTML Entity trước khi Regex và so khớp khoảng cách
-                    
+
                     let idMatches = [...rawStr.matchAll(/data-id=\\?["'](\d{6,8})\\?["']/g)];
                     if (idMatches.length === 0) idMatches = [...rawStr.matchAll(/&quot;id&quot;&colon;&quot;(\d{6,8})&quot;/g)];
                     if (idMatches.length === 0) idMatches = [...rawStr.matchAll(/\\?["']id\\?["']\s*:\s*\\?["']?(\d{6,8})\\?["']?/g)];
@@ -946,7 +960,7 @@ export class ClasshubAPI {
                     if (candidateIds.length > 0) {
                         let cleanRawStr = this.advancedUnicodeSanitize(rawStr);
                         let cleanMyName = this.advancedUnicodeSanitize(this.myNameLower);
-                        
+
                         let nameIdx = cleanRawStr.indexOf(cleanMyName);
                         // Fallback siêu mạnh: Thử bóc dấu tiếng Việt nếu tìm nguyên bản không thấy
                         if (nameIdx === -1) {
@@ -990,17 +1004,17 @@ export class ClasshubAPI {
                         `/${this.tenantId}/appstart/classhub/x26D5E_Viewer`,
                         `/${this.tenantId}/appstart/classhub/x2DEAC_Viewer`
                     ];
-                    
+
                     classViewerEndpoints = [...new Set(classViewerEndpoints)];
 
                     for (let vp of classViewerEndpoints) {
                         if (!vp.startsWith('/')) vp = `/${this.tenantId}/appstart/classhub/${vp}`;
-                        
+
                         try {
                             let resViewer = await this.rpcCall(vp, { id: String(masterKey) });
                             let viewerStr = resViewer ? (resViewer.html || JSON.stringify(resViewer)) : "";
                             viewerStr = this.decodeHtmlEntities(viewerStr);
-                            
+
                             let idMatches = [...viewerStr.matchAll(/data-id=\\?["'](\d{6,8})\\?["']/g)];
                             if (idMatches.length === 0) idMatches = [...viewerStr.matchAll(/data-record=\\?["'](\d{6,8})\\?["']/g)];
                             if (idMatches.length === 0) idMatches = [...viewerStr.matchAll(/name=\\?["']id\\?["']\s+value=\\?["'](\d{6,8})\\?["']/g)];
@@ -1013,7 +1027,7 @@ export class ClasshubAPI {
                             if (candidateIds.length > 0) {
                                 let cleanRawStr = this.advancedUnicodeSanitize(viewerStr);
                                 let cleanMyName = this.advancedUnicodeSanitize(this.myNameLower);
-                                
+
                                 let nameIdx = cleanRawStr.indexOf(cleanMyName);
                                 if (nameIdx === -1) {
                                     let noToneRaw = this.stripVietnameseTones(cleanRawStr);
@@ -1092,7 +1106,7 @@ export class ClasshubAPI {
                         let mStatus = tViewerRes.html.match(/status="([^"]+)"/i) || tViewerRes.html.match(/name="status"\s+value="([^"]+)"/i);
                         if (mStatus && mStatus[1]) tBeginState = mStatus[1];
                     }
-                } catch (e: any) {}
+                } catch (e: any) { }
 
                 if (!tBeginState || !tBeginState.includes("INSTRUCTOR_ATTENDANCE_STATUS_")) {
                     tBeginState = "INSTRUCTOR_ATTENDANCE_STATUS_NO_ATTENDANCE";
@@ -1116,7 +1130,7 @@ export class ClasshubAPI {
                 };
 
                 let res1 = await this.rpcCall(`/${this.tenantId}/appstart/classhub/x24F76_jsonPostTransition`, payloadTeacherTick);
-                
+
                 if (res1 && res1.type === "success") {
                     this.log(`  ├─ ✔️ TRÚNG ĐÍCH! Tick Có mặt thành công cho quyền ID: ${testId}`);
                     finalInstructorId = testId;
@@ -1184,19 +1198,19 @@ export class ClasshubAPI {
             // --- 3. CHỐT HỌC SINH (3-TIER TUẦN TỰ) ---
             let classHourCode = entity.class_hour_code || '';
             let isLessonZero = (classHourCode === 'H0' || String(classHourCode).startsWith('H0.'));
-            
+
             let checkModes = [
                 { name: "Tiết trước", endpoint: `/${this.tenantId}/appstart/classhub/bttAction_x2447C_` },
                 { name: "Đến trường", endpoint: `/${this.tenantId}/appstart/classhub/bttAction_x2B0CE_` },
                 { name: "Tất cả có mặt", endpoint: `/${this.tenantId}/appstart/classhub/bttAction_x2447B_` }
             ];
-            if (isLessonZero) checkModes.shift(); 
+            if (isLessonZero) checkModes.shift();
 
             let isTrulySuccess = false;
 
             for (let mode of checkModes) {
                 this.log(`🔄 Đang thử chốt Học sinh theo: [${mode.name}]...`);
-                
+
                 try {
                     await this.rpcCall(mode.endpoint, { id: String(masterKey) });
                 } catch (e3) { }
@@ -1230,13 +1244,13 @@ export class ClasshubAPI {
                     begin_state: currentEntity.attendance_sheet_status || "CLASS_SCHEDULE_SLOT_STATUS_PENDING",
                     to_state: "CLASS_SCHEDULE_SLOT_STATUS_ACCEPTED",
                     end_state: "CLASS_SCHEDULE_SLOT_STATUS_ACCEPTED",
-                    is_reversal: 0, 
+                    is_reversal: 0,
                     update_time: currentEntity.update_time || entity.update_time || "",
-                    mode: "V", 
-                    entity: currentEntity, 
+                    mode: "V",
+                    entity: currentEntity,
                     env: realEnv
                 };
-                
+
                 try {
                     let res4 = await this.rpcCall(`/${this.tenantId}/appstart/classhub/x35FD2_jsonPostTransition`, payloadApi4);
                     if (res4) {
