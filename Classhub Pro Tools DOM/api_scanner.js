@@ -120,30 +120,42 @@ window.OhkeHeadlessScanner = {
                 let tenantId = tenantIdMatch ? tenantIdMatch[1] : "61892";
                 
                 // Tự động săn tìm Endpoint THỰC SỰ của Tab này
-                let modelName = "x253B2_Model"; // Fallback
+                let modelName = "x253B2_Viewer"; // Fallback
+                let apiUrl = `/${tenantId}/appstart/classhub/${modelName}`;
+                
                 let scriptIdx = html.indexOf(`ojs['${ohkePrefix}']`);
                 if (scriptIdx !== -1) {
                     let urlIdx = html.indexOf('let url =', scriptIdx);
                     if (urlIdx !== -1) {
-                        let snippet = html.substring(urlIdx, urlIdx + 100);
-                        let m = snippet.match(/\/([a-zA-Z0-9_]+)_(?:Viewer|Model)/);
-                        if (m) {
-                            modelName = m[1] + "_Model";
+                        let snippet = html.substring(urlIdx, urlIdx + 200);
+                        let m1 = snippet.match(/['"](\/[a-zA-Z0-9_]+\/appstart\/[a-zA-Z0-9_]+\/([a-zA-Z0-9_]+)_(?:Viewer|Model))['"]/);
+                        let m2 = snippet.match(/inno\.env\.appUrl}\/([a-zA-Z0-9_]+)_(?:Viewer|Model)/);
+                        
+                        if (m1) {
+                            apiUrl = m1[1];
+                        } else if (m2) {
+                            modelName = m2[1] + "_Model";
+                            apiUrl = `/${tenantId}/appstart/classhub/${modelName}`;
                         }
                     }
                 }
-                
-                let apiUrl = `/${tenantId}/appstart/classhub/${modelName}`;
                 console.log(`🎯 [API SCANNER] Endpoint của Tab ${fieldSubformId} là: ${apiUrl}`);
                 
                 let regexEntity = /data-entity=(['"])([\s\S]*?)\1/g;
+                
+                // Lấy ngày hôm nay
+                let today = new Date();
+                let y = today.getFullYear();
+                let mStr = String(today.getMonth() + 1).padStart(2, '0');
+                let dStr = String(today.getDate()).padStart(2, '0');
+                let dateStr = `${y}-${mStr}-${dStr}`;
                 
                 // Bước 2: Vòng lặp bắn API phân trang cho Tab hiện tại
                 while(true) {
                     console.log(`🔄 [API SCANNER] [Tab ${fieldSubformId}] Đang tải Trang ${page}...`);
                     
                     let payload = {
-                        ":exchange": { "p2c": { "end_date": null, "start_date": null }, "c2p": {} },
+                        ":exchange": { "p2c": { "end_date": dateStr, "start_date": dateStr }, "c2p": {} },
                         ":field_subform_id": parseInt(fieldSubformId, 10),
                         ":master_readonly": null,
                         ":referrer": baseUrl,
@@ -156,7 +168,7 @@ window.OhkeHeadlessScanner = {
                         "media": "screen",
                         "ohke_prefix": ohkePrefix,
                         "page": page,
-                        "params": { "end_date": null, "start_date": null }
+                        "params": { "end_date": dateStr, "start_date": dateStr }
                     };
                 
                     let apiRes = await fetch(page === 0 ? apiUrl : `${apiUrl}?__ajax_page=${page}&page=${page}&p=${page}`, {
@@ -253,7 +265,7 @@ window.OhkeHeadlessScanner = {
                         let id = String(item.class_schedule_slot_id || item.master_key || item.id || item.class_hour_code);
                         if (!allFoundIds.has(id)) {
                             allFoundIds.add(id);
-                            allItems.push(item);
+                            allItems.push({ id: id, sourceApi: modelName, entity: item });
                             newItemsCount++;
                         }
                     }
@@ -296,3 +308,4 @@ window.OhkeHeadlessScanner = {
         }
     }
 };
+

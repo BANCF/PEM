@@ -315,7 +315,7 @@
         return false;
     };
 
-    const getClassUnlockInfoV33 = (entityData, bufferMinutes = 5) => {
+    const getClassUnlockInfoV33 = (entityData, bufferMinutes = 0) => {
         if (!entityData) return { isSafe: false, unlockTimestamp: Infinity, timeString: "Lỗi dữ liệu" };
         let dateStr = entityData.class_schedule_date || entityData.date || entityData.start_date || entityData.teaching_date || "";
         if (!dateStr) return { isSafe: false, unlockTimestamp: Infinity, timeString: "Không có lịch" };
@@ -324,13 +324,17 @@
             let timeStr = entityData.class_hour_start_time || entityData.start_time || entityData.teaching_start_time || "00:00:00";
             let year, month, day;
 
-            // Xử lý linh hoạt đa định dạng ngày tháng từ Ohke
-            if (dateStr.includes('/')) {
-                let parts = dateStr.split('/');
-                day = parseInt(parts[0], 10); month = parseInt(parts[1], 10) - 1; year = parseInt(parts[2], 10);
-            } else if (dateStr.includes('-')) {
-                let parts = dateStr.split('-');
-                year = parseInt(parts[0], 10); month = parseInt(parts[1], 10) - 1; day = parseInt(parts[2], 10);
+            // Xử lý linh hoạt đa định dạng ngày tháng từ Ohke (YYYY-MM-DD hoặc DD-MM-YYYY)
+            let parts = dateStr.includes('/') ? dateStr.split('/') : dateStr.includes('-') ? dateStr.split('-') : null;
+            if (parts && parts.length === 3) {
+                if (parts[0].length === 4) { // YYYY-MM-DD
+                    year = parseInt(parts[0], 10); month = parseInt(parts[1], 10) - 1; day = parseInt(parts[2], 10);
+                } else if (parts[2].length === 4) { // DD-MM-YYYY
+                    day = parseInt(parts[0], 10); month = parseInt(parts[1], 10) - 1; year = parseInt(parts[2], 10);
+                } else {
+                    // Mặc định cho DD-MM-YY nếu có
+                    day = parseInt(parts[0], 10); month = parseInt(parts[1], 10) - 1; year = parseInt(parts[2], 10); 
+                }
             } else {
                 return { isSafe: true, unlockTimestamp: 0, timeString: "" };
             }
@@ -366,6 +370,7 @@
                         <span id="v33-dot" style="display: inline-block; width: 8px; height: 8px; background: #00FF66; border-radius: 50%; box-shadow: 0 0 8px #00FF66;"></span>
                         V33 Patient Hunter
                     </span>
+                    <button id="v33-btn-revert-future" style="background: rgba(255, 51, 102, 0.2); border: 1px solid #FF3366; color: #FFF; border-radius: 4px; padding: 3px 8px; cursor: pointer; font-size: 10px; font-weight: bold;">🛠 Dọn dẹp lỗi tương lai</button>
                 </div>
                 <div id="v33-status-text" style="font-size: 13px; color: #E0E0E0; margin-bottom: 8px; line-height: 1.4;"></div>
                 <div id="v33-next-class" style="font-size: 12px; color: #FFD700; background: rgba(255, 215, 0, 0.1); padding: 6px 8px; border-radius: 6px; margin-bottom: 8px; display: none; border-left: 3px solid #FFD700;"></div>
@@ -376,6 +381,23 @@
             `;
             document.body.appendChild(div);
             overlay = div;
+            
+            // Lắng nghe sự kiện click cho nút dọn dẹp
+            let revertBtn = document.getElementById('v33-btn-revert-future');
+            if (revertBtn) {
+                revertBtn.addEventListener('click', () => {
+                    if (window.OhkeDebug && window.OhkeDebug.revertFutureClasses) {
+                        revertBtn.textContent = "⏳ Đang dọn dẹp...";
+                        revertBtn.style.opacity = "0.7";
+                        revertBtn.style.pointerEvents = "none";
+                        window.OhkeDebug.revertFutureClasses().finally(() => {
+                            revertBtn.textContent = "🛠 Dọn dẹp lỗi tương lai";
+                            revertBtn.style.opacity = "1";
+                            revertBtn.style.pointerEvents = "auto";
+                        });
+                    }
+                });
+            }
         }
         document.getElementById('v33-status-text').innerHTML = statusText;
         let nextClassEl = document.getElementById('v33-next-class');
@@ -402,8 +424,142 @@
         }
     };
 
-    const submitAttendanceFlowV33 = async (classItem) => {
+    const revertAttendanceFlowV33 = async (classItemOrMasterKey, classUpdateTime = "") => {
+        let masterKey = classItemOrMasterKey;
+        let sourceApi = "";
+        
+        if (typeof classItemOrMasterKey === 'object') {
+            masterKey = classItemOrMasterKey.id || classItemOrMasterKey.master_key || (classItemOrMasterKey.entity && classItemOrMasterKey.entity.class_schedule_slot_id);
+            if (!classUpdateTime) classUpdateTime = classItemOrMasterKey.entity ? classItemOrMasterKey.entity.update_time : "";
+            sourceApi = classItemOrMasterKey.sourceApi || "";
+        }
+        
+        log(`⚡ Đang HỦY chốt sổ tiết [${masterKey}]...`);
+
+        // Lấy update_time mới nhất của class nếu chưa có
+        let exactViewerEndpoint = sourceApi ? sourceApi.replace('_Model', '_Viewer') : 'x35FD2_Viewer';
+        let exactTransitionEndpoint = sourceApi ? sourceApi.replace('_Model', '_jsonPostTransition') : 'x35FD2_jsonPostTransition';
+
+        if (!classUpdateTime) {
+            try {
+                let cvRes = await rpcCallHeadlessV33(exactViewerEndpoint, { id: String(masterKey) });
+                if (cvRes && cvRes.data && cvRes.data.update_time) {
+                    classUpdateTime = cvRes.data.update_time;
+                } else if (cvRes && cvRes.html) {
+                    let mTime = cvRes.html.match(/(?:data-update-time|update_time)="([^"]+)"/i);
+                    if (mTime && mTime[1]) classUpdateTime = mTime[1];
+                }
+            } catch(e) {}
+        }
+
+        // 1. Hủy chốt sổ Học sinh
+        try {
+            log(`  ⏳ Đang hủy chốt sổ Học sinh...`);
+            let studentPayload = {
+                id: String(masterKey),
+                field_name: 'attendance_sheet_status',
+                begin_state: 'CLASS_SCHEDULE_SLOT_STATUS_ACCEPTED',
+                end_state: 'CLASS_SCHEDULE_SLOT_STATUS_PENDING',
+                is_reversal: 0,
+                update_time: classUpdateTime
+            };
+            
+            let resStudent = await rpcCallHeadlessV33(exactTransitionEndpoint, studentPayload);
+            if (!resStudent || !resStudent.success || resStudent.type === "error") {
+                log(`  ├─ 🔄 Thử lại với Endpoint cũ (x35FD2)...`);
+                resStudent = await rpcCallHeadlessV33('x35FD2_jsonPostTransition', studentPayload);
+            }
+            
+            if (resStudent && (resStudent.success || resStudent.type === "success")) {
+                log(`  ├─ ✔️ Hủy chốt sổ Học sinh thành công!`);
+                if (resStudent.data && resStudent.data.update_time) classUpdateTime = resStudent.data.update_time;
+            } else {
+                log(`  ├─ ⚠️ Lỗi hủy Học sinh: ${JSON.stringify(resStudent)}`);
+            }
+        } catch(e) {
+            log(`  ├─ ❌ Lỗi gọi API hủy HS: ${e.message}`);
+        }
+
+        // 2. Hủy chốt sổ Giáo viên
+        try {
+            log(`  ⏳ Đang hủy chốt sổ Giáo viên...`);
+            let teacherPayload = {
+                id: String(masterKey),
+                field_name: 'instructor_attendance_status',
+                begin_state: 'INSTRUCTOR_ATTENDANCE_SHEET_STATUS_ACCEPTED',
+                end_state: 'INSTRUCTOR_ATTENDANCE_SHEET_STATUS_PENDING',
+                is_reversal: 0,
+                update_time: classUpdateTime
+            };
+            
+            let resTeacher = await rpcCallHeadlessV33(exactTransitionEndpoint, teacherPayload);
+            if (!resTeacher || !resTeacher.success || resTeacher.type === "error") {
+                log(`  ├─ 🔄 Thử lại với Endpoint cũ (x35FD3)...`);
+                resTeacher = await rpcCallHeadlessV33('x35FD3_jsonPostTransition', teacherPayload);
+            }
+            
+            if (resTeacher && (resTeacher.success || resTeacher.type === "success")) {
+                log(`  ├─ ✔️ Hủy chốt sổ Giáo viên thành công!`);
+            } else {
+                log(`  ├─ ⚠️ Lỗi hủy Giáo viên: ${JSON.stringify(resTeacher)}`);
+            }
+        } catch(e) {
+            log(`  ├─ ❌ Lỗi gọi API hủy GV: ${e.message}`);
+        }
+        return { success: true };
+    };
+
+    window.OhkeDebug = window.OhkeDebug || {};
+    window.OhkeDebug.revert = async (masterKey) => {
+        return await revertAttendanceFlowV33(masterKey, "");
+    };
+
+
+
+    window.OhkeDebug.revertFutureClasses = async () => {
+        log("🚀 [DEBUG] Đang cào toàn bộ lớp học để quét lớp tương lai bị chốt nhầm...");
+        let baseUrl = window.location.origin + window.location.pathname;
+        let allClasses = await window.OhkeHeadlessScanner.scanAllClasses(baseUrl);
+        log(`DEBUG: Nhận được ${allClasses.length} lớp từ scanAllClasses!`);
+
+        let futureClasses = [];
+        for (let rawData of allClasses) {
+            let masterKey = rawData.id || rawData.class_schedule_slot_id || rawData.master_key || (rawData.entity && (rawData.entity.class_schedule_slot_id || rawData.entity.master_key));
+            let entity = rawData.entity || rawData;
+            
+            let studentStatus = String(entity.attendance_sheet_status || "").toUpperCase();
+            let teacherStatus = String(entity.instructor_attendance_status || entity.instructor_attendance_sheet_status || "").toUpperCase();
+            let oldStatus = String(entity.status || "").toUpperCase();
+            
+            let isSubmitted = studentStatus.includes("ACCEPTED") || teacherStatus.includes("ACCEPTED") || oldStatus.includes("ACCEPTED");
+            
+            if (!isSubmitted) continue; // Bỏ qua nếu chưa chốt
+
+            let unlockInfo = getClassUnlockInfoV33(entity, 0); // bufferMinutes = 0
+            
+            if (!unlockInfo.isSafe) { // Chưa đến giờ => Bị chốt nhầm ở tương lai
+                futureClasses.push(rawData);
+            }
+        }
+
+        if (futureClasses.length === 0) {
+            log("✅ Không có lớp tương lai nào bị chốt nhầm.");
+            return { success: true, count: 0 };
+        }
+
+        log(`⚠️ PHÁT HIỆN ${futureClasses.length} LỚP TƯƠNG LAI BỊ CHỐT NHẦM! Bắt đầu hủy chốt sổ...`);
+
+        for (let c of futureClasses) {
+            await revertAttendanceFlowV33(c);
+        }
+
+        log(`🎉 ĐÃ HỦY CHỐT SỔ THÀNH CÔNG CHO ${futureClasses.length} LỚP TƯƠNG LAI!`);
+        return { success: true, count: futureClasses.length };
+    };
+
+    const submitAttendanceFlowV33 = async (classItem, isRetry = false) => {
         let entity = classItem.entity;
+        let currentEntity = entity;
         let masterKey = classItem.id;
         let classUpdateTime = entity.update_time || "";
         let startTime = performance.now();
@@ -420,310 +576,262 @@
             // ==========================================
             // CHIẾN DỊCH BẮT SÓNG ID GIÁO VIÊN VÀ UPDATE_TIME
             // ==========================================
-            // Sử dụng chính xác Payload từ Network tab mà Ohke dùng để render subform Giáo viên
             let teacherId = null; let teacherEntityData = null;
-            let teacherOhkePrefix = null;
-            let teacherDataQueryId = null;
+            let teacherOhkePrefix = null; let teacherDataQueryId = null;
+            let teacherBeginState = "INSTRUCTOR_ATTENDANCE_STATUS_NO_ATTENDANCE";
+            let allCandidateIds = [];
 
-            try {
-                let fetchPayload = {
-                    master_key: String(masterKey),
-                    father_master_key: String(masterKey),
-                    master_object_class_name: "study_student_attendance_sheet",
-                    master_object_class_code: "DOCTYPE-7004",
-                    id: null
-                };
-                let teacherInfoRes = await rpcCallHeadlessV33('x24F76_Model', fetchPayload);
-                console.log("📦 [API Hunt] Raw x24F76_Model Response:", teacherInfoRes);
+            const MAX_HUNT_RETRIES = 2;
+            for (let huntAttempt = 0; huntAttempt <= MAX_HUNT_RETRIES; huntAttempt++) {
+                // Reset state
+                teacherId = null; teacherEntityData = null; teacherBeginState = "INSTRUCTOR_ATTENDANCE_STATUS_NO_ATTENDANCE";
+                allCandidateIds = [];
 
-                // BƯỚC ĐỘT PHÁ (Priority 0): SUPER HUNT MAX
-                // Tìm exact Viewer bằng cách thay _Model thành _Viewer từ Class
-                let exactViewerEndpoint = "x35FD2_Viewer"; 
-                // Ở content.js, do logic gọi API hơi khác nên mình tìm tất cả các endpoint Viewer
-                let classViewerEndpoints = [
-                    'x35FD2_Viewer',
-                    'x253B0_Viewer',
-                    'x253B1_Viewer',
-                    'x253B2_Viewer'
-                ];
-                
-                for (let vEndpoint of classViewerEndpoints) {
-                    try {
-                        let cvRes = await rpcCallHeadlessV33(vEndpoint, { id: String(masterKey) });
-                        if (cvRes && cvRes.html && myNameLower) {
-                            let parser = new DOMParser();
-                            let vDoc = parser.parseFromString(cvRes.html, 'text/html');
-                            let rows = Array.from(vDoc.querySelectorAll('tr[data-id], div[data-id], li[data-id], .list-item, .card, [data-record]'));
-                            
-                            // Lọc thẻ HTML để so sánh tên chính xác
-                            let targetRow = rows.find(r => {
-                                let cleanText = r.innerHTML.replace(/<[^>]*>?/gm, ' ').replace(/\s+/g, ' ').toLowerCase();
-                                return cleanText.includes(myNameLower) || r.innerText.toLowerCase().includes(myNameLower);
-                            });
-
-                            if (!targetRow) {
-                                // Nếu không tìm thấy theo tên, thử fallback ID
-                                let fallbackId = String(masterKey); // Ở content.js không có entity dễ dàng, tìm tạm
-                                let candidate = rows.find(r => (r.getAttribute('data-id') || r.getAttribute('data-record')) !== String(masterKey));
-                                if (candidate) targetRow = candidate;
-                            }
-                            
-                            if (targetRow) {
-                                let extractedId = targetRow.getAttribute('data-id') || targetRow.getAttribute('data-record');
-                                if (!extractedId) {
-                                    let inp = targetRow.querySelector('input[name="id"]');
-                                    if (inp) extractedId = inp.value;
-                                }
-
-                                if (extractedId && extractedId !== String(masterKey)) {
-                                    teacherId = extractedId;
-                                    
-                                    let tTime = targetRow.getAttribute('data-update-time') || targetRow.getAttribute('update_time');
-                                    if (!tTime) {
-                                        let inpTime = targetRow.querySelector('input[name="update_time"]');
-                                        if (inpTime) tTime = inpTime.value;
-                                    }
-                                    if (tTime) {
-                                        teacherEntityData = { update_time: tTime };
-                                    }
-                                    
-                                    let tStatus = targetRow.getAttribute('status');
-                                    if (!tStatus) {
-                                        let inpStatus = targetRow.querySelector('input[name="status"]');
-                                        if (inpStatus) tStatus = inpStatus.value;
-                                    }
-                                    if (tStatus) {
-                                        teacherBeginState = tStatus;
-                                        if (teacherEntityData) teacherEntityData.status = tStatus;
-                                    }
-
-                                    console.log(`🎯 [SUPER HUNT MAX] BẮT ĐƯỢC ID TỪ CLASS VIEWER: ${teacherId} (UpdateTime: ${tTime})`);
-                                    break; // Dừng vòng lặp vì đã tìm thấy
-                                }
-                            }
-                        }
-                    } catch(e) {}
-                }
-
-                // Nếu Super Hunt thất bại, tiếp tục với API Hunt cũ
-                if (!teacherId && teacherInfoRes) {
-                    // Ưu tiên 1: Lấy từ mảng JSON Data (Sử dụng hàm trích xuất string để chống lỗi Unicode Escape)
-                    if (teacherInfoRes.data && Array.isArray(teacherInfoRes.data) && teacherInfoRes.data.length > 0) {
-                        let tRec = null;
-                        if (myNameLower) {
-                            const extractStr = (obj) => {
-                                let s = "";
-                                if (typeof obj === 'string') return obj.toLowerCase() + " ";
-                                if (typeof obj === 'object' && obj !== null) {
-                                    for (let k in obj) s += extractStr(obj[k]);
-                                }
-                                return s;
-                            };
-                            tRec = teacherInfoRes.data.find(r => extractStr(r).includes(myNameLower));
-                        }
-                        
-                        if (tRec && tRec.id && String(tRec.id) !== String(masterKey)) {
-                            teacherId = String(tRec.id);
-                            teacherEntityData = tRec;
-                            if (tRec.status) teacherBeginState = tRec.status;
-                            console.log(`🎯 [API Hunt] BẮT ĐƯỢC ID TỪ JSON MODEL (KHỚP TÊN): ${teacherId} (Master: ${masterKey})`);
-                        }
-                    }
-
-                    // Ưu tiên 2: Phân tích HTML bằng DOMParser
-                    if (!teacherId && teacherInfoRes.html) {
+                try {
+                    let fetchPayload = {
+                        master_key: String(masterKey),
+                        father_master_key: String(masterKey),
+                        master_object_class_name: "study_student_attendance_sheet",
+                        master_object_class_code: "DOCTYPE-7004",
+                        id: null
+                    };
+                    let teacherInfoRes = await rpcCallHeadlessV33('x24F76_Model', fetchPayload);
+                    
+                    // --- BƯỚC ĐỘT PHÁ (Priority 0): SUPER HUNT MAX ---
+                    let exactViewerEndpoint = classItem.sourceApi ? classItem.sourceApi.replace('_Model', '_Viewer') : 'x35FD2_Viewer';
+                    let classViewerEndpoints = [exactViewerEndpoint, 'x35FD2_Viewer', 'x253B0_Viewer'];
+                    for (let vEndpoint of classViewerEndpoints) {
                         try {
-                            let parser = new DOMParser();
-                            let vDoc = parser.parseFromString(teacherInfoRes.html, 'text/html');
-                            let rows = Array.from(vDoc.querySelectorAll('tr[data-id], div[data-id], li[data-id], .list-item, .card, [data-record]'));
-
-                            let targetRow = null;
-                            if (myNameLower && rows.length > 0) {
-                                targetRow = rows.find(r => r.innerText.toLowerCase().includes(myNameLower));
-                            }
-                            if (!targetRow && rows.length > 0) {
-                                targetRow = rows[0]; 
-                            }
-
-                            if (targetRow) {
-                                let extractedId = targetRow.getAttribute('data-id') || targetRow.getAttribute('data-record');
-                                if (!extractedId) {
-                                    let inp = targetRow.querySelector('input[name="id"]');
-                                    if (inp) extractedId = inp.value;
+                            let cvRes = await rpcCallHeadlessV33(vEndpoint, { id: String(masterKey) });
+                            if (cvRes && cvRes.html && myNameLower) {
+                                let parser = new DOMParser();
+                                let vDoc = parser.parseFromString(cvRes.html, 'text/html');
+                                let rows = Array.from(vDoc.querySelectorAll('tr[data-id], div[data-id], li[data-id], .list-item, .card, [data-record]'));
+                                
+                                let targetRow = rows.find(r => {
+                                    let cleanText = r.innerHTML.replace(/<[^>]*>?/gm, ' ').replace(/\s+/g, ' ').toLowerCase();
+                                    return cleanText.includes(myNameLower) || r.innerText.toLowerCase().includes(myNameLower);
+                                });
+                                
+                                if (!targetRow) {
+                                    let candidate = rows.find(r => (r.getAttribute('data-id') || r.getAttribute('data-record')) !== String(masterKey));
+                                    if (candidate) targetRow = candidate;
                                 }
-
-                                if (extractedId && extractedId !== String(masterKey)) {
-                                    teacherId = extractedId;
-                                    console.log(`🎯 [API Hunt] BẮT ĐƯỢC ID TỪ DOM HTML THEO TÊN: ${teacherId}`);
-
-                                    let tTime = targetRow.getAttribute('data-update-time') || targetRow.getAttribute('update_time');
-                                    if (!tTime) {
-                                        let inpTime = targetRow.querySelector('input[name="update_time"]');
-                                        if (inpTime) tTime = inpTime.value;
+                                
+                                if (targetRow) {
+                                    let extractedId = targetRow.getAttribute('data-id') || targetRow.getAttribute('data-record');
+                                    if (!extractedId) {
+                                        let inp = targetRow.querySelector('input[name="id"]');
+                                        if (inp) extractedId = inp.value;
                                     }
-                                    if (tTime) {
-                                        if (!teacherEntityData) teacherEntityData = {};
-                                        teacherEntityData.update_time = tTime;
-                                    }
-                                    
-                                    let tStatus = targetRow.getAttribute('status');
-                                    if (!tStatus) {
-                                        let inpStatus = targetRow.querySelector('input[name="status"]');
-                                        if (inpStatus) tStatus = inpStatus.value;
-                                    }
-                                    if (tStatus) {
-                                        teacherBeginState = tStatus;
-                                        if (teacherEntityData) teacherEntityData.status = tStatus;
+                                    if (extractedId && extractedId !== String(masterKey)) {
+                                        teacherId = extractedId;
+                                        let tTime = targetRow.getAttribute('data-update-time') || targetRow.getAttribute('update_time');
+                                        if (!tTime) { let inpTime = targetRow.querySelector('input[name="update_time"]'); if (inpTime) tTime = inpTime.value; }
+                                        if (tTime) teacherEntityData = { update_time: tTime };
+                                        
+                                        let tStatus = targetRow.getAttribute('status');
+                                        if (!tStatus) { let inpStatus = targetRow.querySelector('input[name="status"]'); if (inpStatus) tStatus = inpStatus.value; }
+                                        if (tStatus) { teacherBeginState = tStatus; if (teacherEntityData) teacherEntityData.status = tStatus; }
+                                        break;
                                     }
                                 }
                             }
-                        } catch (e) { console.log("Lỗi DOM Parse HTML:", e); }
+                        } catch(e) {}
                     }
 
-                    // Ưu tiên 3: Vét cạn bằng Regex nếu DOMParser trượt (Dùng Khoảng cách Proximity Index)
-                    if (!teacherId || String(teacherId).length > 6) {
-                        let rawStr = teacherInfoRes.html || JSON.stringify(teacherInfoRes);
+                    // --- Nếu Super Hunt thất bại, dùng API Hunt ---
+                    if (!teacherId && teacherInfoRes) {
+                        if (teacherInfoRes.data && Array.isArray(teacherInfoRes.data) && teacherInfoRes.data.length > 0) {
+                            let tRec = null;
+                            if (myNameLower) {
+                                const extractStr = (obj) => {
+                                    let s = "";
+                                    if (typeof obj === 'string') return obj.toLowerCase() + " ";
+                                    if (typeof obj === 'object' && obj !== null) { for (let k in obj) s += extractStr(obj[k]); }
+                                    return s;
+                                };
+                                tRec = teacherInfoRes.data.find(r => extractStr(r).includes(myNameLower));
+                            }
+                            if (tRec && tRec.id && String(tRec.id) !== String(masterKey)) {
+                                teacherId = String(tRec.id); teacherEntityData = tRec;
+                                if (tRec.status) teacherBeginState = tRec.status;
+                            }
+                        }
 
-                        // Tìm tất cả ID
+                        // DOM Parser
+                        if (!teacherId && teacherInfoRes.html) {
+                            try {
+                                let parser = new DOMParser();
+                                let vDoc = parser.parseFromString(teacherInfoRes.html, 'text/html');
+                                let rows = Array.from(vDoc.querySelectorAll('tr[data-id], div[data-id], li[data-id], .list-item, .card, [data-record]'));
+                                let targetRow = null;
+                                if (myNameLower && rows.length > 0) targetRow = rows.find(r => r.innerText.toLowerCase().includes(myNameLower));
+                                if (!targetRow && rows.length > 0) targetRow = rows[0]; 
+
+                                if (targetRow) {
+                                    let extractedId = targetRow.getAttribute('data-id') || targetRow.getAttribute('data-record');
+                                    if (!extractedId) { let inp = targetRow.querySelector('input[name="id"]'); if (inp) extractedId = inp.value; }
+                                    if (extractedId && extractedId !== String(masterKey)) {
+                                        teacherId = extractedId;
+                                        let tTime = targetRow.getAttribute('data-update-time') || targetRow.getAttribute('update_time');
+                                        if (!tTime) { let inpTime = targetRow.querySelector('input[name="update_time"]'); if (inpTime) tTime = inpTime.value; }
+                                        if (tTime) { if (!teacherEntityData) teacherEntityData = {}; teacherEntityData.update_time = tTime; }
+                                        let tStatus = targetRow.getAttribute('status');
+                                        if (!tStatus) { let inpStatus = targetRow.querySelector('input[name="status"]'); if (inpStatus) tStatus = inpStatus.value; }
+                                        if (tStatus) { teacherBeginState = tStatus; if (teacherEntityData) teacherEntityData.status = tStatus; }
+                                    }
+                                }
+                            } catch (e) { }
+                        }
+
+                        // Vét cạn Regex lấy mảng allCandidateIds
+                        let rawStr = teacherInfoRes.html || JSON.stringify(teacherInfoRes);
                         let idMatches = [...rawStr.matchAll(/data-id=\\?["'](\d{6,8})\\?["']/g)];
                         if (idMatches.length === 0) idMatches = [...rawStr.matchAll(/&quot;id&quot;&colon;&quot;(\d{6,8})&quot;/g)];
                         if (idMatches.length === 0) idMatches = [...rawStr.matchAll(/\\?["']id\\?["']\s*:\s*\\?["']?(\d{6,8})\\?["']?/g)];
+                        
+                        allCandidateIds = [...new Set(idMatches.map(m => m[1]))].filter(id => id !== String(masterKey));
 
-                        let candidateIds = [...new Set(idMatches.map(m => m[1]))].filter(id => id !== String(masterKey));
-
-                        if (candidateIds.length > 0) {
-                            if (candidateIds.length === 1 || !myNameLower) {
-                                teacherId = candidateIds[0];
+                        if (!teacherId && allCandidateIds.length > 0) {
+                            if (allCandidateIds.length === 1 || !myNameLower) {
+                                teacherId = allCandidateIds[0];
                             } else {
-                                // Thuật toán Proximity: Tìm ID nằm gần Tên mình nhất trong chuỗi raw HTML
                                 let nameIdx = rawStr.toLowerCase().indexOf(myNameLower);
                                 if (nameIdx !== -1) {
-                                    let bestId = candidateIds[0];
-                                    let minDiff = Infinity;
-                                    for (let cid of candidateIds) {
+                                    let bestId = allCandidateIds[0]; let minDiff = Infinity;
+                                    for (let cid of allCandidateIds) {
                                         let idx = rawStr.indexOf(cid);
                                         let diff = Math.abs(idx - nameIdx);
                                         if (diff < minDiff) { minDiff = diff; bestId = cid; }
                                     }
                                     teacherId = bestId;
-                                    console.log(`🎯 [API Hunt] BẮT ĐƯỢC ID DỰA TRÊN KHOẢNG CÁCH CHUỖI VỚI TÊN "${myName}": ${teacherId}`);
-                                } else {
-                                    teacherId = candidateIds[0];
                                 }
                             }
-
                             if (teacherId) {
-                                // Cố gắng vét update_time
                                 let mTime = rawStr.match(/data-update-time=\\?["']([^\\"']+)[\\]?["']/);
                                 if (!mTime) mTime = rawStr.match(/update_time\\?["']\s*:\s*\\?["']([^\\"']+)\\?["']/);
                                 if (mTime && mTime[1]) teacherEntityData = { update_time: mTime[1] };
-
                                 let mPrefix = rawStr.match(/ohke_prefix\\?["']\s*:\s*\\?["']([^\\"']+)\\?["']/);
                                 if (mPrefix && mPrefix[1]) teacherOhkePrefix = mPrefix[1];
                             }
                         }
-                    }
-                    // Đồng bộ lại toàn bộ dữ liệu (update_time, status) từ JSON Data bằng teacherId chốt cuối cùng
-                    if (teacherId && teacherInfoRes.data && Array.isArray(teacherInfoRes.data)) {
-                        let exactRec = teacherInfoRes.data.find(r => String(r.id) === String(teacherId));
-                        if (exactRec) {
-                            if (!teacherEntityData) teacherEntityData = {};
-                            if (exactRec.update_time) teacherEntityData.update_time = exactRec.update_time;
-                            if (exactRec.status) teacherBeginState = exactRec.status;
-                            console.log(`🔍 [Hunt Sync] Đồng bộ lại thông tin GV từ JSON: update_time="${exactRec.update_time}", status="${exactRec.status}"`);
+
+                        if (teacherId && teacherInfoRes.data && Array.isArray(teacherInfoRes.data)) {
+                            let exactRec = teacherInfoRes.data.find(r => String(r.id) === String(teacherId));
+                            if (exactRec) {
+                                if (!teacherEntityData) teacherEntityData = {};
+                                if (exactRec.update_time) teacherEntityData.update_time = exactRec.update_time;
+                                if (exactRec.status) teacherBeginState = exactRec.status;
+                            }
                         }
+                    }
+                } catch (e) {
+                    console.log("❌ Lỗi API Hunt Giáo viên:", e);
+                }
+
+                // Fallback cuối cùng
+                if (!teacherId && allCandidateIds.length === 0) {
+                    let fallbackId = entity.instructor_sheet_id || entity.instructor_attendance_id || entity.instructor_id || (entity.instructor && entity.instructor.id);
+                    if (fallbackId && String(fallbackId) !== String(masterKey)) {
+                        teacherId = String(fallbackId);
+                        allCandidateIds.push(teacherId);
                     }
                 }
-            } catch (e) {
-                console.log("❌ Lỗi API Hunt Giáo viên:", e);
+
+                if (teacherId || allCandidateIds.length > 0) {
+                    break; // Đã có ID, thoát vòng lặp Retry
+                }
+
+                if (huntAttempt < MAX_HUNT_RETRIES) {
+                    log(`🔄 [COLD SESSION RETRY ${huntAttempt + 1}/${MAX_HUNT_RETRIES}] 3-Tier matching thất bại (Ohke Cold Cache). Chờ 800ms rồi thử lại...`);
+                    await delay(800);
+                }
+            } // Hết vòng lặp Retry Hunt
+
+            // ==========================================
+            // CHIẾN DỊCH MULTI-FIRE TICK QUYỀN GIÁO VIÊN
+            // ==========================================
+            let isTeacherDone = false;
+            let finalTeacherId = null;
+
+            if (teacherId && !allCandidateIds.includes(String(teacherId))) {
+                allCandidateIds.unshift(String(teacherId));
             }
 
-            // Fallback nếu API Hunt thất bại
-            if (!teacherId || String(teacherId).length > 6) {
-                teacherId = entity.instructor_sheet_id || entity.instructor_attendance_id || entity.instructor_id || (entity.instructor && entity.instructor.id) || masterKey;
-            }
+            for (let testId of allCandidateIds) {
+                let tUpdateTime = teacherEntityData?.update_time || "";
+                let tBeginState = teacherBeginState;
 
-            // Gọi Viewer để xác nhận chính xác update_time và trạng thái hiện tại (Chống lỗi OCC)
-            if (teacherId && String(teacherId) !== String(masterKey)) {
+                // Gọi Viewer xác nhận chính xác update_time và trạng thái (Chống OCC)
                 try {
-                    let tViewerRes = await rpcCallHeadlessV33('x24F76_Viewer', { id: String(teacherId) });
+                    let tViewerRes = await rpcCallHeadlessV33('x24F76_Viewer', { id: String(testId) });
                     if (tViewerRes && tViewerRes.data && tViewerRes.data.update_time) {
-                        if (!teacherEntityData) teacherEntityData = {};
-                        teacherEntityData.update_time = tViewerRes.data.update_time;
-                        if (tViewerRes.data.status) teacherEntityData.status = tViewerRes.data.status;
-                        console.log(`🔍 [Viewer Fetch] Lấy trực tiếp thông tin GV: update_time="${tViewerRes.data.update_time}", status="${tViewerRes.data.status}"`);
+                        tUpdateTime = tViewerRes.data.update_time;
+                        if (tViewerRes.data.status) tBeginState = tViewerRes.data.status;
                     } else if (tViewerRes && tViewerRes.html) {
                         let mTime = tViewerRes.html.match(/(?:data-update-time|update_time)="([^"]+)"/i) || tViewerRes.html.match(/name="update_time"\s+value="([^"]+)"/i);
-                        if (mTime && mTime[1]) {
-                            if (!teacherEntityData) teacherEntityData = {};
-                            teacherEntityData.update_time = mTime[1];
-                            console.log(`🚑 [Rescue Hunt] Cứu vớt update_time từ x24F76_Viewer (HTML): ${mTime[1]}`);
-                        } else {
-                            let snip = tViewerRes.html.replace(/\s+/g, ' ').substring(0, 150);
-                            console.log(`⚠️ [Rescue Hunt] HTML của x24F76_Viewer không chứa update_time! Snippet: ${snip}...`);
-                        }
+                        if (mTime && mTime[1]) tUpdateTime = mTime[1];
                         let mStatus = tViewerRes.html.match(/status="([^"]+)"/i) || tViewerRes.html.match(/name="status"\s+value="([^"]+)"/i);
-                        if (mStatus && mStatus[1]) {
-                            if (!teacherEntityData) teacherEntityData = {};
-                            teacherEntityData.status = mStatus[1];
-                        }
+                        if (mStatus && mStatus[1]) tBeginState = mStatus[1];
                     }
                 } catch(e) {}
-            }
 
-            let currentEntity = Object.assign({}, entity);
-            // Nếu không quét được teacherEntityData thật, tạo một entity giả LÀNH TÍNH, tuyệt đối KHÔNG sao chép từ entity Lớp Học (gây lỗi cấu trúc)
-            let currentTeacherEntity = teacherEntityData ? Object.assign({}, teacherEntityData) : {
-                id: parseInt(teacherId) || teacherId,
-                status: "INSTRUCTOR_ATTENDANCE_STATUS_NO_ATTENDANCE",
-                update_time: ""
-            };
-            let tStatus = String(currentTeacherEntity.instructor_attendance_status || currentTeacherEntity.status || "").toUpperCase();
-            let isTeacherDone = tStatus.includes('ACCEPTED') || tStatus.includes('PRESENT') || tStatus.includes('FULL_ATTENDANCE');
-
-            // --- 2. CHỐT GIÁO VIÊN ---
-            if (!isTeacherDone) {
-                log(`👨‍🏫 Đang chốt sổ Giáo viên (ID: ${teacherId})...`);
-                let teacherMockEnv = {
-                    id: String(teacherId),
-                    master_key: String(masterKey),
-                    father_master_key: String(masterKey)
-                };
-                if (teacherOhkePrefix) teacherMockEnv.ohke_prefix = teacherOhkePrefix;
-                if (teacherDataQueryId) teacherMockEnv.data_query_id = teacherDataQueryId;
-
-                // Sửa lỗi ERR_CONCURRENT_TRANSITION do truyền nhầm status của Học sinh cho Giáo viên
-                let tBeginState = currentTeacherEntity.status;
                 if (!tBeginState || !tBeginState.includes("INSTRUCTOR_ATTENDANCE_STATUS_")) {
                     tBeginState = "INSTRUCTOR_ATTENDANCE_STATUS_NO_ATTENDANCE";
                 }
 
-                // Nếu không quét được update_time thật của Giáo viên, tuyệt đối KHÔNG dùng update_time của Lớp học (gây lỗi OCC Lock)
-                let tUpdateTime = currentTeacherEntity.update_time || "";
-                if (tUpdateTime === currentEntity.update_time) tUpdateTime = "";
+                let currentIsDone = tBeginState.includes('ACCEPTED') || tBeginState.includes('PRESENT') || tBeginState.includes('FULL_ATTENDANCE');
 
-                // Cập nhật teacherMockEnv với đúng ID của Teacher
-                teacherMockEnv.id = parseInt(teacherId) || teacherId;
-
-                // Đảm bảo Payload 1 không chứa rác
-                let payloadApi1 = {
-                    id: parseInt(teacherId) || teacherId,
+                log(`⏳ [Multi-Fire] Đang thử cấp quyền trên ID: ${testId}...`);
+                let payloadTeacherTick = {
+                    id: parseInt(testId),
                     field_name: "status",
                     begin_state: tBeginState,
-                    end_state: API_CONFIG_V33.teacherTargetState,
+                    to_state: "INSTRUCTOR_ATTENDANCE_STATUS_PRESENT",
+                    end_state: "INSTRUCTOR_ATTENDANCE_STATUS_PRESENT",
                     is_reversal: 0,
                     update_time: tUpdateTime,
                     mode: "V",
-                    entity: { id: parseInt(teacherId) || teacherId, status: tBeginState }, // Gửi entity siêu sạch
-                    env: teacherMockEnv
+                    entity: { id: parseInt(testId), status: tBeginState },
+                    env: { id: parseInt(testId), master_key: String(masterKey), father_master_key: String(masterKey) }
                 };
-                try {
-                    console.log("👨‍🏫 [Teacher API 1] Đang gửi Payload:", payloadApi1);
-                    let res1 = await rpcCallHeadlessV33('x24F76_jsonPostTransition', payloadApi1);
-                    console.log("👨‍🏫 [Teacher API 1] Response:", res1);
-                    if (res1 && res1.data) Object.assign(currentTeacherEntity, res1.data);
-                } catch (e1) { console.error("👨‍🏫 [Teacher API 1] Lỗi:", e1); }
 
+                try {
+                    let res1 = await rpcCallHeadlessV33('x24F76_jsonPostTransition', payloadTeacherTick);
+                    if (res1 && res1.type === "success") {
+                        log(`  ├─ ✔️ TRÚNG ĐÍCH! Tick Có mặt thành công cho quyền ID: ${testId}`);
+                        finalTeacherId = testId;
+                        isTeacherDone = true;
+                        break;
+                    } else if (res1 && res1.code && (res1.code.includes("DENIED") || res1.code.includes("READ_ONLY"))) {
+                        log(`  ├─ ⚠️ ID ${testId} bị từ chối (Không phải quyền). Thử ID tiếp theo...`);
+                    } else if (res1 && res1.code && res1.code.includes("INVALID_TRANSITION")) {
+                        log(`  ├─ ✔️ ID ${testId} TRÚNG ĐÍCH! (Đã điểm danh trước đó)`);
+                        finalTeacherId = testId;
+                        isTeacherDone = true;
+                        break;
+                    }
+                } catch(e1) {}
+            }
+
+            if (!finalTeacherId) {
+                // Fallback nếu Multi-fire thất bại nhưng vẫn muốn chốt thử
+                finalTeacherId = teacherId || masterKey;
+            }
+
+            // Làm mới update_time của Lớp học trước khi chốt Giáo viên (Anti OCC Lock - Bước đột phá)
+            let classFreshUpdateTime = classUpdateTime;
+            try {
+                let exactViewerEndpoint = classItem.sourceApi ? classItem.sourceApi.replace('_Model', '_Viewer') : 'x35FD2_Viewer';
+                let resRefreshMaster = await rpcCallHeadlessV33(exactViewerEndpoint, { id: String(masterKey) });
+                if (resRefreshMaster && resRefreshMaster.data && resRefreshMaster.data.update_time) {
+                    classFreshUpdateTime = resRefreshMaster.data.update_time;
+                } else if (resRefreshMaster && resRefreshMaster.html) {
+                    let mTime = resRefreshMaster.html.match(/(?:data-update-time|update_time)="([^"]+)"/i);
+                    if (mTime && mTime[1]) classFreshUpdateTime = mTime[1];
+                }
+            } catch (eRefresh) { }
                 let teacherMockEnv2 = { id: String(masterKey), master_key: String(masterKey) };
                 if (teacherOhkePrefix) teacherMockEnv2.ohke_prefix = teacherOhkePrefix;
                 if (teacherDataQueryId) teacherMockEnv2.data_query_id = teacherDataQueryId;
@@ -732,9 +840,10 @@
                     id: parseInt(masterKey) || masterKey,
                     field_name: "instructor_attendance_status",
                     begin_state: currentEntity.instructor_attendance_status || "INSTRUCTOR_ATTENDANCE_SHEET_STATUS_PENDING",
+                    to_state: "INSTRUCTOR_ATTENDANCE_SHEET_STATUS_ACCEPTED",
                     end_state: "INSTRUCTOR_ATTENDANCE_SHEET_STATUS_ACCEPTED",
                     is_reversal: 0,
-                    update_time: currentEntity.update_time || classUpdateTime,
+                    update_time: currentEntity.update_time || classFreshUpdateTime,
                     mode: "V",
                     entity: currentEntity,
                     env: teacherMockEnv2
@@ -748,7 +857,6 @@
                     }
                     if (res2 && res2.data) Object.assign(currentEntity, res2.data);
                 } catch (e2) { console.error("👨‍🏫 [Teacher API 2] Lỗi:", e2); }
-            }
 
             // --- 3. CHỐT HỌC SINH (3-TIER TUẦN TỰ) ---
             let checkModes = [
@@ -799,9 +907,10 @@
                     id: parseInt(masterKey) || masterKey,
                     field_name: "attendance_sheet_status",
                     begin_state: currentEntity.attendance_sheet_status || "CLASS_SCHEDULE_SLOT_STATUS_PENDING",
+                    to_state: "CLASS_SCHEDULE_SLOT_STATUS_ACCEPTED",
                     end_state: "CLASS_SCHEDULE_SLOT_STATUS_ACCEPTED",
                     is_reversal: 0,
-                    update_time: currentEntity.update_time || classUpdateTime,
+                    update_time: currentEntity.update_time || classFreshUpdateTime,
                     mode: "V",
                     entity: currentEntity,
                     env: realEnv
@@ -852,12 +961,20 @@
                 log(`✅ Thành công! Đã chốt sổ tiết [${classHourCode || masterKey}] trong ${(duration / 1000).toFixed(1)}s.`);
                 return true;
             } else {
+                if (!isRetry) {
+                    log(`🔄 [TỰ ĐỘNG BẮN LẠI] Lần 1 thất bại. Đang thử bắn lại lần 2 sau 1.5 giây...`);
+                    await delay(1500);
+                    // Xóa update_time để ép hệ thống fetch lại version mới nhất từ API, tránh lỗi OCC Lock
+                    if (classItem.entity) classItem.entity.update_time = "";
+                    return await submitAttendanceFlowV33(classItem, true);
+                }
+
                 if (classItem.element) {
                     if (!classItem.element.innerHTML.includes('Bị kẹt API')) {
                         classItem.element.innerHTML += '<div style="color:#dc3545; font-weight:bold; font-size:12px; margin-top:5px;">⚠️ Bị kẹt API (Sẽ thử lại)</div>';
                     }
                 }
-                log(`⚠️ Cảnh báo: Tiết [${classHourCode || masterKey}] API chốt sổ không phản hồi đúng. Sẽ tự động thử lại sau!`);
+                log(`⚠️ Cảnh báo: Tiết [${classHourCode || masterKey}] API chốt sổ không phản hồi đúng sau 2 lần bắn!`);
                 return false;
             }
         } catch (err) {
@@ -921,11 +1038,16 @@
         if (localReadyList.length === 0) {
         } else {
             log(`🎯 Phát hiện ${localReadyList.length} tiết. Đang tiến hành điểm danh...`);
-            for (let cls of localReadyList) {
+            const CONCURRENCY = 5;
+            for (let i = 0; i < localReadyList.length; i += CONCURRENCY) {
                 if (!isWatcherRunningV33) break;
-                if (cls.element.getAttribute('data-da-diem-danh') === 'true' || (cls.element.textContent || "").includes('Đã Auto V33')) continue;
-                let success = await submitAttendanceFlowV33(cls);
-                if (success) totalProcessedV33++;
+                const batch = localReadyList.slice(i, i + CONCURRENCY);
+                await Promise.all(batch.map(async (cls) => {
+                    if (!isWatcherRunningV33) return;
+                    if (cls.element.getAttribute('data-da-diem-danh') === 'true' || (cls.element.textContent || "").includes('Đã Auto V33')) return;
+                    let success = await submitAttendanceFlowV33(cls);
+                    if (success) totalProcessedV33++;
+                }));
             }
         }
         return { processedCount: localReadyList.length, locked: localLockedList };
@@ -963,12 +1085,17 @@
 
         log(`📄 API Scanner đã quét: ${doneCount} Đã xong - ${pendingItems.length} Cần điểm danh ngay.`);
 
-        for (let item of pendingItems) {
+        const CONCURRENCY = 5;
+        for (let i = 0; i < pendingItems.length; i += CONCURRENCY) {
             if (!isWatcherRunningV33) break;
-            log(`⚡ Đang chốt điểm danh tiết [${item.classCode}]...`);
-            let success = await submitAttendanceFlowV33(item, env);
-            if (success) totalProcessed++;
-            await delay(500);
+            const batch = pendingItems.slice(i, i + CONCURRENCY);
+            await Promise.all(batch.map(async (item) => {
+                if (!isWatcherRunningV33) return;
+                log(`⚡ Đang chốt điểm danh tiết [${item.classCode}]...`);
+                let success = await submitAttendanceFlowV33(item, env);
+                if (success) totalProcessed++;
+                await delay(500);
+            }));
         }
 
         return { processedCount: totalProcessed, locked: allLocked };
@@ -1176,9 +1303,10 @@
         let scheduleData = [];
         let now = Date.now();
 
-        for (let entity of apiItems) {
+        for (let rawItem of apiItems) {
             try {
-                let classCode = entity.class_hour_code || entity.id;
+                let entity = rawItem.entity || rawItem;
+                let classCode = entity.class_hour_code || entity.id || rawItem.id;
 
                 // LỌC CÁC LỚP ĐÃ HOÀN THÀNH
                 let tStatus = String(entity.instructor_attendance_status || entity.status || "").toUpperCase();
@@ -1419,6 +1547,10 @@
                     <!-- Nút V33 Run Headless Auto -->
                     <button id="btn-run-headless-auto" style="background: #e83e8c; color: white; padding: 10px; border: none; border-radius: 4px; font-weight: bold; cursor: pointer; margin-top: 5px; border-bottom: 3px solid #c2185b;">
                         🚀 ĐIỂM DANH CHẠY NỀN
+                    </button>
+                    
+                    <button id="btn-main-revert-future" style="display: none; background: #dc3545; color: white; padding: 10px; border: none; border-radius: 4px; font-weight: bold; cursor: pointer; margin-top: 5px; border-bottom: 3px solid #b02a37;">
+                        🛠 DỌN LỖI ĐIỂM DANH TƯƠNG LAI
                     </button>
 
                     
@@ -1865,6 +1997,23 @@
                 btnRunHeadlessAuto.style.background = "#ffc107";
                 btnRunHeadlessAuto.disabled = true;
                 chrome.runtime.sendMessage({ action: 'START_GHOST_HEADLESS' });
+            };
+        }
+
+        let btnMainRevertFuture = document.getElementById('btn-main-revert-future');
+        if (btnMainRevertFuture) {
+            btnMainRevertFuture.onclick = () => {
+                log("👉 ĐANG KIỂM TRA VÀ DỌN LỖI LỚP TƯƠNG LAI...");
+                btnMainRevertFuture.innerText = "⏳ ĐANG DỌN DẸP...";
+                btnMainRevertFuture.style.background = "#ffc107";
+                btnMainRevertFuture.style.pointerEvents = "none";
+                if (window.OhkeDebug && window.OhkeDebug.revertFutureClasses) {
+                    window.OhkeDebug.revertFutureClasses().finally(() => {
+                        btnMainRevertFuture.innerText = "🛠 DỌN LỖI ĐIỂM DANH TƯƠNG LAI";
+                        btnMainRevertFuture.style.background = "#dc3545";
+                        btnMainRevertFuture.style.pointerEvents = "auto";
+                    });
+                }
             };
         }
 
@@ -3305,9 +3454,15 @@
                 let baseUrl = window.location.href.split('?')[0];
                 let itemsAPI = await window.OhkeHeadlessScanner.scanAllClasses(baseUrl);
                 
-                let pendingItems = itemsAPI.filter(item => {
+                let pendingItems = itemsAPI.filter(rawItem => {
+                    let item = rawItem.entity || rawItem;
                     let tStatus = String(item.instructor_attendance_status || item.status || '').toUpperCase();
-                    return !(tStatus.includes('ACCEPTED') || tStatus.includes('PRESENT') || tStatus.includes('FULL_ATTENDANCE'));
+                    let isPending = !(tStatus.includes('ACCEPTED') || tStatus.includes('PRESENT') || tStatus.includes('FULL_ATTENDANCE'));
+                    if (!isPending) return false;
+                    
+                    // Thêm cơ chế chặn thời gian: Chỉ điểm danh khi đã qua ít nhất 5 phút kể từ lúc lớp bắt đầu
+                    let unlockInfo = getClassUnlockInfoV33(item, 5);
+                    return unlockInfo.isSafe;
                 });
 
                 if (pendingItems.length === 0) {
@@ -3317,22 +3472,28 @@
                 }
 
                 let successCount = 0;
-                for (let i = 0; i < pendingItems.length; i++) {
-                    let item = pendingItems[i];
-                    let compatibleItem = {
+                const CONCURRENCY = 5;
+                let compatibleItems = pendingItems.map(rawItem => {
+                    let item = rawItem.entity || rawItem;
+                    return {
                         id: String(item.id || item.master_key || item.class_schedule_slot_id),
                         entity: item,
-                        element: null
+                        element: null,
+                        sourceApi: rawItem.sourceApi || ""
                     };
-                    
-                    let pText = `⏳ Đang điểm danh... ${i+1}/${pendingItems.length}`;
-                    log('👻 ' + pText);
-                    setGhostStatus('PROGRESS', pText);
-                    
-                    let res = await submitAttendanceFlowV33(compatibleItem);
-                    if (res) successCount++;
-
-                    if (i < pendingItems.length - 1) await new Promise(r => setTimeout(r, 600));
+                });
+                
+                for (let i = 0; i < compatibleItems.length; i += CONCURRENCY) {
+                    const batch = compatibleItems.slice(i, i + CONCURRENCY);
+                    await Promise.all(batch.map(async (compatibleItem, index) => {
+                        let globalIndex = i + index + 1;
+                        let pText = `⏳ Đang điểm danh... ${globalIndex}/${compatibleItems.length}`;
+                        log('👻 ' + pText);
+                        setGhostStatus('PROGRESS', pText);
+                        
+                        let res = await submitAttendanceFlowV33(compatibleItem);
+                        if (res) successCount++;
+                    }));
                 }
 
                 let dText = `🎉 Hoàn tất! Điểm danh thành công ${successCount}/${pendingItems.length} lớp.`;
