@@ -143,19 +143,27 @@ window.OhkeHeadlessScanner = {
                 
                 let regexEntity = /data-entity=(['"])([\s\S]*?)\1/g;
                 
-                // Lấy ngày hôm nay
+                // Mở rộng dải ngày quét lên 7 ngày
                 let today = new Date();
-                let y = today.getFullYear();
-                let mStr = String(today.getMonth() + 1).padStart(2, '0');
-                let dStr = String(today.getDate()).padStart(2, '0');
-                let dateStr = `${y}-${mStr}-${dStr}`;
+                let nextWeek = new Date();
+                nextWeek.setDate(today.getDate() + 6);
+
+                let fmt = (d) => {
+                    let y = d.getFullYear();
+                    let m = String(d.getMonth() + 1).padStart(2, '0');
+                    let dt = String(d.getDate()).padStart(2, '0');
+                    return `${y}-${m}-${dt}`;
+                };
+
+                let startDateStr = fmt(today);
+                let endDateStr = fmt(nextWeek);
                 
                 // Bước 2: Vòng lặp bắn API phân trang cho Tab hiện tại
                 while(true) {
                     console.log(`🔄 [API SCANNER] [Tab ${fieldSubformId}] Đang tải Trang ${page}...`);
                     
                     let payload = {
-                        ":exchange": { "p2c": { "end_date": dateStr, "start_date": dateStr }, "c2p": {} },
+                        ":exchange": { "p2c": { "end_date": endDateStr, "start_date": startDateStr }, "c2p": {} },
                         ":field_subform_id": parseInt(fieldSubformId, 10),
                         ":master_readonly": null,
                         ":referrer": baseUrl,
@@ -168,7 +176,7 @@ window.OhkeHeadlessScanner = {
                         "media": "screen",
                         "ohke_prefix": ohkePrefix,
                         "page": page,
-                        "params": { "end_date": dateStr, "start_date": dateStr }
+                        "params": { "end_date": endDateStr, "start_date": startDateStr }
                     };
                 
                     let apiRes = await fetch(page === 0 ? apiUrl : `${apiUrl}?__ajax_page=${page}&page=${page}&p=${page}`, {

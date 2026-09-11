@@ -171,22 +171,26 @@
     let globalSeenIdsV33 = new Set();
 
     let currentTeacherNameV33 = "";
-    const getTeacherNameV33 = () => {
-        if (currentTeacherNameV33) return currentTeacherNameV33;
+    let currentTeacherIdV33 = "";
+    const getMyIdentityV33 = () => {
+        if (currentTeacherNameV33 && currentTeacherIdV33) return { name: currentTeacherNameV33, id: currentTeacherIdV33 };
         let walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, null, false);
         let node;
         while (node = walker.nextNode()) {
             let text = node.nodeValue.trim();
             // Tìm định dạng "[ID] Họ và Tên" ở góc màn hình
-            let match = text.match(/^\[\d+\]\s+([A-Za-zÀ-ỹ\s]+)/);
-            if (match && match[1] && match[1].trim().length > 3) {
-                currentTeacherNameV33 = match[1].trim().split('\n')[0].trim();
-                return currentTeacherNameV33;
+            let match = text.match(/^\[(\d+)\]\s+([A-Za-zÀ-ỹ\s]+)/);
+            if (match && match[1] && match[2] && match[2].trim().length > 3) {
+                currentTeacherIdV33 = match[1].trim();
+                currentTeacherNameV33 = match[2].trim().split('\n')[0].trim();
+                return { name: currentTeacherNameV33, id: currentTeacherIdV33 };
             }
         }
         // Fallback khẩn cấp nếu UI thay đổi
-        return "Vũ Hoàng Linh";
+        return { name: localStorage.getItem('ohke_my_name') || "Vũ Hoàng Linh", id: localStorage.getItem('ohke_my_id') || "" };
     };
+
+    const getTeacherNameV33 = () => getMyIdentityV33().name;
 
     let tenantId = '61892';
     let matchTenant = window.location.pathname.match(/^\/(\d+)\//);
@@ -333,7 +337,7 @@
                     day = parseInt(parts[0], 10); month = parseInt(parts[1], 10) - 1; year = parseInt(parts[2], 10);
                 } else {
                     // Mặc định cho DD-MM-YY nếu có
-                    day = parseInt(parts[0], 10); month = parseInt(parts[1], 10) - 1; year = parseInt(parts[2], 10); 
+                    day = parseInt(parts[0], 10); month = parseInt(parts[1], 10) - 1; year = parseInt(parts[2], 10);
                 }
             } else {
                 return { isSafe: true, unlockTimestamp: 0, timeString: "" };
@@ -381,7 +385,7 @@
             `;
             document.body.appendChild(div);
             overlay = div;
-            
+
             // Lắng nghe sự kiện click cho nút dọn dẹp
             let revertBtn = document.getElementById('v33-btn-revert-future');
             if (revertBtn) {
@@ -427,13 +431,13 @@
     const revertAttendanceFlowV33 = async (classItemOrMasterKey, classUpdateTime = "") => {
         let masterKey = classItemOrMasterKey;
         let sourceApi = "";
-        
+
         if (typeof classItemOrMasterKey === 'object') {
             masterKey = classItemOrMasterKey.id || classItemOrMasterKey.master_key || (classItemOrMasterKey.entity && classItemOrMasterKey.entity.class_schedule_slot_id);
             if (!classUpdateTime) classUpdateTime = classItemOrMasterKey.entity ? classItemOrMasterKey.entity.update_time : "";
             sourceApi = classItemOrMasterKey.sourceApi || "";
         }
-        
+
         log(`⚡ Đang HỦY chốt sổ tiết [${masterKey}]...`);
 
         // Lấy update_time mới nhất của class nếu chưa có
@@ -449,7 +453,7 @@
                     let mTime = cvRes.html.match(/(?:data-update-time|update_time)="([^"]+)"/i);
                     if (mTime && mTime[1]) classUpdateTime = mTime[1];
                 }
-            } catch(e) {}
+            } catch (e) { }
         }
 
         // 1. Hủy chốt sổ Học sinh
@@ -463,20 +467,20 @@
                 is_reversal: 0,
                 update_time: classUpdateTime
             };
-            
+
             let resStudent = await rpcCallHeadlessV33(exactTransitionEndpoint, studentPayload);
             if (!resStudent || !resStudent.success || resStudent.type === "error") {
                 log(`  ├─ 🔄 Thử lại với Endpoint cũ (x35FD2)...`);
                 resStudent = await rpcCallHeadlessV33('x35FD2_jsonPostTransition', studentPayload);
             }
-            
+
             if (resStudent && (resStudent.success || resStudent.type === "success")) {
                 log(`  ├─ ✔️ Hủy chốt sổ Học sinh thành công!`);
                 if (resStudent.data && resStudent.data.update_time) classUpdateTime = resStudent.data.update_time;
             } else {
                 log(`  ├─ ⚠️ Lỗi hủy Học sinh: ${JSON.stringify(resStudent)}`);
             }
-        } catch(e) {
+        } catch (e) {
             log(`  ├─ ❌ Lỗi gọi API hủy HS: ${e.message}`);
         }
 
@@ -491,19 +495,19 @@
                 is_reversal: 0,
                 update_time: classUpdateTime
             };
-            
+
             let resTeacher = await rpcCallHeadlessV33(exactTransitionEndpoint, teacherPayload);
             if (!resTeacher || !resTeacher.success || resTeacher.type === "error") {
                 log(`  ├─ 🔄 Thử lại với Endpoint cũ (x35FD3)...`);
                 resTeacher = await rpcCallHeadlessV33('x35FD3_jsonPostTransition', teacherPayload);
             }
-            
+
             if (resTeacher && (resTeacher.success || resTeacher.type === "success")) {
                 log(`  ├─ ✔️ Hủy chốt sổ Giáo viên thành công!`);
             } else {
                 log(`  ├─ ⚠️ Lỗi hủy Giáo viên: ${JSON.stringify(resTeacher)}`);
             }
-        } catch(e) {
+        } catch (e) {
             log(`  ├─ ❌ Lỗi gọi API hủy GV: ${e.message}`);
         }
         return { success: true };
@@ -526,17 +530,17 @@
         for (let rawData of allClasses) {
             let masterKey = rawData.id || rawData.class_schedule_slot_id || rawData.master_key || (rawData.entity && (rawData.entity.class_schedule_slot_id || rawData.entity.master_key));
             let entity = rawData.entity || rawData;
-            
+
             let studentStatus = String(entity.attendance_sheet_status || "").toUpperCase();
             let teacherStatus = String(entity.instructor_attendance_status || entity.instructor_attendance_sheet_status || "").toUpperCase();
             let oldStatus = String(entity.status || "").toUpperCase();
-            
+
             let isSubmitted = studentStatus.includes("ACCEPTED") || teacherStatus.includes("ACCEPTED") || oldStatus.includes("ACCEPTED");
-            
+
             if (!isSubmitted) continue; // Bỏ qua nếu chưa chốt
 
             let unlockInfo = getClassUnlockInfoV33(entity, 0); // bufferMinutes = 0
-            
+
             if (!unlockInfo.isSafe) { // Chưa đến giờ => Bị chốt nhầm ở tương lai
                 futureClasses.push(rawData);
             }
@@ -569,223 +573,243 @@
 
         log(`⚡ Đang xử lý điểm danh tiết [${classHourCode || masterKey}]...`);
 
-        let myName = getTeacherNameV33();
+        let myIdentity = getMyIdentityV33();
+        let myName = myIdentity.name;
+        let myId = myIdentity.id;
         let myNameLower = myName ? myName.toLowerCase() : "";
 
         try {
             // ==========================================
-            // CHIẾN DỊCH BẮT SÓNG ID GIÁO VIÊN VÀ UPDATE_TIME
+            // CHIẾN DỊCH BẮT SÓNG TẤT CẢ GIÁO VIÊN TRONG LỚP
             // ==========================================
-            let teacherId = null; let teacherEntityData = null;
-            let teacherOhkePrefix = null; let teacherDataQueryId = null;
-            let teacherBeginState = "INSTRUCTOR_ATTENDANCE_STATUS_NO_ATTENDANCE";
-            let allCandidateIds = [];
+            let allTeachers = [];
+            let normalizedMyName = myNameLower ? myNameLower.normalize('NFC') : "";
+
+            const extractTeachersFromHtml = (htmlStr) => {
+                try {
+                    let vDoc = new DOMParser().parseFromString(htmlStr, 'text/html');
+                    let rows = Array.from(vDoc.querySelectorAll('tr[data-id], div[data-id], li[data-id], .list-item, .card, [data-record]'));
+                    for (let r of rows) {
+                        let extractedId = r.getAttribute('data-id') || r.getAttribute('data-record');
+                        if (!extractedId) { let inp = r.querySelector('input[name="id"]'); if (inp) extractedId = inp.value; }
+                        if (extractedId && extractedId !== String(masterKey)) {
+                            let tTime = r.getAttribute('data-update-time') || r.getAttribute('update_time');
+                            if (!tTime) { let inpTime = r.querySelector('input[name="update_time"]'); if (inpTime) tTime = inpTime.value; }
+                            let tStatus = r.getAttribute('status');
+                            if (!tStatus) { let inpStatus = r.querySelector('input[name="status"]'); if (inpStatus) tStatus = inpStatus.value; }
+
+                            let snippet = (r.innerHTML || r.innerText || "").toLowerCase().normalize('NFC');
+                            if (!allTeachers.find(t => t.id === extractedId)) {
+                                allTeachers.push({ id: extractedId, update_time: tTime || "", status: tStatus || "INSTRUCTOR_ATTENDANCE_STATUS_NO_ATTENDANCE", snippet: snippet });
+                            }
+                        }
+                    }
+                } catch (e) { }
+            };
+
+            const extractTeachersFromJson = (dataArr) => {
+                if (Array.isArray(dataArr)) {
+                    for (let tRec of dataArr) {
+                        if (tRec.id && String(tRec.id) !== String(masterKey)) {
+                            let snippet = JSON.stringify(tRec).toLowerCase().normalize('NFC');
+                            if (!allTeachers.find(t => t.id === String(tRec.id))) {
+                                allTeachers.push({
+                                    id: String(tRec.id),
+                                    update_time: tRec.update_time || "",
+                                    status: tRec.status || "INSTRUCTOR_ATTENDANCE_STATUS_NO_ATTENDANCE",
+                                    snippet: snippet,
+                                    role: tRec.role,
+                                    is_main: tRec.is_main,
+                                    is_co_teacher: tRec.is_co_teacher
+                                });
+                            }
+                        }
+                    }
+                }
+            };
+
+            const extractTeachersFromRegex = (rawStr) => {
+                let idMatches = [...rawStr.matchAll(/data-id=\\?["'](\d{6,8})\\?["']/g)];
+                if (idMatches.length === 0) idMatches = [...rawStr.matchAll(/&quot;id&quot;&colon;&quot;(\d{6,8})&quot;/g)];
+                if (idMatches.length === 0) idMatches = [...rawStr.matchAll(/\\?["']id\\?["']\s*:\s*\\?["']?(\d{6,8})\\?["']?/g)];
+                let fallbackIds = [...new Set(idMatches.map(m => m[1]))].filter(id => id !== String(masterKey));
+                for (let fid of fallbackIds) {
+                    if (!allTeachers.find(t => t.id === fid)) {
+                        allTeachers.push({ id: fid, update_time: "", status: "INSTRUCTOR_ATTENDANCE_STATUS_NO_ATTENDANCE", snippet: "" });
+                    }
+                }
+            };
 
             const MAX_HUNT_RETRIES = 2;
             for (let huntAttempt = 0; huntAttempt <= MAX_HUNT_RETRIES; huntAttempt++) {
-                // Reset state
-                teacherId = null; teacherEntityData = null; teacherBeginState = "INSTRUCTOR_ATTENDANCE_STATUS_NO_ATTENDANCE";
-                allCandidateIds = [];
-
+                allTeachers = [];
                 try {
-                    let fetchPayload = {
-                        master_key: String(masterKey),
-                        father_master_key: String(masterKey),
-                        master_object_class_name: "study_student_attendance_sheet",
-                        master_object_class_code: "DOCTYPE-7004",
-                        id: null
-                    };
+                    let fetchPayload = { master_key: String(masterKey), father_master_key: String(masterKey), master_object_class_name: "study_student_attendance_sheet", master_object_class_code: "DOCTYPE-7004", id: null };
                     let teacherInfoRes = await rpcCallHeadlessV33('x24F76_Model', fetchPayload);
-                    
-                    // --- BƯỚC ĐỘT PHÁ (Priority 0): SUPER HUNT MAX ---
+
+                    if (teacherInfoRes && teacherInfoRes.data) {
+                        if (teacherInfoRes.data.update_time) {
+                            classUpdateTime = teacherInfoRes.data.update_time;
+                            currentEntity.update_time = classUpdateTime;
+                        }
+                    }
+
                     let exactViewerEndpoint = classItem.sourceApi ? classItem.sourceApi.replace('_Model', '_Viewer') : 'x35FD2_Viewer';
                     let classViewerEndpoints = [exactViewerEndpoint, 'x35FD2_Viewer', 'x253B0_Viewer'];
                     for (let vEndpoint of classViewerEndpoints) {
                         try {
                             let cvRes = await rpcCallHeadlessV33(vEndpoint, { id: String(masterKey) });
-                            if (cvRes && cvRes.html && myNameLower) {
-                                let parser = new DOMParser();
-                                let vDoc = parser.parseFromString(cvRes.html, 'text/html');
-                                let rows = Array.from(vDoc.querySelectorAll('tr[data-id], div[data-id], li[data-id], .list-item, .card, [data-record]'));
-                                
-                                let targetRow = rows.find(r => {
-                                    let cleanText = r.innerHTML.replace(/<[^>]*>?/gm, ' ').replace(/\s+/g, ' ').toLowerCase();
-                                    return cleanText.includes(myNameLower) || r.innerText.toLowerCase().includes(myNameLower);
-                                });
-                                
-                                if (!targetRow) {
-                                    let candidate = rows.find(r => (r.getAttribute('data-id') || r.getAttribute('data-record')) !== String(masterKey));
-                                    if (candidate) targetRow = candidate;
-                                }
-                                
-                                if (targetRow) {
-                                    let extractedId = targetRow.getAttribute('data-id') || targetRow.getAttribute('data-record');
-                                    if (!extractedId) {
-                                        let inp = targetRow.querySelector('input[name="id"]');
-                                        if (inp) extractedId = inp.value;
+                            if (cvRes) {
+                                if (cvRes.data) {
+                                    if (cvRes.data.update_time) {
+                                        classUpdateTime = cvRes.data.update_time;
+                                        currentEntity.update_time = classUpdateTime;
                                     }
-                                    if (extractedId && extractedId !== String(masterKey)) {
-                                        teacherId = extractedId;
-                                        let tTime = targetRow.getAttribute('data-update-time') || targetRow.getAttribute('update_time');
-                                        if (!tTime) { let inpTime = targetRow.querySelector('input[name="update_time"]'); if (inpTime) tTime = inpTime.value; }
-                                        if (tTime) teacherEntityData = { update_time: tTime };
-                                        
-                                        let tStatus = targetRow.getAttribute('status');
-                                        if (!tStatus) { let inpStatus = targetRow.querySelector('input[name="status"]'); if (inpStatus) tStatus = inpStatus.value; }
-                                        if (tStatus) { teacherBeginState = tStatus; if (teacherEntityData) teacherEntityData.status = tStatus; }
-                                        break;
-                                    }
+                                    if (cvRes.data.co_teachers) extractTeachersFromJson(cvRes.data.co_teachers);
                                 }
+                                if (cvRes.html) extractTeachersFromHtml(cvRes.html);
                             }
-                        } catch(e) {}
+                        } catch (e) { }
                     }
 
-                    // --- Nếu Super Hunt thất bại, dùng API Hunt ---
-                    if (!teacherId && teacherInfoRes) {
-                        if (teacherInfoRes.data && Array.isArray(teacherInfoRes.data) && teacherInfoRes.data.length > 0) {
-                            let tRec = null;
-                            if (myNameLower) {
-                                const extractStr = (obj) => {
-                                    let s = "";
-                                    if (typeof obj === 'string') return obj.toLowerCase() + " ";
-                                    if (typeof obj === 'object' && obj !== null) { for (let k in obj) s += extractStr(obj[k]); }
-                                    return s;
-                                };
-                                tRec = teacherInfoRes.data.find(r => extractStr(r).includes(myNameLower));
-                            }
-                            if (tRec && tRec.id && String(tRec.id) !== String(masterKey)) {
-                                teacherId = String(tRec.id); teacherEntityData = tRec;
-                                if (tRec.status) teacherBeginState = tRec.status;
-                            }
-                        }
-
-                        // DOM Parser
-                        if (!teacherId && teacherInfoRes.html) {
-                            try {
-                                let parser = new DOMParser();
-                                let vDoc = parser.parseFromString(teacherInfoRes.html, 'text/html');
-                                let rows = Array.from(vDoc.querySelectorAll('tr[data-id], div[data-id], li[data-id], .list-item, .card, [data-record]'));
-                                let targetRow = null;
-                                if (myNameLower && rows.length > 0) targetRow = rows.find(r => r.innerText.toLowerCase().includes(myNameLower));
-                                if (!targetRow && rows.length > 0) targetRow = rows[0]; 
-
-                                if (targetRow) {
-                                    let extractedId = targetRow.getAttribute('data-id') || targetRow.getAttribute('data-record');
-                                    if (!extractedId) { let inp = targetRow.querySelector('input[name="id"]'); if (inp) extractedId = inp.value; }
-                                    if (extractedId && extractedId !== String(masterKey)) {
-                                        teacherId = extractedId;
-                                        let tTime = targetRow.getAttribute('data-update-time') || targetRow.getAttribute('update_time');
-                                        if (!tTime) { let inpTime = targetRow.querySelector('input[name="update_time"]'); if (inpTime) tTime = inpTime.value; }
-                                        if (tTime) { if (!teacherEntityData) teacherEntityData = {}; teacherEntityData.update_time = tTime; }
-                                        let tStatus = targetRow.getAttribute('status');
-                                        if (!tStatus) { let inpStatus = targetRow.querySelector('input[name="status"]'); if (inpStatus) tStatus = inpStatus.value; }
-                                        if (tStatus) { teacherBeginState = tStatus; if (teacherEntityData) teacherEntityData.status = tStatus; }
-                                    }
-                                }
-                            } catch (e) { }
-                        }
-
-                        // Vét cạn Regex lấy mảng allCandidateIds
+                    if (teacherInfoRes) {
+                        if (teacherInfoRes.data && teacherInfoRes.data.co_teachers) extractTeachersFromJson(teacherInfoRes.data.co_teachers);
+                        if (teacherInfoRes.data) extractTeachersFromJson(teacherInfoRes.data);
+                        if (teacherInfoRes.html) extractTeachersFromHtml(teacherInfoRes.html);
                         let rawStr = teacherInfoRes.html || JSON.stringify(teacherInfoRes);
-                        let idMatches = [...rawStr.matchAll(/data-id=\\?["'](\d{6,8})\\?["']/g)];
-                        if (idMatches.length === 0) idMatches = [...rawStr.matchAll(/&quot;id&quot;&colon;&quot;(\d{6,8})&quot;/g)];
-                        if (idMatches.length === 0) idMatches = [...rawStr.matchAll(/\\?["']id\\?["']\s*:\s*\\?["']?(\d{6,8})\\?["']?/g)];
-                        
-                        allCandidateIds = [...new Set(idMatches.map(m => m[1]))].filter(id => id !== String(masterKey));
-
-                        if (!teacherId && allCandidateIds.length > 0) {
-                            if (allCandidateIds.length === 1 || !myNameLower) {
-                                teacherId = allCandidateIds[0];
-                            } else {
-                                let nameIdx = rawStr.toLowerCase().indexOf(myNameLower);
-                                if (nameIdx !== -1) {
-                                    let bestId = allCandidateIds[0]; let minDiff = Infinity;
-                                    for (let cid of allCandidateIds) {
-                                        let idx = rawStr.indexOf(cid);
-                                        let diff = Math.abs(idx - nameIdx);
-                                        if (diff < minDiff) { minDiff = diff; bestId = cid; }
-                                    }
-                                    teacherId = bestId;
-                                }
-                            }
-                            if (teacherId) {
-                                let mTime = rawStr.match(/data-update-time=\\?["']([^\\"']+)[\\]?["']/);
-                                if (!mTime) mTime = rawStr.match(/update_time\\?["']\s*:\s*\\?["']([^\\"']+)\\?["']/);
-                                if (mTime && mTime[1]) teacherEntityData = { update_time: mTime[1] };
-                                let mPrefix = rawStr.match(/ohke_prefix\\?["']\s*:\s*\\?["']([^\\"']+)\\?["']/);
-                                if (mPrefix && mPrefix[1]) teacherOhkePrefix = mPrefix[1];
-                            }
-                        }
-
-                        if (teacherId && teacherInfoRes.data && Array.isArray(teacherInfoRes.data)) {
-                            let exactRec = teacherInfoRes.data.find(r => String(r.id) === String(teacherId));
-                            if (exactRec) {
-                                if (!teacherEntityData) teacherEntityData = {};
-                                if (exactRec.update_time) teacherEntityData.update_time = exactRec.update_time;
-                                if (exactRec.status) teacherBeginState = exactRec.status;
-                            }
-                        }
+                        extractTeachersFromRegex(rawStr);
                     }
                 } catch (e) {
                     console.log("❌ Lỗi API Hunt Giáo viên:", e);
                 }
 
-                // Fallback cuối cùng
-                if (!teacherId && allCandidateIds.length === 0) {
-                    let fallbackId = entity.instructor_sheet_id || entity.instructor_attendance_id || entity.instructor_id || (entity.instructor && entity.instructor.id);
-                    if (fallbackId && String(fallbackId) !== String(masterKey)) {
-                        teacherId = String(fallbackId);
-                        allCandidateIds.push(teacherId);
-                    }
-                }
-
-                if (teacherId || allCandidateIds.length > 0) {
-                    break; // Đã có ID, thoát vòng lặp Retry
-                }
+                if (allTeachers.length > 0) break; // Thoát nếu tìm thấy ít nhất 1 sub-record
 
                 if (huntAttempt < MAX_HUNT_RETRIES) {
-                    log(`🔄 [COLD SESSION RETRY ${huntAttempt + 1}/${MAX_HUNT_RETRIES}] 3-Tier matching thất bại (Ohke Cold Cache). Chờ 800ms rồi thử lại...`);
+                    log(`🔄 [COLD SESSION RETRY] Không bắt được sóng GV nào. Chờ 800ms rồi thử lại...`);
                     await delay(800);
                 }
-            } // Hết vòng lặp Retry Hunt
-
-            // ==========================================
-            // CHIẾN DỊCH MULTI-FIRE TICK QUYỀN GIÁO VIÊN
-            // ==========================================
-            let isTeacherDone = false;
-            let finalTeacherId = null;
-
-            if (teacherId && !allCandidateIds.includes(String(teacherId))) {
-                allCandidateIds.unshift(String(teacherId));
             }
 
-            for (let testId of allCandidateIds) {
-                let tUpdateTime = teacherEntityData?.update_time || "";
-                let tBeginState = teacherBeginState;
+            // Fallback cuối cùng nếu không tìm thấy sub-record nào
+            if (allTeachers.length === 0) {
+                let fallbackId = entity.instructor_sheet_id || entity.instructor_attendance_id || entity.instructor_id || (entity.instructor && entity.instructor.id);
+                if (fallbackId && String(fallbackId) !== String(masterKey)) {
+                    allTeachers.push({ id: String(fallbackId), update_time: "", status: "INSTRUCTOR_ATTENDANCE_STATUS_NO_ATTENDANCE", snippet: "" });
+                }
+            }
 
-                // Gọi Viewer xác nhận chính xác update_time và trạng thái (Chống OCC)
+            let targetTeachersToTick = [];
+            if (myId && allTeachers.length > 0) {
+                let matched = allTeachers.filter(t => t.snippet.includes(String(myId)));
+                if (matched.length > 0) {
+                    log(`🎯 Đã nhận diện chuẩn xác ${matched.length} GV bằng ID "${myId}" để điểm danh!`);
+                    targetTeachersToTick = matched;
+                }
+            }
+
+            if (targetTeachersToTick.length === 0 && normalizedMyName && allTeachers.length > 0) {
+                let matched = allTeachers.filter(t => t.snippet.includes(normalizedMyName));
+                if (matched.length === 0) {
+                    let removeTones = (str) => str.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/đ/g, "d").replace(/Đ/g, "D");
+                    let noToneMyName = removeTones(normalizedMyName);
+                    matched = allTeachers.filter(t => removeTones(t.snippet).includes(noToneMyName));
+                }
+                if (matched.length > 0) {
+                    log(`🎯 Đã nhận diện chuẩn xác ${matched.length} GV khớp tên "${myName}" để điểm danh!`);
+                    targetTeachersToTick = matched;
+                }
+            }
+
+            if (targetTeachersToTick.length === 0 && allTeachers.length > 0) {
+                log(`⚠️ KHÔNG tìm thấy chính xác GV tên "${myName}" hay ID "${myId}". Đã bỏ qua logic điểm danh tất cả để tránh lỗi khóa luồng.`);
+                // KHÔNG fallback tick tất cả nữa để bảo đảm an toàn
+            }
+
+            let pendingTeachersToTick = targetTeachersToTick.filter(t => {
+                let s = String(t.status || "").toUpperCase();
+                return !s.includes('PRESENT') && !s.includes('ACCEPTED') && !s.includes('FULL_ATTENDANCE');
+            });
+
+            let masterTeacherStatus = String(entity.instructor_attendance_status || entity.instructor_attendance_sheet_status || "").toUpperCase();
+            let isMasterLocked = masterTeacherStatus.includes("ACCEPTED");
+
+            let studentStatus = String(entity.attendance_sheet_status || "").toUpperCase();
+            let isStudentLocked = studentStatus.includes("ACCEPTED");
+
+            // Chỉ cần GV phụ đã xong và Sổ GV đã khóa là lướt qua (không cần ép chốt sổ Học sinh)
+            if (pendingTeachersToTick.length === 0 && isMasterLocked) {
+                log(`✅ Lớp đã hoàn tất điểm danh GV. Lướt qua an toàn!`);
+                let duration = Math.round(performance.now() - startTime);
+
+                // Lưu vào Cache để các lần quét sau không đưa vào hàng chờ nữa
                 try {
-                    let tViewerRes = await rpcCallHeadlessV33('x24F76_Viewer', { id: String(testId) });
-                    if (tViewerRes && tViewerRes.data && tViewerRes.data.update_time) {
-                        tUpdateTime = tViewerRes.data.update_time;
-                        if (tViewerRes.data.status) tBeginState = tViewerRes.data.status;
-                    } else if (tViewerRes && tViewerRes.html) {
-                        let mTime = tViewerRes.html.match(/(?:data-update-time|update_time)="([^"]+)"/i) || tViewerRes.html.match(/name="update_time"\s+value="([^"]+)"/i);
-                        if (mTime && mTime[1]) tUpdateTime = mTime[1];
-                        let mStatus = tViewerRes.html.match(/status="([^"]+)"/i) || tViewerRes.html.match(/name="status"\s+value="([^"]+)"/i);
-                        if (mStatus && mStatus[1]) tBeginState = mStatus[1];
+                    let ghostCache = JSON.parse(localStorage.getItem('ghost_completed_classes_v33') || '{}');
+                    ghostCache[masterKey] = true;
+                    localStorage.setItem('ghost_completed_classes_v33', JSON.stringify(ghostCache));
+                } catch (e) { }
+
+                log(`[🏁 FINISH] Xử lý xong [${classCode}] trong ${duration}ms.\n`);
+                return true;
+            } else if (pendingTeachersToTick.length === 0) {
+                log(`✅ GV phụ này (hoặc toàn bộ GV) ĐÃ CÓ MẶT từ trước. Bỏ qua bước Tick cá nhân.`);
+            }
+
+            if (pendingTeachersToTick.length > 0 && isMasterLocked) {
+                log(`🔓 Lớp đã khóa sổ GV. MỞ KHÓA tạm thời để điểm danh cho GV phụ...`);
+                let exactTransitionEndpoint = classItem.sourceApi ? classItem.sourceApi.replace('_Model', '_jsonPostTransition') : 'x35FD2_jsonPostTransition';
+                let unlockPayload = {
+                    id: String(masterKey),
+                    field_name: 'instructor_attendance_status',
+                    begin_state: 'INSTRUCTOR_ATTENDANCE_SHEET_STATUS_ACCEPTED',
+                    end_state: 'INSTRUCTOR_ATTENDANCE_SHEET_STATUS_PENDING',
+                    is_reversal: 0,
+                    update_time: classUpdateTime
+                };
+                let resUnlock = await rpcCallHeadlessV33(exactTransitionEndpoint, unlockPayload);
+                if (!resUnlock || resUnlock.type === "error") {
+                    await rpcCallHeadlessV33('x35FD3_jsonPostTransition', unlockPayload);
+                }
+
+                // Đồng bộ lại local state để Bước 2 (Lock) nhận đúng begin_state = PENDING
+                currentEntity.instructor_attendance_status = 'INSTRUCTOR_ATTENDANCE_SHEET_STATUS_PENDING';
+                if (currentEntity.status) currentEntity.status = 'INSTRUCTOR_ATTENDANCE_SHEET_STATUS_PENDING';
+
+                log(`  ├─ ✔️ Đã mở khóa xong (PENDING). Chờ 0.5s đồng bộ...`);
+                await new Promise(r => setTimeout(r, 500)); // Chờ DB đồng bộ
+
+                // ĐỒNG BỘ LẠI MODEL SAU KHI MỞ KHÓA (CHỐNG LỖI ERR_ACS_STATE_CHANGED)
+                try {
+                    let exactModelEndpoint = classItem.sourceApi ? classItem.sourceApi : 'x24F76_Model';
+                    let freshModel = await rpcCallHeadlessV33(exactModelEndpoint, { id: String(masterKey) });
+                    if (freshModel && freshModel.data) {
+                        classUpdateTime = freshModel.data.update_time || classUpdateTime;
+                        if (freshModel.data.co_teachers) {
+                            for (let pt of pendingTeachersToTick) {
+                                let ft = freshModel.data.co_teachers.find(x => x.id == pt.id);
+                                if (ft) {
+                                    pt.update_time = ft.update_time;
+                                    pt.status = ft.status;
+                                }
+                            }
+                        }
                     }
-                } catch(e) {}
+                } catch (e) { }
+            }
+
+            for (let t of pendingTeachersToTick) {
+                let tUpdateTime = t.update_time;
+                let tBeginState = t.status;
+
+                // Đã xóa Sync Viewer (Anti-OCC) vì Viewer API bị cache trả về update_time cũ gây lỗi ERR_ACS_STATE_CHANGED.
 
                 if (!tBeginState || !tBeginState.includes("INSTRUCTOR_ATTENDANCE_STATUS_")) {
                     tBeginState = "INSTRUCTOR_ATTENDANCE_STATUS_NO_ATTENDANCE";
                 }
 
-                let currentIsDone = tBeginState.includes('ACCEPTED') || tBeginState.includes('PRESENT') || tBeginState.includes('FULL_ATTENDANCE');
-
-                log(`⏳ [Multi-Fire] Đang thử cấp quyền trên ID: ${testId}...`);
+                log(`⏳ [Bước 1] Tick Có mặt GV (ID: ${t.id})...`);
                 let payloadTeacherTick = {
-                    id: parseInt(testId),
+                    id: parseInt(t.id),
                     field_name: "status",
                     begin_state: tBeginState,
                     to_state: "INSTRUCTOR_ATTENDANCE_STATUS_PRESENT",
@@ -793,145 +817,167 @@
                     is_reversal: 0,
                     update_time: tUpdateTime,
                     mode: "V",
-                    entity: { id: parseInt(testId), status: tBeginState },
-                    env: { id: parseInt(testId), master_key: String(masterKey), father_master_key: String(masterKey) }
+                    entity: { id: parseInt(t.id), status: tBeginState },
+                    env: { id: parseInt(t.id), master_key: String(masterKey), father_master_key: String(masterKey) }
                 };
 
                 try {
                     let res1 = await rpcCallHeadlessV33('x24F76_jsonPostTransition', payloadTeacherTick);
                     if (res1 && res1.type === "success") {
-                        log(`  ├─ ✔️ TRÚNG ĐÍCH! Tick Có mặt thành công cho quyền ID: ${testId}`);
-                        finalTeacherId = testId;
-                        isTeacherDone = true;
-                        break;
+                        log(`  ├─ ✔️ Tick Có mặt thành công cho quyền ID: ${t.id}`);
                     } else if (res1 && res1.code && (res1.code.includes("DENIED") || res1.code.includes("READ_ONLY"))) {
-                        log(`  ├─ ⚠️ ID ${testId} bị từ chối (Không phải quyền). Thử ID tiếp theo...`);
-                    } else if (res1 && res1.code && res1.code.includes("INVALID_TRANSITION")) {
-                        log(`  ├─ ✔️ ID ${testId} TRÚNG ĐÍCH! (Đã điểm danh trước đó)`);
-                        finalTeacherId = testId;
-                        isTeacherDone = true;
-                        break;
+                        log(`  ├─ ⚠️ ID ${t.id} bị từ chối quyền.`);
+                    } else {
+                        log(`  ├─ ❌ Không thể Tick cá nhân (Code: ${res1?.code || 'Unknown'})`);
                     }
-                } catch(e1) {}
-            }
-
-            if (!finalTeacherId) {
-                // Fallback nếu Multi-fire thất bại nhưng vẫn muốn chốt thử
-                finalTeacherId = teacherId || masterKey;
+                } catch (e1) { }
             }
 
             // Làm mới update_time của Lớp học trước khi chốt Giáo viên (Anti OCC Lock - Bước đột phá)
             let classFreshUpdateTime = classUpdateTime;
+            let teacherOhkePrefix = null;
+            let teacherDataQueryId = null;
             try {
                 let exactViewerEndpoint = classItem.sourceApi ? classItem.sourceApi.replace('_Model', '_Viewer') : 'x35FD2_Viewer';
                 let resRefreshMaster = await rpcCallHeadlessV33(exactViewerEndpoint, { id: String(masterKey) });
                 if (resRefreshMaster && resRefreshMaster.data && resRefreshMaster.data.update_time) {
                     classFreshUpdateTime = resRefreshMaster.data.update_time;
-                } else if (resRefreshMaster && resRefreshMaster.html) {
+                }
+                if (resRefreshMaster && resRefreshMaster.html) {
                     let mTime = resRefreshMaster.html.match(/(?:data-update-time|update_time)="([^"]+)"/i);
                     if (mTime && mTime[1]) classFreshUpdateTime = mTime[1];
+                    let mPrefix = resRefreshMaster.html.match(/name="ohke_prefix"\s*value="([^"]+)"/i);
+                    if (mPrefix && mPrefix[1]) teacherOhkePrefix = mPrefix[1];
+                    let mQuery = resRefreshMaster.html.match(/name="data_query_id"\s*value="([^"]+)"/i);
+                    if (mQuery && mQuery[1]) teacherDataQueryId = mQuery[1];
                 }
             } catch (eRefresh) { }
-                let teacherMockEnv2 = { id: String(masterKey), master_key: String(masterKey) };
-                if (teacherOhkePrefix) teacherMockEnv2.ohke_prefix = teacherOhkePrefix;
-                if (teacherDataQueryId) teacherMockEnv2.data_query_id = teacherDataQueryId;
+            let teacherMockEnv2 = { id: String(masterKey), master_key: String(masterKey) };
+            if (teacherOhkePrefix) teacherMockEnv2.ohke_prefix = teacherOhkePrefix;
+            if (teacherDataQueryId) teacherMockEnv2.data_query_id = teacherDataQueryId;
 
-                let payloadApi2 = {
-                    id: parseInt(masterKey) || masterKey,
-                    field_name: "instructor_attendance_status",
-                    begin_state: currentEntity.instructor_attendance_status || "INSTRUCTOR_ATTENDANCE_SHEET_STATUS_PENDING",
-                    to_state: "INSTRUCTOR_ATTENDANCE_SHEET_STATUS_ACCEPTED",
-                    end_state: "INSTRUCTOR_ATTENDANCE_SHEET_STATUS_ACCEPTED",
-                    is_reversal: 0,
-                    update_time: currentEntity.update_time || classFreshUpdateTime,
-                    mode: "V",
-                    entity: currentEntity,
-                    env: teacherMockEnv2
-                };
-                try {
-                    let res2 = await rpcCallHeadlessV33('x35FD3_jsonPostTransition', payloadApi2);
-                    console.log("👨‍🏫 [Teacher API 2] Response (x35FD3):", res2);
-                    if (!res2 || res2.type !== "success") {
-                        res2 = await rpcCallHeadlessV33('x24F76_jsonPostTransition', payloadApi2);
-                        console.log("👨‍🏫 [Teacher API 2 Fallback] Response (x24F76):", res2);
+            log(`⏳ [Bước 2] Chốt sổ Giáo viên (ACCEPTED)...`);
+            let payloadApi2 = {
+                id: parseInt(masterKey) || masterKey,
+                field_name: "instructor_attendance_status",
+                begin_state: currentEntity.instructor_attendance_status || "INSTRUCTOR_ATTENDANCE_SHEET_STATUS_PENDING",
+                to_state: "INSTRUCTOR_ATTENDANCE_SHEET_STATUS_ACCEPTED",
+                end_state: "INSTRUCTOR_ATTENDANCE_SHEET_STATUS_ACCEPTED",
+                is_reversal: 0,
+                update_time: classFreshUpdateTime || currentEntity.update_time,
+                mode: "V",
+                entity: currentEntity,
+                env: teacherMockEnv2
+            };
+            try {
+                let res2 = await rpcCallHeadlessV33('x35FD3_jsonPostTransition', payloadApi2);
+                if (res2 && res2.type === "success") {
+                    log(`  ├─ ✔️ Chốt sổ GV thành công!`);
+                }
+                if (!res2 || res2.type !== "success") {
+                    res2 = await rpcCallHeadlessV33('x24F76_jsonPostTransition', payloadApi2);
+                    if (res2 && res2.type === "success") {
+                        log(`  ├─ ✔️ Chốt sổ GV thành công (Fallback x24F76)!`);
+                    } else {
+                        log(`  ├─ ⚠️ Không thể chốt sổ GV (Code: ${res2?.code || 'Unknown'})`);
                     }
-                    if (res2 && res2.data) Object.assign(currentEntity, res2.data);
-                } catch (e2) { console.error("👨‍🏫 [Teacher API 2] Lỗi:", e2); }
+                }
+                if (res2 && res2.data) Object.assign(currentEntity, res2.data);
+            } catch (e2) { log(`  ├─ ❌ Lỗi khi Chốt sổ GV: ${e2.message}`); }
 
             // --- 3. CHỐT HỌC SINH (3-TIER TUẦN TỰ) ---
-            let checkModes = [
-                { name: "Tiết trước", endpoint: "bttAction_x2447C_" },
-                { name: "Đến trường", endpoint: "bttAction_x2B0CE_" },
-                { name: "Tất cả có mặt", endpoint: "bttAction_x2447B_" }
-            ];
-            if (isLessonZero) checkModes.shift();
+            studentStatus = String(currentEntity.attendance_sheet_status || "").toUpperCase();
+            isStudentLocked = studentStatus.includes("ACCEPTED");
+
+            // Nhận diện GV phụ (co_teachers)
+            let isCoTeacher = targetTeachersToTick.some(t => {
+                if (t.is_co_teacher === 1 || t.is_co_teacher === true || t.role === 'co_teacher') return true;
+                if (t.is_main !== undefined && t.is_main === 0) return true;
+                if (t.is_main !== undefined && t.is_main === false) return true;
+                return false;
+            });
 
             let isTrulySuccess = false;
 
-            for (let mode of checkModes) {
-                log(`🔄 Đang thử chốt Học sinh theo: [${mode.name}]...`);
+            if (isStudentLocked) {
+                log(`✅ Sổ Học sinh đã khóa từ trước. Bỏ qua bước chốt Học sinh.`);
+                isTrulySuccess = true;
+            } else if (isCoTeacher) {
+                log(`✅ Bạn là GV phụ (Co-teacher), không có quyền chốt Học sinh. Bỏ qua!`);
+                isTrulySuccess = true;
+            } else {
+                let checkModes = [
+                    { name: "Tiết trước", endpoint: "bttAction_x2447C_" },
+                    { name: "Đến trường", endpoint: "bttAction_x2B0CE_" },
+                    { name: "Tất cả có mặt", endpoint: "bttAction_x2447B_" }
+                ];
+                if (isLessonZero) checkModes.shift();
 
-                // Tier 1/2/3: Gửi Lệnh bttAction (Chỉ nhận tham số { "id": "master_key" })
-                try {
-                    await rpcCallHeadlessV33(mode.endpoint, { id: String(masterKey) });
-                } catch (e3) { }
+                for (let mode of checkModes) {
+                    log(`🔄 Đang thử chốt Học sinh theo: [${mode.name}]...`);
 
-                // Check API Viewer & Bóc tách Mật mã ngầm
-                let realEnv = {
-                    id: String(masterKey),
-                    master_key: String(masterKey),
-                    father_master_key: String(masterKey)
-                };
+                    // Tier 1/2/3: Gửi Lệnh bttAction (Chỉ nhận tham số { "id": "master_key" })
+                    try {
+                        await rpcCallHeadlessV33(mode.endpoint, { id: String(masterKey) });
+                    } catch (e3) { }
 
-                try {
-                    // Gọi Viewer lấy HTML và dữ liệu mới nhất
-                    let resRefresh = await rpcCallHeadlessV33('x35FD2_Viewer', { id: String(masterKey) });
-                    if (resRefresh) {
-                        if (resRefresh.html) {
-                            let vDoc = new DOMParser().parseFromString(resRefresh.html, 'text/html');
-                            let prefixInput = vDoc.querySelector('input[name="ohke_prefix"]');
-                            let queryIdInput = vDoc.querySelector('input[name="data_query_id"]');
+                    // Check API Viewer & Bóc tách Mật mã ngầm
+                    let realEnv = {
+                        id: String(masterKey),
+                        master_key: String(masterKey),
+                        father_master_key: String(masterKey)
+                    };
 
-                            if (prefixInput && prefixInput.value) realEnv.ohke_prefix = prefixInput.value;
-                            if (queryIdInput && queryIdInput.value) realEnv.data_query_id = queryIdInput.value;
+                    try {
+                        // Gọi Viewer lấy HTML và dữ liệu mới nhất
+                        let resRefresh = await rpcCallHeadlessV33('x35FD2_Viewer', { id: String(masterKey) });
+                        if (resRefresh) {
+                            if (resRefresh.html) {
+                                let vDoc = new DOMParser().parseFromString(resRefresh.html, 'text/html');
+                                let prefixInput = vDoc.querySelector('input[name="ohke_prefix"]');
+                                let queryIdInput = vDoc.querySelector('input[name="data_query_id"]');
+
+                                if (prefixInput && prefixInput.value) realEnv.ohke_prefix = prefixInput.value;
+                                if (queryIdInput && queryIdInput.value) realEnv.data_query_id = queryIdInput.value;
+                            }
+                            if (resRefresh.data) {
+                                Object.assign(currentEntity, resRefresh.data);
+                                if (resRefresh.data.update_time) currentEntity.update_time = resRefresh.data.update_time;
+                            }
                         }
-                        if (resRefresh.data) {
-                            Object.assign(currentEntity, resRefresh.data);
-                            if (resRefresh.data.update_time) currentEntity.update_time = resRefresh.data.update_time;
-                        }
-                    }
-                } catch (eRefresh) { }
+                    } catch (eRefresh) { }
 
-                // Gửi API Chốt sổ
-                let payloadApi4 = {
-                    id: parseInt(masterKey) || masterKey,
-                    field_name: "attendance_sheet_status",
-                    begin_state: currentEntity.attendance_sheet_status || "CLASS_SCHEDULE_SLOT_STATUS_PENDING",
-                    to_state: "CLASS_SCHEDULE_SLOT_STATUS_ACCEPTED",
-                    end_state: "CLASS_SCHEDULE_SLOT_STATUS_ACCEPTED",
-                    is_reversal: 0,
-                    update_time: currentEntity.update_time || classFreshUpdateTime,
-                    mode: "V",
-                    entity: currentEntity,
-                    env: realEnv
-                };
+                    // Gửi API Chốt sổ
+                    let payloadApi4 = {
+                        id: parseInt(masterKey) || masterKey,
+                        field_name: "attendance_sheet_status",
+                        begin_state: currentEntity.attendance_sheet_status || "CLASS_SCHEDULE_SLOT_STATUS_PENDING",
+                        to_state: "CLASS_SCHEDULE_SLOT_STATUS_ACCEPTED",
+                        end_state: "CLASS_SCHEDULE_SLOT_STATUS_ACCEPTED",
+                        is_reversal: 0,
+                        update_time: currentEntity.update_time || classFreshUpdateTime,
+                        mode: "V",
+                        entity: currentEntity,
+                        env: realEnv
+                    };
 
-                try {
-                    let res4 = await rpcCallHeadlessV33('x35FD2_jsonPostTransition', payloadApi4);
-                    if (res4) {
-                        if (res4.type === "success") {
-                            isTrulySuccess = true;
-                            log(`✔️ [API Check] Điểm danh [${mode.name}] chốt sổ thành công!`);
-                            break; // Thành công thì thoát vòng lặp
-                        } else if (res4.type === "error" && res4.code === "ERR_STUDENT_ATTENDANCE_INCOMPLETED") {
-                            log(`❌ Lỗi Ohke (Tier reject): Học sinh chưa điểm danh đủ. Chuyển Tier...`);
-                            continue; // Bị reject -> Thử tier tiếp theo
-                        } else {
-                            log(`⚠️ Lỗi Ohke không xác định: ${res4.message || 'Unknown'}. Vẫn thử tiếp...`);
+                    try {
+                        let res4 = await rpcCallHeadlessV33('x35FD2_jsonPostTransition', payloadApi4);
+                        if (res4) {
+                            if (res4.type === "success") {
+                                isTrulySuccess = true;
+                                log(`✔️ [API Check] Điểm danh [${mode.name}] chốt sổ thành công!`);
+                                break; // Thành công thì thoát vòng lặp
+                            } else if (res4.type === "error" && res4.code === "ERR_STUDENT_ATTENDANCE_INCOMPLETED") {
+                                log(`❌ Lỗi Ohke (Tier reject): Học sinh chưa điểm danh đủ. Chuyển Tier...`);
+                                continue; // Bị reject -> Thử tier tiếp theo
+                            } else {
+                                log(`⚠️ Lỗi Ohke không xác định: ${res4.message || 'Unknown'}. Vẫn thử tiếp...`);
+                            }
                         }
-                    }
-                } catch (e4) { }
-            }
+                    } catch (e4) { }
+                }
+            } // Kết thúc if/else chốt Học sinh
 
             // Fallback cuối cùng: DOM Check nếu các tier đều báo không thành công / kẹt
             if (!isTrulySuccess) {
@@ -950,6 +996,12 @@
             // --- 4. DỌN DẸP ---
 
             if (isTrulySuccess) {
+                try {
+                    let ghostCache = JSON.parse(localStorage.getItem('ghost_completed_classes_v33') || '{}');
+                    ghostCache[masterKey] = true;
+                    localStorage.setItem('ghost_completed_classes_v33', JSON.stringify(ghostCache));
+                } catch (e) { }
+
                 if (classItem.element) {
                     classItem.element.style.opacity = '0.3';
                     classItem.element.setAttribute('data-da-diem-danh', 'true');
@@ -1016,8 +1068,8 @@
                 // Học sinh chưa nộp nếu KHÔNG CÓ chữ ACCEPTED
                 let isStudentPending = !sStatus.includes('ACCEPTED');
 
-                // Nếu cả 2 đều đã xong thì bỏ qua lớp này
-                if (!isTeacherPending && !isStudentPending) return;
+                // Nếu cả 2 đều đã xong thì bỏ qua lớp này (ĐÃ BỎ ĐỂ SUPPORT MULTI-TEACHER)
+                // if (!isTeacherPending && !isStudentPending) return;
 
                 let masterKey = String(entity.id || el.dataset?.id || entity.master_key);
                 if (seenIds.has(masterKey)) return;
@@ -1064,16 +1116,95 @@
             let masterKey = String(entity.class_schedule_slot_id || entity.master_key || entity.id || entity.class_hour_code);
             if (!masterKey || masterKey === 'undefined') continue;
 
+            // Kiểm tra bộ nhớ đệm (Cache) để lọc các lớp đã hoàn tất 100% từ trước
+            try {
+                let ghostCache = JSON.parse(localStorage.getItem('ghost_completed_classes_v33') || '{}');
+                if (ghostCache[masterKey]) {
+                    doneCount++;
+                    continue;
+                }
+            } catch (e) { }
+
             // Lọc trạng thái điểm danh từ API
             let tStatus = String(entity.instructor_attendance_status || entity.status || "").toUpperCase();
             let sStatus = String(entity.attendance_sheet_status || "").toUpperCase();
             let isTeacherPending = (!tStatus.includes('ACCEPTED') && !tStatus.includes('PRESENT') && !tStatus.includes('FULL_ATTENDANCE'));
             let isStudentPending = !sStatus.includes('ACCEPTED');
 
-            if (!isTeacherPending && !isStudentPending) {
-                doneCount++;
+            // 2. NHẬN DIỆN BẢN THÂN VÀ TRẠNG THÁI (Early Exit an toàn)
+            let isMyTeacherTickPending = false;
+            let myName = localStorage.getItem('ohke_my_name') || "";
+            let normalizedMyName = myName.trim().toLowerCase();
+
+            if (normalizedMyName) {
+                if (entity.co_teachers && Array.isArray(entity.co_teachers)) {
+                    let removeTones = (str) => str.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/đ/g, "d").replace(/Đ/g, "D");
+                    let noToneMyName = removeTones(normalizedMyName);
+
+                    let me = entity.co_teachers.find(t => {
+                        let n1 = t.instructor_name ? t.instructor_name.toLowerCase() : "";
+                        let n2 = (t.user && t.user.full_name) ? t.user.full_name.toLowerCase() : "";
+                        return n1.includes(normalizedMyName) || removeTones(n1).includes(noToneMyName) ||
+                            n2.includes(normalizedMyName) || removeTones(n2).includes(noToneMyName);
+                    });
+
+                    if (me) {
+                        let myStatus = String(me.status || "").toUpperCase();
+                        if (!myStatus.includes('PRESENT') && !myStatus.includes('ACCEPTED') && !myStatus.includes('FULL_ATTENDANCE')) {
+                            isMyTeacherTickPending = true; // Mình chưa tick!
+                        }
+                    } else {
+                        // Mình không phải GV phụ (có thể là GV chính) -> Dựa vào trạng thái Master
+                        if (isTeacherPending) isMyTeacherTickPending = true;
+                    }
+                } else {
+                    // Fallback: API Grid không nhả co_teachers
+                    // Dùng chuẩn cũ: Nếu CẢ 2 sổ đều đã khóa -> Mặc định đã xong, không bắt ép vào hàng chờ
+                    if (!isTeacherPending && !isStudentPending) {
+                        isMyTeacherTickPending = false;
+                    } else {
+                        isMyTeacherTickPending = true;
+                    }
+                }
+            } else {
+                // Không có tên GV -> Dùng chuẩn cũ để giảm hàng chờ: Cả 2 sổ khóa là Gạt
+                if (!isTeacherPending && !isStudentPending) isMyTeacherTickPending = false;
+                else isMyTeacherTickPending = true;
+            }
+
+            let isMasterLocked = !isTeacherPending;
+            let classCode = String(entity.class_hour_code || masterKey);
+
+            if (isMasterLocked && !isStudentPending && !isMyTeacherTickPending) {
+                console.log(`[EARLY EXIT] Lớp ${classCode}: Đã GẠT vì Sổ GV Khóa + Sổ HS Khóa + GV phụ đã tick xong.`);
+                doneCount++; // Master khóa, HS khóa, mình đã tick -> GẠT
                 continue;
             }
+            if (!isMyTeacherTickPending && isMasterLocked) {
+                console.log(`[EARLY EXIT] Lớp ${classCode}: Đã GẠT vì GV phụ đã tick xong + Sổ GV Khóa.`);
+                doneCount++; // Mình là GV phụ đã tick xong, Master đã khóa -> GẠT (không cần quan tâm HS)
+                continue;
+            }
+            if (!isMyTeacherTickPending && entity.co_teachers && Array.isArray(entity.co_teachers) && entity.co_teachers.length > 0) {
+                // Nếu mình chắc chắn là GV phụ (vì đã check co_teachers) và mình ĐÃ TICK -> Xong việc cá nhân -> GẠT
+                let me = entity.co_teachers.find(t => {
+                    let n = (t.user && t.user.full_name) ? t.user.full_name.toLowerCase() : "";
+                    return n.includes(normalizedMyName);
+                });
+                if (me) {
+                    console.log(`[EARLY EXIT] Lớp ${classCode}: Đã GẠT vì GV phụ đã tick xong (không cần biết Sổ khóa hay chưa).`);
+                    doneCount++;
+                    continue;
+                }
+            }
+
+            // Ghi log chi tiết lý do Add vào hàng chờ
+            let queueReason = [];
+            if (isTeacherPending) queueReason.push("Sổ GV chưa ACCEPT");
+            if (isStudentPending) queueReason.push("Sổ HS chưa ACCEPT");
+            if (isMyTeacherTickPending) queueReason.push("Chưa tick cá nhân (hoặc API Grid ẩn dữ liệu co_teachers)");
+
+            console.log(`[ADD QUEUE] Lớp ${classCode}: Bị thêm vào hàng chờ vì: ${queueReason.join(' | ')}`);
 
             // Kiểm tra bộ đếm ngược thời gian
             let unlockInfo = getClassUnlockInfoV33(entity, bufferMinutes);
@@ -1227,25 +1358,23 @@
 
         isProcessingV33 = true;
         try {
-            let allLocked = [];
-
-            // Đổi cho tab Quá khứ
-            updateOverlayV33("🟢 Đang điều hướng & xử lý tab Quá Khứ...", null, totalProcessedV33, intervalSec);
-            await switchTabAndWaitV33(['quá khứ', 'past']);
-            let pastResult = await processTabWithPaginationV33(globalSeenIdsV33, 5, 4); // Quét mở rộng max 4 trang
-            allLocked.push(...pastResult.locked);
-            if (pastResult.processedCount === 0) log("✔️ Tab [Quá Khứ] đã chốt sạch sẽ.");
+            updateOverlayV33("🟢 Đang cào dữ liệu từ máy chủ (Ghost Full)...", null, totalProcessedV33, intervalSec);
+            
+            // Lấy dữ liệu API thuần túy
+            let baseUrl = window.location.origin + window.location.pathname;
+            let apiItems = await window.OhkeHeadlessScanner.scanAllClasses(baseUrl);
 
             if (!isWatcherRunningV33) return;
 
-            // Đổi cho tab Hôm nay
-            updateOverlayV33("🟢 Đang điều hướng & xử lý tab Hôm Nay...", null, totalProcessedV33, intervalSec);
-            await switchTabAndWaitV33(['hôm nay', 'today']);
-            let todayResult = await processTabWithPaginationV33(globalSeenIdsV33, 5, 2); // Quét mở rộng max 2 trang
-            allLocked.push(...todayResult.locked);
-            if (todayResult.processedCount === 0) log("✔️ Tab [Hôm Nay] đã chốt sạch sẽ.");
+            log(`⚙️ Ghost Full cào được ${apiItems.length} lớp học. Đang phân tích...`);
+            let mappedEntities = apiItems.map(item => item.entity || item);
 
+            // Gửi toàn bộ danh sách lớp vào processEntitiesV33 (hàm này có sẵn và xử lý tốt mảng API)
+            let result = await processEntitiesV33(mappedEntities, 5); 
+            
+            let allLocked = result.locked || [];
             allLocked.sort((a, b) => (a.unlockInfo ? a.unlockInfo.unlockTimestamp : 0) - (b.unlockInfo ? b.unlockInfo.unlockTimestamp : 0));
+            
             let nextClassInfo = null;
             if (allLocked.length > 0) {
                 let nextLocked = allLocked[0];
@@ -1257,16 +1386,15 @@
             }
 
             if (isWatcherRunningV33) {
-                let totalDoneThisCycle = pastResult.processedCount + todayResult.processedCount;
-                let statusText = (totalDoneThisCycle > 0) ? `🟢 Vừa dọn xong ${totalDoneThisCycle} tiết. Đang gác cổng...` : `🟢 Đang chờ tiết tiếp theo (Đã dọn sạch)...`;
+                let statusText = (result.processedCount > 0) ? `🟢 Vừa dọn xong ${result.processedCount} tiết. Đang gác cổng...` : `🟢 Đang chờ tiết tiếp theo (Đã dọn sạch)...`;
                 updateOverlayV33(statusText, nextClassInfo, totalProcessedV33, intervalSec);
 
-                // BỔ SUNG: Đóng dấu ngày hoàn thành
+                // Đóng dấu ngày hoàn thành
                 let todayStr = new Date().toLocaleDateString('vi-VN');
                 chrome.storage.local.set({ 'ohke_last_run_date': todayStr });
                 log(`📅 Đã đóng dấu hoàn thành điểm danh cho ngày hôm nay (${todayStr}). Tự động tắt hệ thống.`);
 
-                // BỔ SUNG CẬP NHẬT UI CHECKBOX TẠI ĐÂY:
+                // Cập nhật UI Checkbox
                 let debugDoneBox = document.getElementById('debug-done-today');
                 let textDoneBox = document.getElementById('text-done-today');
                 if (debugDoneBox && textDoneBox) {
@@ -1426,7 +1554,7 @@
             </style>
 
             <div id="ohke-drag-handle" style="display: flex; justify-content: space-between; align-items: center; background: #002752; color: white; padding: 10px 12px; cursor: move; user-select: none; flex-shrink: 0;">
-                <div style="font-size: 14px; font-weight: bold; letter-spacing: 0.5px;">🛠️ ClassHub Pro Tools</div>
+                <div style="font-size: 14px; font-weight: bold; letter-spacing: 0.5px;">🛠️ ClassHub Pro Tools <span style="font-size: 10px; color: #a0c4ff; margin-left: 5px;">v3.8.10</span></div>
                 <div style="display: flex; gap: 8px;">
                     <div id="btn-minimize-tool" class="control-btn" title="Thu nhỏ" style="padding: 0 6px; cursor: pointer; font-weight: bold; font-size: 18px; line-height: 1;">−</div>
                     <div id="btn-close-tool-top" class="control-btn" title="Đóng hẳn" style="padding: 0 6px; cursor: pointer; font-weight: bold; font-size: 18px; line-height: 1;">×</div>
@@ -1620,6 +1748,9 @@
         };
 
         document.getElementById('btn-close-tool-top').onclick = () => panel.style.display = 'none';
+
+        let btnCloseToolBottom = document.getElementById('btn-close-tool');
+        if (btnCloseToolBottom) btnCloseToolBottom.onclick = () => panel.style.display = 'none';
 
         // ==========================================
         // MODULE: KÉO THẢ GIAO DIỆN (DRAG & DROP)
@@ -1848,58 +1979,46 @@
         let sliderInClass = document.getElementById('slider-in-class');
 
         if (toggleInClass && textInClassStatus) {
-            let currentHour = new Date().getHours();
-            let todayStr = new Date().toLocaleDateString('vi-VN');
+            chrome.storage.local.get(['ohke_in_class_auto'], (res) => {
+                if (res.ohke_in_class_auto === "ACTIVE") {
+                    toggleInClass.checked = true;
+                    textInClassStatus.innerText = "Đã kích hoạt Vé Tuần";
+                    textInClassStatus.style.color = "#28a745";
+                } else {
+                    toggleInClass.checked = false;
+                    textInClassStatus.innerText = "Chưa kích hoạt Vé Tuần";
+                    textInClassStatus.style.color = "#ffc107";
+                    chrome.storage.local.set({ 'ohke_in_class_auto': "" });
+                }
+            });
 
-            if (currentHour < 7 || currentHour >= 24) { // 🛠️ [DEBUG] Tạm mở khóa đến 24:00
-                toggleInClass.disabled = true;
-                sliderInClass.style.backgroundColor = '#6c757d'; // Xám
-                sliderInClass.style.cursor = 'not-allowed';
-                textInClassStatus.innerText = "Khóa ngoài giờ (07:00 - 19:59)";
-                textInClassStatus.style.color = "#dc3545";
-                chrome.storage.local.set({ 'ohke_in_class_auto': "" });
-            } else {
-                chrome.storage.local.get(['ohke_in_class_auto'], (res) => {
-                    if (res.ohke_in_class_auto === todayStr) {
-                        toggleInClass.checked = true;
-                        textInClassStatus.innerText = "Đã nhận Vé Ngày";
-                        textInClassStatus.style.color = "#28a745";
-                    } else {
-                        toggleInClass.checked = false;
-                        textInClassStatus.innerText = "Chưa kích hoạt Vé Ngày";
-                        textInClassStatus.style.color = "#ffc107";
-                        chrome.storage.local.set({ 'ohke_in_class_auto': "" });
+            toggleInClass.onchange = async (e) => {
+                let isChecked = e.target.checked;
+                if (isChecked) {
+                    chrome.storage.local.set({ 'ohke_in_class_auto': "ACTIVE" });
+                    textInClassStatus.innerText = "Đã kích hoạt Vé Tuần";
+                    textInClassStatus.style.color = "#28a745";
+                    log("🎟️ Đã kích hoạt Vé Tuần! Bắt đầu rải lính trinh sát...");
+
+                    // KIỂM TRA MÔI TRƯỜNG CHUẨN V33
+                    if (!window.location.href.includes('classhub')) {
+                        log("🚀 Đang ở trang ngoài. Lưu trạng thái và mở thẻ ClassHub mới để trinh sát...");
+                        await chrome.storage.local.set({ 'pending_action': 'AUTO_SCOUT_IN_CLASS' });
+                        chrome.runtime.sendMessage({ action: 'OPEN_CLASSHUB_TAB' });
+                        return; // Dừng thực thi ở tab hiện tại
                     }
-                });
 
-                toggleInClass.onchange = async (e) => {
-                    let isChecked = e.target.checked;
-                    if (isChecked) {
-                        chrome.storage.local.set({ 'ohke_in_class_auto': todayStr });
-                        textInClassStatus.innerText = "Đã nhận Vé Ngày";
-                        textInClassStatus.style.color = "#28a745";
-                        log("🎟️ Đã nhận Vé Ngày! Bắt đầu rải lính trinh sát...");
-
-                        // KIỂM TRA MÔI TRƯỜNG CHUẨN V33
-                        if (!window.location.href.includes('classhub')) {
-                            log("🚀 Đang ở trang ngoài. Lưu trạng thái và mở thẻ ClassHub mới để trinh sát...");
-                            await chrome.storage.local.set({ 'pending_action': 'AUTO_SCOUT_IN_CLASS' });
-                            chrome.runtime.sendMessage({ action: 'OPEN_CLASSHUB_TAB' });
-                            return; // Dừng thực thi ở tab hiện tại
-                        }
-
-                        // Đã ở Classhub thì gọi hàm trinh sát luôn
-                        if (typeof syncScheduleToBackground === 'function') {
-                            syncScheduleToBackground();
-                        }
-                    } else {
-                        chrome.storage.local.set({ 'ohke_in_class_auto': "" });
-                        textInClassStatus.innerText = "Chưa kích hoạt Vé Ngày";
-                        textInClassStatus.style.color = "#ffc107";
-                        log("🛑 Đã Hủy Vé Ngày Điểm Danh Trong Tiết.");
+                    // Đã ở Classhub thì gọi hàm trinh sát luôn
+                    if (typeof syncScheduleToBackground === 'function') {
+                        syncScheduleToBackground();
                     }
-                };
-            }
+                } else {
+                    chrome.storage.local.set({ 'ohke_in_class_auto': "" });
+                    textInClassStatus.innerText = "Chưa kích hoạt Vé Tuần";
+                    textInClassStatus.style.color = "#ffc107";
+                    log("🛑 Đã Hủy Vé Tuần Điểm Danh Trong Tiết.");
+                }
+            };
         }
 
         // ==========================================
@@ -3443,7 +3562,7 @@
         const setGhostStatus = (action, text) => {
             chrome.storage.local.set({ 'ghost_headless_status': { action, text, ts: Date.now() } });
             if (action === 'DONE' || action === 'ERROR') {
-                chrome.runtime.sendMessage({ action: 'GHOST_HEADLESS_' + action, text: text }).catch(()=>{});
+                chrome.runtime.sendMessage({ action: 'GHOST_HEADLESS_' + action, text: text }).catch(() => { });
             }
         };
 
@@ -3453,17 +3572,109 @@
             try {
                 let baseUrl = window.location.href.split('?')[0];
                 let itemsAPI = await window.OhkeHeadlessScanner.scanAllClasses(baseUrl);
-                
-                let pendingItems = itemsAPI.filter(rawItem => {
+
+                let pendingItems = [];
+                let normalizedMyName = "";
+                let noToneMyName = "";
+                let myId = "";
+                try {
+                    let myIdentity = getMyIdentityV33();
+                    let gvName = myIdentity.name;
+                    myId = myIdentity.id;
+                    normalizedMyName = gvName.toLowerCase().trim();
+                    noToneMyName = removeTones(normalizedMyName);
+                } catch (e) { }
+
+                for (let rawItem of itemsAPI) {
                     let item = rawItem.entity || rawItem;
-                    let tStatus = String(item.instructor_attendance_status || item.status || '').toUpperCase();
-                    let isPending = !(tStatus.includes('ACCEPTED') || tStatus.includes('PRESENT') || tStatus.includes('FULL_ATTENDANCE'));
-                    if (!isPending) return false;
-                    
+                    let masterKey = String(item.class_schedule_slot_id || item.master_key || item.id || item.class_hour_code);
+                    if (!masterKey || masterKey === 'undefined') continue;
+
+                    // Kiểm tra bộ nhớ đệm (Cache) để lọc các lớp đã hoàn tất 100% từ trước
+                    try {
+                        let ghostCache = JSON.parse(localStorage.getItem('ghost_completed_classes_v33') || '{}');
+                        if (ghostCache[masterKey]) continue;
+                    } catch (e) { }
+
+                    // Lọc trạng thái điểm danh từ API
+                    let tStatus = String(item.instructor_attendance_status || item.status || "").toUpperCase();
+                    let sStatus = String(item.attendance_sheet_status || "").toUpperCase();
+                    let isTeacherPending = (!tStatus.includes('ACCEPTED') && !tStatus.includes('PRESENT') && !tStatus.includes('FULL_ATTENDANCE'));
+                    let isStudentPending = !sStatus.includes('ACCEPTED');
+
+                    // NHẬN DIỆN BẢN THÂN VÀ TRẠNG THÁI (Early Exit an toàn)
+                    let isMyTeacherTickPending = true;
+                    if (normalizedMyName) {
+                        if (item.co_teachers && Array.isArray(item.co_teachers) && item.co_teachers.length > 0) {
+                            let me = item.co_teachers.find(t => {
+                                let n1 = t.instructor_name ? t.instructor_name.toLowerCase() : "";
+                                let n2 = (t.user && t.user.full_name) ? t.user.full_name.toLowerCase() : "";
+                                let idMatch = false;
+                                if (myId) {
+                                    idMatch = (String(t.instructor_id) === String(myId)) || 
+                                              (t.user && String(t.user.id) === String(myId)) || 
+                                              JSON.stringify(t).includes(String(myId));
+                                }
+                                return idMatch || n1.includes(normalizedMyName) || removeTones(n1).includes(noToneMyName) ||
+                                    n2.includes(normalizedMyName) || removeTones(n2).includes(noToneMyName);
+                            });
+
+                            if (me) {
+                                let myStatus = String(me.status || "").toUpperCase();
+                                if (!myStatus.includes('PRESENT') && !myStatus.includes('ACCEPTED') && !myStatus.includes('FULL_ATTENDANCE')) {
+                                    isMyTeacherTickPending = true; // Mình chưa tick!
+                                } else {
+                                    isMyTeacherTickPending = false;
+                                }
+                            } else {
+                                if (isTeacherPending) isMyTeacherTickPending = true;
+                                else isMyTeacherTickPending = false;
+                            }
+                        } else {
+                            if (!isTeacherPending && !isStudentPending) isMyTeacherTickPending = false;
+                            else isMyTeacherTickPending = true;
+                        }
+                    } else {
+                        if (!isTeacherPending && !isStudentPending) isMyTeacherTickPending = false;
+                        else isMyTeacherTickPending = true;
+                    }
+
+                    let isMasterLocked = !isTeacherPending;
+                    let classCode = String(item.class_hour_code || masterKey);
+
+                    if (isMasterLocked && !isStudentPending && !isMyTeacherTickPending) {
+                        console.log(`[EARLY EXIT] Lớp ${classCode}: Đã GẠT vì Sổ GV Khóa + Sổ HS Khóa + GV phụ đã tick xong.`);
+                        continue;
+                    }
+                    if (!isMyTeacherTickPending && isMasterLocked) {
+                        console.log(`[EARLY EXIT] Lớp ${classCode}: Đã GẠT vì GV phụ đã tick xong + Sổ GV Khóa.`);
+                        continue;
+                    }
+                    if (!isMyTeacherTickPending && item.co_teachers && Array.isArray(item.co_teachers) && item.co_teachers.length > 0) {
+                        let me = item.co_teachers.find(t => {
+                            let n = (t.user && t.user.full_name) ? t.user.full_name.toLowerCase() : "";
+                            return n.includes(normalizedMyName);
+                        });
+                        if (me) {
+                            console.log(`[EARLY EXIT] Lớp ${classCode}: Đã GẠT vì GV phụ đã tick xong (không cần biết Sổ khóa hay chưa).`);
+                            continue;
+                        }
+                    }
+
+                    // Ghi log chi tiết lý do Add vào hàng chờ
+                    let queueReason = [];
+                    if (isTeacherPending) queueReason.push("Sổ GV chưa ACCEPT");
+                    if (isStudentPending) queueReason.push("Sổ HS chưa ACCEPT");
+                    if (isMyTeacherTickPending) queueReason.push("Chưa tick cá nhân (hoặc API Grid ẩn dữ liệu co_teachers)");
+
+                    console.log(`[ADD QUEUE] Lớp ${classCode}: Bị thêm vào hàng chờ vì: ${queueReason.join(' | ')}`);
+
                     // Thêm cơ chế chặn thời gian: Chỉ điểm danh khi đã qua ít nhất 5 phút kể từ lúc lớp bắt đầu
                     let unlockInfo = getClassUnlockInfoV33(item, 5);
-                    return unlockInfo.isSafe;
-                });
+                    if (unlockInfo.isSafe) {
+                        pendingItems.push(rawItem);
+                    }
+                }
 
                 if (pendingItems.length === 0) {
                     log('🎯 [GHOST FULL] Không có lớp nào cần điểm danh!');
@@ -3482,7 +3693,7 @@
                         sourceApi: rawItem.sourceApi || ""
                     };
                 });
-                
+
                 for (let i = 0; i < compatibleItems.length; i += CONCURRENCY) {
                     const batch = compatibleItems.slice(i, i + CONCURRENCY);
                     await Promise.all(batch.map(async (compatibleItem, index) => {
@@ -3490,7 +3701,7 @@
                         let pText = `⏳ Đang điểm danh... ${globalIndex}/${compatibleItems.length}`;
                         log('👻 ' + pText);
                         setGhostStatus('PROGRESS', pText);
-                        
+
                         let res = await submitAttendanceFlowV33(compatibleItem);
                         if (res) successCount++;
                     }));
@@ -3499,6 +3710,23 @@
                 let dText = `🎉 Hoàn tất! Điểm danh thành công ${successCount}/${pendingItems.length} lớp.`;
                 log('👻 ' + dText);
                 setGhostStatus('DONE', dText);
+
+                // Tự động tải file Log về máy tính
+                // try {
+                //     let logBox = document.getElementById('tool-log');
+                //     if (logBox) {
+                //         let logLines = Array.from(logBox.childNodes).map(n => n.textContent).filter(t => t.trim().length > 0);
+                //         let blob = new Blob([logLines.join('\n')], { type: 'text/plain' });
+                //         let url = URL.createObjectURL(blob);
+                //         let a = document.createElement('a');
+                //         a.href = url;
+                //         a.download = `ClassHub_Ghost_Log_${new Date().getTime()}.txt`;
+                //         a.click();
+                //         URL.revokeObjectURL(url);
+                //         log('📥 Đã tự động tải file log (.txt) về máy để kiểm tra.');
+                //     }
+                // } catch (e) { }
+
             } catch (e) {
                 log('❌ [GHOST ERROR] ' + e.message);
                 setGhostStatus('ERROR', e.message);
@@ -3514,7 +3742,7 @@
         const setGhostStatus = (action, text) => {
             chrome.storage.local.set({ 'ghost_headless_status': { action, text, ts: Date.now() } });
             if (action === 'DONE' || action === 'ERROR') {
-                chrome.runtime.sendMessage({ action: 'GHOST_HEADLESS_' + action, text: text }).catch(()=>{});
+                chrome.runtime.sendMessage({ action: 'GHOST_HEADLESS_' + action, text: text }).catch(() => { });
             }
         };
 
@@ -3523,38 +3751,67 @@
 
         (async () => {
             try {
-                // Chờ thẻ có data-entity trùng ID xuất hiện
-                let ghostEl = null;
-                await waitForCondition(() => {
-                    let items = Array.from(document.querySelectorAll('.list-item[data-entity], .item-4qfjeb3y6f[data-entity], [data-entity*="class_schedule_slot_id"]'));
-                    for (let el of items) {
-                        let raw = el.getAttribute('data-entity') || (el.dataset && el.dataset.entity);
-                        if (!raw || raw === '[object Object]') continue;
-                        try {
-                            let ent = JSON.parse(raw);
-                            let masterKey = String(ent.id || el.dataset?.id || ent.master_key);
-                            if (masterKey === ghostId) {
-                                ghostEl = el;
-                                return true;
-                            }
-                        } catch (e) { }
+                // SỬ DỤNG GHOST FULL API THAY VÌ DOM ĐỂ LẤY DỮ LIỆU LỚP
+                let baseUrl = window.location.origin + window.location.pathname;
+                let apiItems = await window.OhkeHeadlessScanner.scanAllClasses(baseUrl);
+                
+                let foundEntity = null;
+                for (let item of apiItems) {
+                    let ent = item.entity || item;
+                    let masterKey = String(ent.id || ent.class_schedule_slot_id || ent.master_key);
+                    if (masterKey === ghostId) {
+                        foundEntity = ent;
+                        break;
                     }
-                    return false;
-                }, 20000, 200);
+                }
 
-                if (ghostEl) {
-                    let raw = ghostEl.getAttribute('data-entity') || (ghostEl.dataset && ghostEl.dataset.entity);
-                    let entity = JSON.parse(raw);
-                    let classItem = { element: ghostEl, id: ghostId, entity: entity };
+                if (foundEntity) {
+                    let classItem = { element: null, id: ghostId, entity: foundEntity };
 
                     setGhostStatus('PROGRESS', `⏳ Đang chốt điểm danh lớp ${ghostId}...`);
                     await submitAttendanceFlowV33(classItem);
-                    
-                    let doneText = `👻 [IN-CLASS] Xong việc! Chốt thành công lớp ${ghostId}. Chờ 5s rồi đóng.`;
-                    log(doneText);
-                    setGhostStatus('DONE', doneText);
+
+                    log(`👻 [IN-CLASS] Chờ 2s để Server lưu CSDL, tiến hành đối chiếu (Verify)...`);
+                    await delay(2000);
+
+                    try {
+                        let verifyRes = await rpcCallHeadlessV33('x24F76_Model', { master_key: ghostId });
+                        let vEnt = verifyRes ? verifyRes.data : null;
+                        let isVerified = false;
+                        
+                        if (vEnt) {
+                            let tStatus = String(vEnt.instructor_attendance_status || vEnt.status || "").toUpperCase();
+                            let sStatus = String(vEnt.attendance_sheet_status || "").toUpperCase();
+                            
+                            let isTeacherDone = tStatus.includes('ACCEPTED') || tStatus.includes('PRESENT') || tStatus.includes('FULL_ATTENDANCE');
+                            let isStudentDone = sStatus.includes('ACCEPTED');
+                            
+                            isVerified = isTeacherDone; // Tối thiểu GV phải done
+                            // Nếu có đánh dấu là GV chính thì phải check cả học sinh
+                            if (vEnt.is_main === true || String(vEnt.is_main) === "1") {
+                                isVerified = isTeacherDone && isStudentDone;
+                            }
+                        }
+
+                        if (isVerified) {
+                            let doneText = `👻 [IN-CLASS] [VERIFIED] Hoàn tất tuyệt đối lớp ${ghostId}.`;
+                            log(doneText);
+                            setGhostStatus('DONE', doneText);
+                        } else {
+                            let failText = `👻 [IN-CLASS] [FAILED] Hệ thống chưa ghi nhận lớp ${ghostId}. Đã bỏ qua và ghi log.`;
+                            log(failText);
+                            setGhostStatus('ERROR', failText);
+                        }
+                    } catch (e) {
+                        log(`👻 [IN-CLASS] Lỗi Verify: ${e.message}`);
+                    }
+
+                    // Báo background xoá khỏi Queue dù thành công hay lỗi
+                    chrome.runtime.sendMessage({ action: 'ACTION_SCHEDULE_ITEM_DONE', id: ghostId });
+
                 } else {
-                    let errText = `👻 [IN-CLASS] ❌ KHÔNG TÌM THẤY LỚP ${ghostId} TRÊN DOM. Chờ 5s rồi đóng.`;
+                    // Nếu không tìm thấy bằng Ghost Full, báo lỗi
+                    let errText = `👻 [IN-CLASS] ❌ KHÔNG TÌM THẤY LỚP ${ghostId} TỪ API. Chờ 5s rồi đóng.`;
                     log(errText);
                     setGhostStatus('ERROR', errText);
                 }

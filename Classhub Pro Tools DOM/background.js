@@ -29,21 +29,8 @@ const setDailyAlarm = () => {
 };
 
 // ==========================================
-// THIẾT LẬP RESET VÉ NGÀY (DAY-PASS EXPIRY)
+// VÉ TUẦN: Không reset hàng ngày
 // ==========================================
-const setResetDayPassAlarm = () => {
-    let now = new Date();
-    let resetScheduled = new Date();
-    resetScheduled.setHours(0, 0, 0, 0);
-    if (now.getTime() >= resetScheduled.getTime()) resetScheduled.setDate(resetScheduled.getDate() + 1);
-    chrome.alarms.create('reset_day_pass', { delayInMinutes: (resetScheduled.getTime() - now.getTime()) / 60000, periodInMinutes: 1440 });
-};
-setResetDayPassAlarm(); // Gọi ngay khi khởi chạy background
-
-chrome.runtime.onStartup.addListener(() => {
-    chrome.storage.local.set({ 'ohke_in_class_auto': "" });
-    setResetDayPassAlarm();
-});
 
 // 2. Lắng nghe lệnh từ content.js
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
@@ -96,12 +83,47 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
         sendResponse({status: "Tab opened"});
     } else if (msg.action === 'ACTION_SCHEDULE_SYNCED') {
         let schedule = msg.schedule || [];
+        chrome.storage.local.set({ 'in_class_schedule_queue': schedule });
+        
         schedule.forEach(item => {
             let triggerTime = item.triggerTime;
             if (triggerTime <= Date.now()) triggerTime = Date.now() + 5000; // Trễ 5s an toàn
             chrome.alarms.create(`in_class_${item.id}`, { when: triggerTime });
         });
         sendResponse({status: "Schedule synced"});
+    } else if (msg.action === 'ACTION_SCHEDULE_ITEM_DONE') {
+        let doneId = msg.id;
+        chrome.storage.local.get(['in_class_schedule_queue'], (res) => {
+            let q = res.in_class_schedule_queue || [];
+            let newQ = q.filter(item => String(item.id) !== String(doneId));
+            chrome.storage.local.set({ 'in_class_schedule_queue': newQ }, () => {
+                let today = new Date().toLocaleDateString('vi-VN');
+                let hasItemsToday = newQ.some(item => new Date(item.triggerTime).toLocaleDateString('vi-VN') === today);
+                let hasItemsThisWeek = newQ.length > 0;
+                
+                if (!hasItemsThisWeek) {
+                    // Xong toàn bộ lịch trình
+                    chrome.storage.local.set({ 'ohke_in_class_auto': "" });
+                    console.log("Đã hoàn tất toàn bộ điểm danh tuần. Tự động tắt Auto Mode.");
+                    chrome.notifications.create('', {
+                        type: 'basic',
+                        iconUrl: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=',
+                        title: 'ClassHub Pro Tools',
+                        message: 'Đã hoàn tất toàn bộ điểm danh tuần. Tự động tắt Auto Mode.'
+                    });
+                } else if (!hasItemsToday) {
+                    // Xong lịch trình ngày hôm nay
+                    console.log("Đã hoàn tất điểm danh cho ngày hôm nay.");
+                    chrome.notifications.create('', {
+                        type: 'basic',
+                        iconUrl: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=',
+                        title: 'ClassHub Pro Tools',
+                        message: 'Tất cả các tiết trong ngày hôm nay đã được điểm danh xong.'
+                    });
+                }
+            });
+        });
+        sendResponse({status: "Item removed from queue"});
     } else if (msg.action === 'ACTION_SUICIDE_TAB') {
         if (sender.tab && sender.tab.id) {
             try {
@@ -117,8 +139,6 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
 chrome.alarms.onAlarm.addListener((alarm) => {
     if (alarm.name === 'daily_attendance') {
         triggerDailyAttendance();
-    } else if (alarm.name === 'reset_day_pass') {
-        chrome.storage.local.set({ 'ohke_in_class_auto': "" });
     } else if (alarm.name.startsWith('in_class_')) {
         let classId = alarm.name.replace('in_class_', '');
         chrome.tabs.create({ 
