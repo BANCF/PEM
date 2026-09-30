@@ -74,7 +74,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       }
       
       if (currentUser) {
-        const superAdminEmails = ["admin@school.com", "admin@pas.edu.vn"];
+        const superAdminEmails = ["admin@school.com", "admin@pas.edu.vn", "super1@pas.edu.vn"];
         
         unsubscribeSnapshot = onSnapshot(doc(db, "users", currentUser.uid), async (userDoc) => {
           if (userDoc.exists()) {

@@ -31,7 +31,7 @@ const ROLES_WITH_SUPER = [
   { value: "SUPER_ADMIN", label: "Super Admin (Tối cao)" }
 ];
 
-const SUPER_ADMIN_EMAILS = ["admin@school.com", "admin@pas.edu.vn"];
+const SUPER_ADMIN_EMAILS = ["admin@school.com", "admin@pas.edu.vn", "super1@pas.edu.vn"];
 
 export default function UsersManagementPage() {
   const { actualProfile, setImpersonatedUid } = useAuth();
