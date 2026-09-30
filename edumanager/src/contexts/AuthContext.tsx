@@ -74,12 +74,27 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       }
       
       if (currentUser) {
+        const superAdminEmails = ["admin@school.com", "admin@pas.edu.vn"];
+        
         unsubscribeSnapshot = onSnapshot(doc(db, "users", currentUser.uid), async (userDoc) => {
           if (userDoc.exists()) {
             const p = { id: currentUser.uid, ...userDoc.data() } as UserProfile;
+            
+            // Enforce SUPER_ADMIN role for designated emails
+            if (superAdminEmails.includes(currentUser.email || "") && p.role !== "SUPER_ADMIN") {
+              try {
+                const { updateDoc } = await import("firebase/firestore");
+                await updateDoc(doc(db, "users", currentUser.uid), { role: "SUPER_ADMIN" });
+                // Let the next snapshot handle the updated profile
+                return;
+              } catch (e) {
+                console.error("Auto-fix super admin role error:", e);
+              }
+            }
+            
             setActualProfile(p);
           } else {
-            if (currentUser.email === "admin@school.com" || currentUser.email === "admin@pas.edu.vn") {
+            if (superAdminEmails.includes(currentUser.email || "")) {
               try {
                 const { setDoc } = await import("firebase/firestore");
                 await setDoc(doc(db, "users", currentUser.uid), {

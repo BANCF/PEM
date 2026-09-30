@@ -18,13 +18,20 @@ interface UserData {
   department: string;
 }
 
-const ROLES = [
+const ROLES_BASE = [
   { value: "BGH", label: "Ban Giám Hiệu" },
   { value: "TTCM", label: "Tổ trưởng CM" },
   { value: "TPCM", label: "Tổ phó CM" },
   { value: "TEACHER", label: "Giáo viên" },
   { value: "ADMIN", label: "Admin Hệ thống" }
 ];
+
+const ROLES_WITH_SUPER = [
+  ...ROLES_BASE,
+  { value: "SUPER_ADMIN", label: "Super Admin (Tối cao)" }
+];
+
+const SUPER_ADMIN_EMAILS = ["admin@school.com", "admin@pas.edu.vn"];
 
 export default function UsersManagementPage() {
   const { actualProfile, setImpersonatedUid } = useAuth();
@@ -72,6 +79,14 @@ export default function UsersManagementPage() {
   }, []);
 
   const handleUpdate = async (userId: string, field: "role" | "department", value: string) => {
+    // Guard: prevent changing role of super admin accounts
+    if (field === "role") {
+      const targetUser = users.find(u => u.id === userId);
+      if (targetUser && SUPER_ADMIN_EMAILS.includes(targetUser.email)) {
+        toast.error("Không thể thay đổi quyền của tài khoản Super Admin.");
+        return;
+      }
+    }
     setSavingId(userId);
     try {
       const userRef = doc(db, "users", userId);
@@ -89,7 +104,7 @@ export default function UsersManagementPage() {
   };
 
   const handleDeleteUser = async (user: UserData) => {
-    if (user.email === "admin@school.com") {
+    if (SUPER_ADMIN_EMAILS.includes(user.email)) {
       toast.error("Không thể xóa tài khoản Admin hệ thống gốc.");
       return;
     }
@@ -202,8 +217,9 @@ export default function UsersManagementPage() {
                           <select
                             value={user.role || "TEACHER"}
                             onChange={(e) => handleUpdate(user.id, "role", e.target.value)}
-                            disabled={savingId === user.id || user.email === "admin@school.com"} // Không cho tự đổi quyền admin root
+                            disabled={savingId === user.id || SUPER_ADMIN_EMAILS.includes(user.email)} // Không cho tự đổi quyền admin root
                             className={`w-full p-2.5 border rounded-xl focus:ring-2 focus:ring-blue-500 outline-none text-sm font-bold transition disabled:opacity-50 appearance-none ${
+                              user.role === "SUPER_ADMIN" ? "bg-slate-900 text-amber-400 border-slate-700" :
                               user.role === "ADMIN" ? "bg-red-50 text-red-700 border-red-200" :
                               user.role === "BGH" ? "bg-purple-50 text-purple-700 border-purple-200" :
                               user.role === "TTCM" ? "bg-orange-50 text-orange-700 border-orange-200" :
@@ -211,11 +227,11 @@ export default function UsersManagementPage() {
                               "bg-blue-50 text-blue-700 border-blue-200"
                             }`}
                           >
-                            {ROLES.map(role => (
+                            {(actualProfile?.role === "SUPER_ADMIN" ? ROLES_WITH_SUPER : ROLES_BASE).map(role => (
                               <option key={role.value} value={role.value}>{role.label}</option>
                             ))}
                           </select>
-                          <Shield className={`absolute right-3 top-3 pointer-events-none ${user.role === "ADMIN" ? "text-red-400" : "text-slate-400"}`} size={14} />
+                          <Shield className={`absolute right-3 top-3 pointer-events-none ${user.role === "SUPER_ADMIN" ? "text-amber-400" : user.role === "ADMIN" ? "text-red-400" : "text-slate-400"}`} size={14} />
                         </div>
                       </td>
                       <td className="p-4 text-center">
@@ -257,7 +273,7 @@ export default function UsersManagementPage() {
                           ) : (
                             <button 
                               onClick={() => handleDeleteUser(user)}
-                              disabled={user.email === "admin@school.com" || deletingId !== null}
+                              disabled={SUPER_ADMIN_EMAILS.includes(user.email) || deletingId !== null}
                               className="text-red-500 bg-red-50 hover:bg-red-100 p-2 rounded-lg inline-block opacity-0 group-hover:opacity-100 transition disabled:opacity-0"
                               title="Xóa nhân sự"
                             >

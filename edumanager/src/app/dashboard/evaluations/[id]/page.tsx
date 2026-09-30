@@ -259,7 +259,7 @@ export default function EvaluationDetailPage() {
 
   const isTargetTeacher = profile?.id === evaluation.teacherId;
   let canResolve = false;
-  if (profile?.role === "ADMIN" || profile?.role === "BGH") {
+  if (profile?.role === "ADMIN" || profile?.role === "BGH" || profile?.role === "SUPER_ADMIN") {
     canResolve = true;
   } else if (profile?.role === "TTCM" || profile?.role === "TPCM") {
     canResolve = evaluation.teacherDepartment === profile.department && evaluation.teacherId !== profile.id;

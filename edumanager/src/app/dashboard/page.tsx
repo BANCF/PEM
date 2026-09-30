@@ -461,7 +461,7 @@ export default function DashboardPage() {
               </div>
             )}
 
-            {(profile?.role === "ADMIN" || profile?.role === "BGH") && (
+            {(profile?.role === "ADMIN" || profile?.role === "BGH" || profile?.role === "SUPER_ADMIN") && (
               <button 
                 onClick={handleExportExcel}
                 className="flex items-center justify-center space-x-2 bg-emerald-500 hover:bg-emerald-600 text-white px-4 py-2.5 rounded-xl font-medium transition-colors shadow-sm whitespace-nowrap"
