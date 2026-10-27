@@ -6,7 +6,7 @@ import { studentService, StudentData } from "@/lib/services/student.service";
 import { classService, ClassData } from "@/lib/services/class.service";
 import { gradeService, GradeData } from "@/lib/services/grade.service";
 import { useSearchParams, useRouter } from "next/navigation";
-import { Loader2, ArrowLeft, Users, FileSpreadsheet, X } from "lucide-react";
+import { Loader2, ArrowLeft, Users, FileSpreadsheet, X, Printer } from "lucide-react";
 import Link from "next/link";
 import toast from "react-hot-toast";
 import * as XLSX from "xlsx";
@@ -210,6 +210,16 @@ export default function HomeroomGradeSummaryPage({ params }: { params: Promise<{
               <FileSpreadsheet size={18} />
               <span className="hidden sm:inline">Xuất Excel</span>
             </button>
+
+            <Link
+              href={`/dashboard/print/midterm-evaluation?classId=${classId}&semester=${viewMode === 2 ? 2 : 1}`}
+              target="_blank"
+              className="flex items-center gap-2 bg-purple-100 text-purple-700 hover:bg-purple-200 px-4 py-2 rounded-lg font-bold transition-colors shadow-sm"
+              title="In hoặc xuất PDF phiếu báo điểm giữa kỳ cho cả lớp"
+            >
+              <Printer size={18} />
+              <span className="hidden sm:inline">In Phiếu GHKI</span>
+            </Link>
           </div>
         </div>
 
