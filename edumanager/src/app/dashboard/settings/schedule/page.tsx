@@ -22,6 +22,7 @@ export default function ScheduleSettingsPage() {
   const [clbTeachers, setClbTeachers] = useState<string[]>([]);
   const [isSavingSettings, setIsSavingSettings] = useState(false);
   const [searchTeacher, setSearchTeacher] = useState("");
+  const [weekName, setWeekName] = useState("");
 
   React.useEffect(() => {
     const checkDraft = async () => {
@@ -63,6 +64,15 @@ export default function ScheduleSettingsPage() {
     if (selectedFile) {
       setFile(selectedFile);
       setParsedData(null);
+
+      // Auto-detect week name from filename
+      let detectedWeek = "";
+      const matchTuan = selectedFile.name.match(/tuần\s*(\d+)/i);
+      const matchSo = selectedFile.name.match(/số\s*(\d+)/i);
+      if (matchTuan) detectedWeek = `Tuần ${matchTuan[1]}`;
+      else if (matchSo) detectedWeek = `TKB số ${matchSo[1]}`;
+      else detectedWeek = selectedFile.name.replace(/\.[^/.]+$/, "");
+      setWeekName(detectedWeek);
     }
   };
 
@@ -84,9 +94,11 @@ export default function ScheduleSettingsPage() {
     setLoading(true);
     try {
       const arrayBuffer = await file.arrayBuffer();
+      const currentWeekName = weekName || "TKB Tuần Sau";
       const data = parseScheduleExcel(arrayBuffer, {
         clbTeachers,
         updatedBy: profile?.fullName || "Admin",
+        weekName: currentWeekName,
       });
 
       setParsedData(data);
@@ -104,11 +116,17 @@ export default function ScheduleSettingsPage() {
     
     setLoading(true);
     try {
-      await saveDraftSchedule(parsedData);
+      const dataToSave: FullScheduleData = {
+        ...parsedData,
+        weekName: weekName || parsedData.weekName || "TKB Tuần Sau",
+        updatedAt: new Date().toISOString(),
+      };
+      await saveDraftSchedule(dataToSave);
       setHasDraft(true);
       toast.success("Đã lưu Thời khóa biểu thành bản Nháp (Tuần sau)!");
-    } catch (error) {
-      toast.error("Lỗi khi lưu lên hệ thống");
+    } catch (error: any) {
+      console.error("Save draft schedule error:", error);
+      toast.error(error?.message || "Lỗi khi lưu lên hệ thống");
     } finally {
       setLoading(false);
     }
@@ -338,6 +356,20 @@ export default function ScheduleSettingsPage() {
                     <span className="font-bold">Tuyệt vời: </span> Không phát hiện trường hợp trùng tiết nào.
                   </div>
                 )}
+              </div>
+
+              {/* Tên tuần hiển thị trên TKB */}
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">
+                  Tên tuần / Phiên bản TKB (hiển thị trên TKB và khi in PDF):
+                </label>
+                <input
+                  type="text"
+                  value={weekName}
+                  onChange={(e) => setWeekName(e.target.value)}
+                  placeholder="Ví dụ: TKB số 12, Tuần 12..."
+                  className="w-full px-4 py-2 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 text-sm"
+                />
               </div>
 
               <button

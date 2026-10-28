@@ -25,7 +25,7 @@ export function parseScheduleExcel(
   buffer: ArrayBuffer | Buffer,
   options: ParseOptions = {}
 ): FullScheduleData {
-  const { clbTeachers = [], updatedBy = "Hệ thống", weekName } = options;
+  const { clbTeachers = [], updatedBy = "Hệ thống", weekName = "TKB Chính thức" } = options;
   const workbook = XLSX.read(buffer, { type: "buffer" });
 
   // 1. Phân tích Sheet TKB SangChieu (TKB theo Lớp và Môn học)

@@ -35,10 +35,14 @@ export const getSchedule = async (): Promise<FullScheduleData | null> => {
   }
 };
 
+function cleanForFirestore<T>(data: T): T {
+  return JSON.parse(JSON.stringify(data));
+}
+
 export const saveSchedule = async (data: FullScheduleData): Promise<void> => {
   try {
     const docRef = doc(db, "schedules", "current");
-    await setDoc(docRef, data);
+    await setDoc(docRef, cleanForFirestore(data));
   } catch (error) {
     console.error("Error saving schedule:", error);
     throw error;
@@ -62,7 +66,7 @@ export const getDraftSchedule = async (): Promise<FullScheduleData | null> => {
 export const saveDraftSchedule = async (data: FullScheduleData): Promise<void> => {
   try {
     const docRef = doc(db, "schedules", "draft");
-    await setDoc(docRef, data);
+    await setDoc(docRef, cleanForFirestore(data));
   } catch (error) {
     console.error("Error saving draft schedule:", error);
     throw error;
