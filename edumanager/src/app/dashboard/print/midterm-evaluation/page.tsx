@@ -10,6 +10,7 @@ import {
   MidtermEvaluationData,
   MIDTERM_SUBJECTS,
 } from "@/lib/services/midterm-evaluation.service";
+import { gradeService } from "@/lib/services/grade.service";
 import { doc, getDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase/client";
 import { Loader2 } from "lucide-react";
@@ -37,16 +38,52 @@ export default function PrintMidtermEvaluation() {
         const stds = await studentService.getStudentsByClassId(classId);
         setStudents(stds);
 
-        const evals = await midtermEvaluationService.getEvaluationsByClassAndSemester(
-          classId,
-          cls.academicYear,
-          semester
-        );
+        const [evals, allGrades] = await Promise.all([
+          midtermEvaluationService.getEvaluationsByClassAndSemester(
+            classId,
+            cls.academicYear,
+            semester
+          ),
+          gradeService.getAllGradesForClass(classId, cls.academicYear),
+        ]);
+
         const evalMap: Record<string, MidtermEvaluationData> = {};
         evals.forEach((e) => {
           evalMap[e.studentId] = e;
         });
-        setEvaluations(evalMap);
+
+        // Initialize empty structure for students who don't have evaluation yet
+        stds.forEach((student) => {
+          if (!evalMap[student.id!]) {
+            const defaultSubjects: Record<string, any> = {};
+            MIDTERM_SUBJECTS.forEach((subj) => {
+              defaultSubjects[subj.id] = {
+                tx1: null,
+                tx2: null,
+                gk: null,
+                evaluation: subj.isEvaluationOnly ? "Đạt" : "",
+                comment: "",
+              };
+            });
+
+            evalMap[student.id!] = {
+              classId,
+              studentId: student.id!,
+              academicYear: cls.academicYear,
+              semester: semester,
+              generalComment: "",
+              subjects: defaultSubjects,
+            };
+          }
+        });
+
+        // Tự động kết hợp điểm mới nhất từ Sổ điểm các môn để khi in luôn đầy đủ
+        const mergedMap = midtermEvaluationService.mergeEvaluationsWithGrades(
+          evalMap,
+          allGrades,
+          semester
+        );
+        setEvaluations(mergedMap);
 
         // Find GVCN
         const assignments = await assignmentService.getAssignmentsByClassId(classId);

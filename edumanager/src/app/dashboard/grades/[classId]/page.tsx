@@ -9,6 +9,7 @@ import { assignmentService, ClassAssignmentData } from "@/lib/services/assignmen
 import MonthlyEvaluationsTab from "@/components/classes/MonthlyEvaluationsTab";
 import EarlyEvaluationsTab from "@/components/classes/EarlyEvaluationsTab";
 import MidtermEvaluationsTab from "@/components/classes/MidtermEvaluationsTab";
+import { midtermEvaluationService } from "@/lib/services/midterm-evaluation.service";
 import { useAuth } from "@/contexts/AuthContext";
 import { useSearchParams, useRouter } from "next/navigation";
 import { Loader2, ArrowLeft, Save, Upload, Download, Calculator } from "lucide-react";
@@ -146,7 +147,27 @@ export default function GradeInputPage({ params }: { params: Promise<{ classId: 
       // Chỉ lưu điểm của học kỳ đang chọn (hoặc lưu cả 2, nhưng để tối ưu thì lưu học kỳ hiện tại)
       const gradesToSave = Object.values(grades).map(g => g[semester]);
       await gradeService.saveGradesBatch(gradesToSave);
-      toast.success("Đã lưu bảng điểm thành công!");
+
+      // Tự động đồng bộ ngay sang Phiếu báo điểm giữa kỳ (GHKI hoặc GHKII)
+      let syncedMidtermCount = 0;
+      try {
+        syncedMidtermCount = await midtermEvaluationService.syncSubjectGradesToMidterm(
+          classId,
+          academicYear,
+          semester,
+          subject,
+          gradesToSave
+        );
+      } catch (syncErr) {
+        console.warn("Lỗi tự động đồng bộ sang phiếu báo điểm GHK:", syncErr);
+      }
+
+      if (syncedMidtermCount > 0) {
+        toast.success("Đã lưu bảng điểm & tự động đồng bộ sang Phiếu báo điểm giữa kỳ!");
+      } else {
+        toast.success("Đã lưu bảng điểm thành công!");
+      }
+
       await loadGrades(classId, subject, academicYear, students);
     } catch (error) {
       toast.error("Lỗi khi lưu bảng điểm");

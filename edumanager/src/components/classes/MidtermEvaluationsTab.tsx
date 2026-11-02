@@ -11,7 +11,7 @@ import {
   MidtermSubjectConfig,
   SubjectScore,
 } from "@/lib/services/midterm-evaluation.service";
-import { gradeService } from "@/lib/services/grade.service";
+import { gradeService, GradeData } from "@/lib/services/grade.service";
 import { Loader2, Save, Printer, Download, Upload, RefreshCw, CheckCircle2, AlertCircle, Sparkles } from "lucide-react";
 import * as XLSX from "xlsx";
 import toast from "react-hot-toast";
@@ -84,11 +84,14 @@ export default function MidtermEvaluationsTab({
   const fetchEvaluations = async () => {
     setLoading(true);
     try {
-      const data = await midtermEvaluationService.getEvaluationsByClassAndSemester(
-        classData.id!,
-        classData.academicYear,
-        semester
-      );
+      const [data, allGrades] = await Promise.all([
+        midtermEvaluationService.getEvaluationsByClassAndSemester(
+          classData.id!,
+          classData.academicYear,
+          semester
+        ),
+        gradeService.getAllGradesForClass(classData.id!, classData.academicYear),
+      ]);
 
       const evalMap: Record<string, MidtermEvaluationData> = {};
       data.forEach((d) => {
@@ -133,7 +136,14 @@ export default function MidtermEvaluationsTab({
         }
       });
 
-      setEvaluations(evalMap);
+      // Tự động kết hợp (auto-populate) điểm từ Sổ điểm nếu phiếu chưa có dữ liệu môn đó
+      const mergedMap = midtermEvaluationService.mergeEvaluationsWithGrades(
+        evalMap,
+        allGrades,
+        semester
+      );
+
+      setEvaluations(mergedMap);
     } catch (error) {
       console.error("Error fetching midterm evaluations:", error);
       toast.error("Lỗi tải dữ liệu phiếu điểm giữa kỳ.");
@@ -198,6 +208,71 @@ export default function MidtermEvaluationsTab({
     try {
       const dataToSave = Object.values(evaluations);
       await midtermEvaluationService.saveEvaluationsBatch(dataToSave);
+
+      // Nếu đang ở tab môn học cụ thể (không phải "all"), đồng bộ ngược lại về Sổ điểm để 2 bên luôn khớp nhau
+      if (selectedSubjectId !== "all") {
+        try {
+          const subjConfig = MIDTERM_SUBJECTS.find((s) => s.id === selectedSubjectId);
+          if (subjConfig && !subjConfig.isEvaluationOnly) {
+            const existingClassGrades = await gradeService.getAllGradesForClass(classData.id!, classData.academicYear);
+            const gradesToUpdate: GradeData[] = [];
+
+            students.forEach((std) => {
+              const sid = std.id!;
+              const sc = evaluations[sid]?.subjects?.[selectedSubjectId];
+              if (!sc) return;
+
+              // Tìm bản ghi grade đã có của học sinh ở môn này và kỳ này
+              const existG = existingClassGrades.find(
+                (g) => g.studentId === sid && g.semester === semester && midtermEvaluationService.findSubjectConfig(g.subject)?.id === selectedSubjectId
+              );
+
+              const parseVal = (v: any) => (v !== null && v !== undefined && v !== "" && !isNaN(Number(v)) ? Number(v) : null);
+              const tx1 = parseVal(sc.tx1);
+              const tx2 = parseVal(sc.tx2);
+              const gk = parseVal(sc.gk);
+
+              // Tính lại điểm trung bình
+              const tx = [tx1, tx2, existG?.tx3, existG?.tx4].filter((val) => val !== null && val !== undefined) as number[];
+              let total = tx.reduce((a, b) => a + b, 0);
+              let divisor = tx.length;
+              if (gk != null) {
+                total += gk * 2;
+                divisor += 2;
+              }
+              if (existG?.ck != null) {
+                total += existG.ck * 3;
+                divisor += 3;
+              }
+              const average = divisor > 0 ? Math.round((total / divisor) * 10) / 10 : null;
+
+              gradesToUpdate.push({
+                id: existG?.id,
+                studentId: sid,
+                classId: classData.id!,
+                subject: existG?.subject || subjConfig.name,
+                academicYear: classData.academicYear,
+                semester: semester,
+                tx1: tx1,
+                tx2: tx2,
+                tx3: existG?.tx3 ?? null,
+                tx4: existG?.tx4 ?? null,
+                gk: gk,
+                ck: existG?.ck ?? null,
+                average: average,
+                comment: sc.comment || existG?.comment || "",
+              });
+            });
+
+            if (gradesToUpdate.length > 0) {
+              await gradeService.saveGradesBatch(gradesToUpdate);
+            }
+          }
+        } catch (syncBackErr) {
+          console.warn("Lỗi đồng bộ ngược về Sổ điểm:", syncBackErr);
+        }
+      }
+
       toast.success("Lưu phiếu điểm GHKI thành công!");
       fetchEvaluations();
     } catch (error) {
@@ -256,9 +331,11 @@ export default function MidtermEvaluationsTab({
       });
 
       setEvaluations(newEvaluations);
+      // Tự động lưu ngay vào Firestore để tránh việc người dùng quên bấm "Lưu đánh giá"
+      await midtermEvaluationService.saveEvaluationsBatch(Object.values(newEvaluations));
       toast.success(
-        `Đã đồng bộ ${updatedCount} lượt điểm từ Sổ điểm! Bấm "Lưu đánh giá" để xác nhận lưu trữ.`,
-        { duration: 5000 }
+        `Đã đồng bộ và tự động lưu ${updatedCount} lượt điểm từ Sổ điểm sang Phiếu báo điểm!`,
+        { duration: 4000 }
       );
     } catch (error) {
       console.error("Error syncing from grades:", error);

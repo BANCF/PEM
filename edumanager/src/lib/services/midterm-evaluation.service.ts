@@ -9,6 +9,8 @@ import {
 } from "firebase/firestore";
 import { db } from "@/lib/firebase/client";
 
+import { GradeData } from "@/lib/services/grade.service";
+
 export interface SubjectScore {
   tx1?: number | string | null;
   tx2?: number | string | null;
@@ -160,5 +162,160 @@ export const midtermEvaluationService = {
     return MIDTERM_SUBJECTS.find(
       (s) => s.id === clean || s.name.toLowerCase() === clean || s.aliases.some((a) => clean.includes(a) || a.includes(clean))
     );
+  },
+
+  /**
+   * Đồng bộ điểm từ Sổ điểm (GradeData) sang Phiếu báo điểm giữa kỳ (MidtermEvaluationData)
+   * ĐẢM BẢO AN TOÀN TUYỆT ĐỐI:
+   * - Chỉ cập nhật thông tin của môn tương ứng (subjectName).
+   * - Giữ nguyên 100% dữ liệu các môn học khác và generalComment của GVCN.
+   * - Giữ nguyên nhận xét cũ của môn nếu grade.comment để trống.
+   */
+  async syncSubjectGradesToMidterm(
+    classId: string,
+    academicYear: string,
+    semester: number,
+    subjectName: string,
+    grades: GradeData[]
+  ): Promise<number> {
+    const subjConfig = this.findSubjectConfig(subjectName);
+    if (!subjConfig) {
+      console.warn(`[syncSubjectGradesToMidterm] Không tìm thấy cấu hình môn học cho "${subjectName}"`);
+      return 0;
+    }
+
+    // Lấy dữ liệu midterm hiện có của lớp trong kỳ này
+    const existingEvals = await this.getEvaluationsByClassAndSemester(classId, academicYear, semester);
+    const evalMap: Record<string, MidtermEvaluationData> = {};
+    existingEvals.forEach((e) => {
+      evalMap[e.studentId] = e;
+    });
+
+    let updatedCount = 0;
+    const toSave: MidtermEvaluationData[] = [];
+
+    grades.forEach((grade) => {
+      const studentId = grade.studentId;
+      if (!studentId) return;
+
+      let currentEval = evalMap[studentId];
+      if (!currentEval) {
+        // Tạo khung ban đầu cho học sinh nếu chưa có
+        const defaultSubjects: Record<string, SubjectScore> = {};
+        MIDTERM_SUBJECTS.forEach((subj) => {
+          defaultSubjects[subj.id] = {
+            tx1: null,
+            tx2: null,
+            gk: null,
+            evaluation: subj.isEvaluationOnly ? "Đạt" : "",
+            comment: "",
+          };
+        });
+
+        currentEval = {
+          classId,
+          studentId,
+          academicYear,
+          semester,
+          generalComment: "",
+          subjects: defaultSubjects,
+        };
+        evalMap[studentId] = currentEval;
+      }
+
+      const existingSubj = currentEval.subjects[subjConfig.id] || {
+        tx1: null,
+        tx2: null,
+        gk: null,
+        evaluation: subjConfig.isEvaluationOnly ? "Đạt" : "",
+        comment: "",
+      };
+
+      if (subjConfig.isEvaluationOnly) {
+        const hasAnyScore =
+          (grade.tx1 !== null && grade.tx1 !== undefined) ||
+          (grade.gk !== null && grade.gk !== undefined) ||
+          (grade.ck !== null && grade.ck !== undefined);
+        currentEval.subjects[subjConfig.id] = {
+          ...existingSubj,
+          evaluation: hasAnyScore ? "Đạt" : existingSubj.evaluation || "Đạt",
+          comment: grade.comment || existingSubj.comment || "",
+        };
+      } else {
+        currentEval.subjects[subjConfig.id] = {
+          ...existingSubj,
+          tx1: grade.tx1 !== undefined ? grade.tx1 : existingSubj.tx1 ?? null,
+          tx2: grade.tx2 !== undefined ? grade.tx2 : existingSubj.tx2 ?? null,
+          gk: grade.gk !== undefined ? grade.gk : existingSubj.gk ?? null,
+          comment: grade.comment !== undefined && grade.comment !== "" ? grade.comment : (existingSubj.comment || ""),
+        };
+      }
+
+      toSave.push(currentEval);
+      updatedCount++;
+    });
+
+    if (toSave.length > 0) {
+      await this.saveEvaluationsBatch(toSave);
+    }
+
+    return updatedCount;
+  },
+
+  /**
+   * Kết hợp dữ liệu Phiếu điểm giữa kỳ với dữ liệu Sổ điểm môn học.
+   * Tự động điền các điểm TX1, TX2, GK từ Sổ điểm vào những môn học chưa có điểm trên phiếu.
+   * Tuyệt đối không ghi đè nếu trên phiếu đã có điểm hoặc nhận xét.
+   */
+  mergeEvaluationsWithGrades(
+    evaluations: Record<string, MidtermEvaluationData>,
+    allGrades: GradeData[],
+    semester: number
+  ): Record<string, MidtermEvaluationData> {
+    const merged = { ...evaluations };
+    const semGrades = allGrades.filter((g) => g.semester === semester);
+
+    semGrades.forEach((g) => {
+      const studentId = g.studentId;
+      if (!studentId || !merged[studentId]) return;
+
+      const cfg = this.findSubjectConfig(g.subject);
+      if (!cfg) return;
+
+      const currentSubj = merged[studentId].subjects[cfg.id] || {
+        tx1: null,
+        tx2: null,
+        gk: null,
+        evaluation: cfg.isEvaluationOnly ? "Đạt" : "",
+        comment: "",
+      };
+
+      if (cfg.isEvaluationOnly) {
+        if (!currentSubj.evaluation) {
+          const hasAny = g.tx1 != null || g.gk != null || g.ck != null;
+          currentSubj.evaluation = hasAny ? "Đạt" : "Đạt";
+        }
+        if (!currentSubj.comment && g.comment) {
+          currentSubj.comment = g.comment;
+        }
+      } else {
+        if ((currentSubj.tx1 === null || currentSubj.tx1 === undefined) && g.tx1 !== null && g.tx1 !== undefined) {
+          currentSubj.tx1 = g.tx1;
+        }
+        if ((currentSubj.tx2 === null || currentSubj.tx2 === undefined) && g.tx2 !== null && g.tx2 !== undefined) {
+          currentSubj.tx2 = g.tx2;
+        }
+        if ((currentSubj.gk === null || currentSubj.gk === undefined) && g.gk !== null && g.gk !== undefined) {
+          currentSubj.gk = g.gk;
+        }
+        if (!currentSubj.comment && g.comment) {
+          currentSubj.comment = g.comment;
+        }
+      }
+
+      merged[studentId].subjects[cfg.id] = currentSubj;
+    });
+
+    return merged;
   },
 };
