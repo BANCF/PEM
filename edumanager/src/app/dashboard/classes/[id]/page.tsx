@@ -8,12 +8,13 @@ import { StudentData, studentService } from "@/lib/services/student.service";
 import { ClassAssignmentData, assignmentService } from "@/lib/services/assignment.service";
 import StudentModal from "@/components/students/StudentModal";
 import AssignmentModal from "@/components/classes/AssignmentModal";
+import SyncScheduleAssignmentModal from "@/components/classes/SyncScheduleAssignmentModal";
 
 import { doc, getDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase/client";
 import { useRouter } from "next/navigation";
 import toast from "react-hot-toast";
-import { Loader2, ArrowLeft, Plus, Trash2, UserPlus, Download, Upload } from "lucide-react";
+import { Loader2, ArrowLeft, Plus, Trash2, UserPlus, Download, Upload, Edit3, FileSpreadsheet } from "lucide-react";
 import * as XLSX from "xlsx";
 
 export default function ClassDetailsPage({ params }: { params: Promise<{ id: string }> }) {
@@ -35,6 +36,8 @@ export default function ClassDetailsPage({ params }: { params: Promise<{ id: str
   const [isStudentModalOpen, setIsStudentModalOpen] = useState(false);
   const [isAssignmentModalOpen, setIsAssignmentModalOpen] = useState(false);
   const [editingStudent, setEditingStudent] = useState<StudentData | null>(null);
+  const [editingAssignment, setEditingAssignment] = useState<ClassAssignmentData | null>(null);
+  const [isSyncModalOpen, setIsSyncModalOpen] = useState(false);
   const [isSyncingAttendance, setIsSyncingAttendance] = useState(false);
 
   const isAdminOrBGH = profile?.role === "ADMIN" || profile?.role === "SUPER_ADMIN" || profile?.role === "BGH";
@@ -356,10 +359,20 @@ export default function ClassDetailsPage({ params }: { params: Promise<{ id: str
         {activeTab === "assignments" && (
           <div>
             {isAdminOrBGH && (
-              <div className="flex mb-4 justify-end">
+              <div className="flex gap-3 mb-4 justify-end">
                 <button
-                  onClick={() => setIsAssignmentModalOpen(true)}
-                  className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium transition-colors"
+                  onClick={() => setIsSyncModalOpen(true)}
+                  className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-lg font-medium transition-colors shadow-sm"
+                >
+                  <FileSpreadsheet size={18} />
+                  <span>Đồng bộ từ TKB</span>
+                </button>
+                <button
+                  onClick={() => {
+                    setEditingAssignment(null);
+                    setIsAssignmentModalOpen(true);
+                  }}
+                  className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium transition-colors shadow-sm"
                 >
                   <Plus size={18} />
                   <span>Thêm Phân công</span>
@@ -406,12 +419,25 @@ export default function ClassDetailsPage({ params }: { params: Promise<{ id: str
                         </td>
                         {isAdminOrBGH && (
                           <td className="p-4 text-right">
-                            <button
-                              onClick={() => assign.id && handleDeleteAssignment(assign.id)}
-                              className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                            >
-                              <Trash2 size={18} />
-                            </button>
+                            <div className="flex items-center justify-end gap-1">
+                              <button
+                                onClick={() => {
+                                  setEditingAssignment(assign);
+                                  setIsAssignmentModalOpen(true);
+                                }}
+                                className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                                title="Sửa / Đổi giáo viên"
+                              >
+                                <Edit3 size={18} />
+                              </button>
+                              <button
+                                onClick={() => assign.id && handleDeleteAssignment(assign.id)}
+                                className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                                title="Xóa phân công"
+                              >
+                                <Trash2 size={18} />
+                              </button>
+                            </div>
                           </td>
                         )}
                       </tr>
@@ -438,13 +464,28 @@ export default function ClassDetailsPage({ params }: { params: Promise<{ id: str
 
       <AssignmentModal
         isOpen={isAssignmentModalOpen}
-        onClose={() => setIsAssignmentModalOpen(false)}
+        onClose={() => {
+          setIsAssignmentModalOpen(false);
+          setEditingAssignment(null);
+        }}
         onSuccess={() => {
           setIsAssignmentModalOpen(false);
+          setEditingAssignment(null);
           fetchAllData();
         }}
         classId={classId}
         academicYear={classData.academicYear}
+        initialData={editingAssignment}
+      />
+
+      <SyncScheduleAssignmentModal
+        isOpen={isSyncModalOpen}
+        onClose={() => setIsSyncModalOpen(false)}
+        onSuccess={() => {
+          setIsSyncModalOpen(false);
+          fetchAllData();
+        }}
+        defaultAcademicYear={classData.academicYear}
       />
     </ProtectedRoute>
   );

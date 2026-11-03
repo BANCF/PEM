@@ -10,6 +10,7 @@ import { db } from "@/lib/firebase/client";
 import { collection, getDocs, query, where } from "firebase/firestore";
 
 import { parseScheduleExcel } from "@/lib/services/scheduleParser";
+import SyncScheduleAssignmentModal from "@/components/classes/SyncScheduleAssignmentModal";
 
 export default function ScheduleSettingsPage() {
   const { profile } = useAuth();
@@ -23,6 +24,7 @@ export default function ScheduleSettingsPage() {
   const [isSavingSettings, setIsSavingSettings] = useState(false);
   const [searchTeacher, setSearchTeacher] = useState("");
   const [weekName, setWeekName] = useState("");
+  const [isSyncAssignmentModalOpen, setIsSyncAssignmentModalOpen] = useState(false);
 
   React.useEffect(() => {
     const checkDraft = async () => {
@@ -323,7 +325,16 @@ export default function ScheduleSettingsPage() {
               disabled={!file || loading}
               className="w-full bg-slate-800 hover:bg-slate-900 text-white py-3 rounded-xl font-medium transition-colors disabled:opacity-50"
             >
-              {loading ? "Đang xử lý..." : "Phân tích dữ liệu"}
+              {loading ? "Đang xử lý..." : "Phân tích dữ liệu TKB"}
+            </button>
+
+            <button
+              onClick={() => setIsSyncAssignmentModalOpen(true)}
+              disabled={!file || loading}
+              className="w-full bg-emerald-600 hover:bg-emerald-700 text-white py-3 rounded-xl font-medium transition-colors disabled:opacity-50 flex items-center justify-center gap-2 shadow-sm shadow-emerald-200"
+            >
+              <FileSpreadsheet size={18} />
+              <span>Đồng bộ Phân công Giảng dạy (Sheet P.công)</span>
             </button>
           </div>
         </div>
@@ -389,6 +400,12 @@ export default function ScheduleSettingsPage() {
           )}
         </div>
       </div>
+      <SyncScheduleAssignmentModal
+        isOpen={isSyncAssignmentModalOpen}
+        onClose={() => setIsSyncAssignmentModalOpen(false)}
+        onSuccess={() => setIsSyncAssignmentModalOpen(false)}
+        initialFile={file}
+      />
     </div>
   );
 }

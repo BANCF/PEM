@@ -6,9 +6,10 @@ import { useAuth } from "@/contexts/AuthContext";
 import { ClassData, classService } from "@/lib/services/class.service";
 import { assignmentService } from "@/lib/services/assignment.service";
 import ClassModal from "@/components/classes/ClassModal";
+import SyncScheduleAssignmentModal from "@/components/classes/SyncScheduleAssignmentModal";
 import { useRouter } from "next/navigation";
 import toast from "react-hot-toast";
-import { Loader2, Plus, Edit3, Trash2, Users, Eye } from "lucide-react";
+import { Loader2, Plus, Edit3, Trash2, Users, Eye, FileSpreadsheet } from "lucide-react";
 
 export default function ClassesManagementPage() {
   const { profile } = useAuth();
@@ -19,6 +20,7 @@ export default function ClassesManagementPage() {
   // Modal state
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedClass, setSelectedClass] = useState<ClassData | null>(null);
+  const [isSyncModalOpen, setIsSyncModalOpen] = useState(false);
 
   const isAdminOrBGH = profile?.role === "ADMIN" || profile?.role === "SUPER_ADMIN" || profile?.role === "BGH";
 
@@ -86,13 +88,22 @@ export default function ClassesManagementPage() {
           </div>
           
           {isAdminOrBGH && (
-            <button
-              onClick={() => handleOpenModal()}
-              className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium transition-colors"
-            >
-              <Plus size={20} />
-              <span>Thêm Lớp học</span>
-            </button>
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => setIsSyncModalOpen(true)}
+                className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-lg font-medium transition-colors shadow-sm"
+              >
+                <FileSpreadsheet size={18} />
+                <span>Đồng bộ từ TKB</span>
+              </button>
+              <button
+                onClick={() => handleOpenModal()}
+                className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium transition-colors shadow-sm"
+              >
+                <Plus size={20} />
+                <span>Thêm Lớp học</span>
+              </button>
+            </div>
           )}
         </div>
 
@@ -175,6 +186,15 @@ export default function ClassesManagementPage() {
           fetchClasses();
         }}
         initialData={selectedClass}
+      />
+
+      <SyncScheduleAssignmentModal
+        isOpen={isSyncModalOpen}
+        onClose={() => setIsSyncModalOpen(false)}
+        onSuccess={() => {
+          setIsSyncModalOpen(false);
+          fetchClasses();
+        }}
       />
     </ProtectedRoute>
   );
