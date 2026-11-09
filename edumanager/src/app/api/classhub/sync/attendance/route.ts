@@ -19,15 +19,30 @@ export async function POST(request: Request) {
 
     const body = await request.json().catch(() => ({}));
     const forceSync = body.forceSync === true;
-    const targetClasses = body.targetClasses || [];
+    const dryRun = body.dryRun === true;
+    const catchUpDays = body.catchUpDays ? Number(body.catchUpDays) : undefined;
+    const targetClasses = Array.isArray(body.targetClasses) ? body.targetClasses : [];
+    const targetKeys = Array.isArray(body.targetKeys) ? body.targetKeys : [];
+    const classId = body.classId ? String(body.classId) : undefined;
+    const triggerSource = body.triggerSource || "manual";
 
-    const result = await ClassHubService.pushAttendance(uid, forceSync, targetClasses);
+    const result = await ClassHubService.pushAttendance(uid, {
+      forceSync,
+      dryRun,
+      catchUpDays,
+      targetClasses,
+      targetKeys,
+      classId,
+      triggerSource,
+    });
 
     return NextResponse.json(result);
   } catch (error: any) {
     console.error("[Attendance API Error]:", error);
     return NextResponse.json({ 
-      error: error.message || "Lỗi đồng bộ điểm danh"
+      success: false,
+      error: error.message || "Lỗi đồng bộ điểm danh",
+      message: error.message || "Lỗi đồng bộ điểm danh"
     }, { status: 500 });
   }
 }

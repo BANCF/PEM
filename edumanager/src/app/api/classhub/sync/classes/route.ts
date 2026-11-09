@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { adminAuth } from "@/lib/firebase/admin";
 import { ClassHubService } from "@/lib/services/classhub.service";
 
+export const maxDuration = 60;
+
 export async function GET(request: Request) {
   try {
     const authHeader = request.headers.get("authorization");
@@ -16,8 +18,10 @@ export async function GET(request: Request) {
 
     const { searchParams } = new URL(request.url);
     const forceSync = searchParams.get('forceSync') === 'true';
+    const catchUpDaysParam = searchParams.get('catchUpDays');
+    const catchUpDays = catchUpDaysParam ? parseInt(catchUpDaysParam, 10) : undefined;
 
-    const result = await ClassHubService.fetchClasses(uid, forceSync);
+    const result = await ClassHubService.fetchClasses(uid, forceSync, catchUpDays);
 
     return NextResponse.json(result);
   } catch (error: any) {

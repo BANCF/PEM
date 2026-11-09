@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { adminAuth } from "@/lib/firebase/admin";
 import { ClassHubService } from "@/lib/services/classhub.service";
 
+export const maxDuration = 60;
+
 export async function POST(request: Request) {
   try {
     const authHeader = request.headers.get("authorization");
@@ -14,13 +16,18 @@ export async function POST(request: Request) {
     const decodedToken = await adminAuth.verifyIdToken(token);
     const uid = decodedToken.uid;
 
-    let forceSync = false;
-    try {
-        const body = await request.json();
-        forceSync = !!body.forceSync;
-    } catch (e) {}
+    const body = await request.json().catch(() => ({}));
+    const forceSync = Boolean(body.forceSync);
+    const dryRun = Boolean(body.dryRun);
+    const targetKeys = Array.isArray(body.targetKeys) ? body.targetKeys : undefined;
+    const targetClasses = Array.isArray(body.targetClasses) ? body.targetClasses : undefined;
 
-    const result = await ClassHubService.pushAttendance(uid, forceSync);
+    const result = await ClassHubService.pushAttendance(uid, {
+      forceSync,
+      dryRun,
+      targetKeys,
+      targetClasses
+    });
 
     return NextResponse.json(result);
   } catch (error: any) {

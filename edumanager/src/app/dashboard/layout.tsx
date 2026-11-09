@@ -11,6 +11,7 @@ import { useRouter, usePathname } from "next/navigation";
 import Link from "next/link";
 import { useState, useEffect } from "react";
 import Notifications from "@/components/Notifications";
+import ClassHubAutoDaemon from "@/components/ClassHubAutoDaemon";
 import { doc, onSnapshot } from "firebase/firestore";
 import { BookOpen } from "lucide-react";
 import { useClassAlarm } from "@/hooks/useClassAlarm";
@@ -262,6 +263,7 @@ export default function DashboardLayout({
             </div>
             
             <div className="flex items-center space-x-4">
+              <ClassHubAutoDaemon />
               <Notifications />
             </div>
           </header>
