@@ -29,6 +29,11 @@ export default function ClassHubAutoDaemon() {
   const { user, profile, actualProfile } = useAuth();
   const busyRef = useRef(false);
   const lastTriggerAtRef = useRef<number>(0);
+  const profileRef = useRef<any>(profile);
+
+  useEffect(() => {
+    profileRef.current = profile;
+  }, [profile]);
 
   useEffect(() => {
     if (!user || !profile) return;
@@ -42,58 +47,73 @@ export default function ClassHubAutoDaemon() {
 
     const tick = async (reason = "interval") => {
       if (cancelled || busyRef.current) return;
-      // Tránh spam liên tục nếu vừa chạy < 15 giây trước (trừ khi user vừa gạt nút)
-      if (reason === "interval" && Date.now() - lastTriggerAtRef.current < 25000) {
+      if (reason === "interval" && Date.now() - lastTriggerAtRef.current < 30000) {
+        return;
+      }
+
+      // Đọc trực tiếp state từ AuthContext (onSnapshot) trong RAM -> Tốn 0 Firestore Read & 0 API request khi chờ giờ!
+      const currentProfile = profileRef.current as any;
+      if (!currentProfile?.classhubUsername || !currentProfile?.classhubPassword) {
+        return;
+      }
+
+      const state = currentProfile?.classhubAttendanceState || {};
+      if (!state.dailyCronEnabled && !state.inClassAutoEnabled) {
+        return;
+      }
+
+      const { ymd, hour, minute, ts } = getVietnamNow();
+
+      // 1. Kiểm tra xem hôm nay đã quét lịch đầu ngày chưa (chỉ chạy 1 lần/ngày khi bật In-Class Auto)
+      const needsDailyScout =
+        Boolean(state.inClassAutoEnabled) &&
+        (state.lastScoutDate !== ymd || !state.upcomingClasses);
+
+      // 2. Kiểm tra điều kiện chạy mốc 16:15 hằng ngày (chỉ chạy 1 lần/ngày)
+      const isPast1615 = hour > 16 || (hour === 16 && minute >= 15);
+      const shouldRunDaily1615 =
+        Boolean(state.dailyCronEnabled) && isPast1615 && state.lastRunDate !== ymd;
+
+      // 3. Kiểm tra xem có tiết nào đã tới mốc mở khoá (start + 5p) chưa (kiểm tra 100% trên RAM)
+      const dueItems =
+        state.inClassAutoEnabled && Array.isArray(state.upcomingClasses?.items)
+          ? state.upcomingClasses.items.filter((it: any) => {
+              const isDone = Boolean(state.completed?.[it.key]);
+              const failCount = state.failures?.[it.key]?.count || 0;
+              const isBlocked = failCount >= 3;
+              return !isDone && !isBlocked && ts >= Number(it.triggerTs || 0);
+            })
+          : [];
+
+      // Nếu chưa tới bất kỳ mốc nào -> thoát ngay lập tức (0 tốn Read/Write hay Serverless request)
+      if (!needsDailyScout && !shouldRunDaily1615 && dueItems.length === 0) {
         return;
       }
 
       busyRef.current = true;
+      lastTriggerAtRef.current = Date.now();
       try {
         const idToken = await user.getIdToken();
-        const cfgRes = await fetch("/api/classhub/auto-config", {
-          headers: { Authorization: `Bearer ${idToken}` },
-        });
-        if (!cfgRes.ok) return;
-        const cfg = await cfgRes.json();
-        if (!cfg.success || !cfg.hasCredentials || !cfg.data) return;
 
-        let state = cfg.data;
-        const { ymd, hour, minute, ts } = getVietnamNow();
-
-        // 1. Nếu bật Điểm danh Trong Tiết mà hôm nay chưa quét lịch -> tự động quét lịch (Scout)
-        if (state.inClassAutoEnabled && (state.lastScoutDate !== ymd || !state.upcomingClasses)) {
+        if (needsDailyScout) {
           const scoutRes = await fetch("/api/classhub/sync/classes", {
             headers: { Authorization: `Bearer ${idToken}` },
           });
           const scoutData = await scoutRes.json();
-          if (scoutData.success && scoutData.state) {
-            state = scoutData.state;
+          if (scoutData.success) {
             window.dispatchEvent(new CustomEvent("classhub-state-synced", { detail: scoutData }));
+          }
+          // Nếu sau khi quét lịch xong không có tiết nào cần điểm danh ngay và chưa tới 16:15 thì dừng
+          if (!shouldRunDaily1615 && (!Array.isArray(scoutData.data) || scoutData.data.length === 0)) {
+            return;
           }
         }
 
-        // 2. Kiểm tra điều kiện chạy mốc 16:15 hằng ngày
-        const isPast1615 = hour > 16 || (hour === 16 && minute >= 15);
-        const shouldRunDaily1615 =
-          Boolean(state.dailyCronEnabled) && isPast1615 && state.lastRunDate !== ymd;
-
-        // 3. Kiểm tra điều kiện chạy Điểm danh Trong Tiết (tiết đã tới giờ mở khoá start + 5p)
-        const dueItems =
-          state.inClassAutoEnabled && Array.isArray(state.upcomingClasses?.items)
-            ? state.upcomingClasses.items.filter((it: any) => {
-                const isDone = Boolean(state.completed?.[it.key]);
-                const failCount = state.failures?.[it.key]?.count || 0;
-                const isBlocked = failCount >= 3;
-                return !isDone && !isBlocked && ts >= Number(it.triggerTs || 0);
-              })
-            : [];
-
-        if (shouldRunDaily1615 || dueItems.length > 0) {
-          lastTriggerAtRef.current = Date.now();
+        if (shouldRunDaily1615 || dueItems.length > 0 || needsDailyScout) {
           const triggerSource = shouldRunDaily1615 ? "daily_1615" : "in_class";
           const label = shouldRunDaily1615
             ? "⏰ Tự động Điểm danh 16:15 đang chạy nền..."
-            : `🏫 Tự động Điểm danh Trong Tiết (${dueItems.length} tiết đến giờ)...`;
+            : `🏫 Tự động Điểm danh Trong Tiết đang chạy nền...`;
 
           const toastId = toast.loading(label);
           const runRes = await fetch("/api/classhub/sync/attendance", {
@@ -127,12 +147,12 @@ export default function ClassHubAutoDaemon() {
       }
     };
 
-    // Chạy ngay sau 2s khi vào web và lặp lại mỗi 40s
     const initTimer = setTimeout(() => tick("init"), 2000);
-    const interval = setInterval(() => tick("interval"), 40000);
+    const interval = setInterval(() => tick("interval"), 30000);
 
     const onConfigUpdated = () => {
-      tick("manual_toggle");
+      lastTriggerAtRef.current = 0;
+      setTimeout(() => tick("manual_toggle"), 500);
     };
     window.addEventListener("classhub-config-updated", onConfigUpdated);
 
@@ -142,8 +162,7 @@ export default function ClassHubAutoDaemon() {
       clearInterval(interval);
       window.removeEventListener("classhub-config-updated", onConfigUpdated);
     };
-  }, [user, profile, actualProfile]);
+  }, [user, profile?.id, profile?.canUseAutoAttendance, profile?.role, actualProfile?.role]);
 
   return null;
 }
-
