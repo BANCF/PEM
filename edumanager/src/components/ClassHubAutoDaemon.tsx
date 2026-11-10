@@ -58,7 +58,11 @@ export default function ClassHubAutoDaemon() {
       }
 
       const state = currentProfile?.classhubAttendanceState || {};
-      if (!state.dailyCronEnabled && !state.inClassAutoEnabled) {
+      const dailyCronEnabled =
+        state.dailyCronEnabled !== undefined ? Boolean(state.dailyCronEnabled) : true;
+      const inClassAutoEnabled =
+        state.inClassAutoEnabled !== undefined ? Boolean(state.inClassAutoEnabled) : true;
+      if (!dailyCronEnabled && !inClassAutoEnabled) {
         return;
       }
 
@@ -66,17 +70,17 @@ export default function ClassHubAutoDaemon() {
 
       // 1. Kiểm tra xem hôm nay đã quét lịch đầu ngày chưa (chỉ chạy 1 lần/ngày khi bật In-Class Auto)
       const needsDailyScout =
-        Boolean(state.inClassAutoEnabled) &&
+        inClassAutoEnabled &&
         (state.lastScoutDate !== ymd || !state.upcomingClasses);
 
       // 2. Kiểm tra điều kiện chạy mốc 16:15 hằng ngày (chỉ chạy 1 lần/ngày)
       const isPast1615 = hour > 16 || (hour === 16 && minute >= 15);
       const shouldRunDaily1615 =
-        Boolean(state.dailyCronEnabled) && isPast1615 && state.lastRunDate !== ymd;
+        dailyCronEnabled && isPast1615 && state.lastRunDate !== ymd;
 
       // 3. Kiểm tra xem có tiết nào đã tới mốc mở khoá (start + 5p) chưa (kiểm tra 100% trên RAM)
       const dueItems =
-        state.inClassAutoEnabled && Array.isArray(state.upcomingClasses?.items)
+        inClassAutoEnabled && Array.isArray(state.upcomingClasses?.items)
           ? state.upcomingClasses.items.filter((it: any) => {
               const isDone = Boolean(state.completed?.[it.key]);
               const failCount = state.failures?.[it.key]?.count || 0;

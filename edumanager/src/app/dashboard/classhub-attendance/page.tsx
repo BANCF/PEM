@@ -65,8 +65,8 @@ export default function ClasshubAttendancePage() {
 
   // State đồng bộ từ Extension 3.8.11 (classhubAttendanceState)
   const [autoState, setAutoState] = useState<any>({
-    dailyCronEnabled: false,
-    inClassAutoEnabled: false,
+    dailyCronEnabled: true,
+    inClassAutoEnabled: true,
     catchUpDays: 30,
     lastRunDate: undefined,
     lastScoutDate: undefined,
@@ -459,11 +459,11 @@ export default function ClasshubAttendancePage() {
               ClassHub Pro Tool v3.8.11 (Bản Web Tự Chạy)
             </h1>
             <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
-              <ShieldCheck size={14} /> Bật 1 Lần - Tự Chạy Nền
+              <ShieldCheck size={14} /> Bật 1 Lần - Tự Chạy Trên Server (Không cần mở máy)
             </span>
           </div>
           <p className="text-slate-500 mt-1 text-sm">
-            Tích hợp trọn vẹn bộ máy Extension 3.8.11 lên Web: chỉ cần gạt công tắc 1 lần, hệ thống tự động quét lịch, canh giờ mở khoá (vào tiết + 5 phút) và chốt sổ 16:15.
+            Mặc định tự động kích hoạt cho mọi giáo viên đã liên kết tài khoản ClassHub: kể cả khi tắt hẳn máy tính/điện thoại, Server vẫn tự động quét lịch, canh giờ mở khoá (vào tiết + 5 phút) và chốt sổ lúc 16:15.
           </p>
           {teacher && (
             <div className="mt-3 inline-flex items-center gap-2 px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-700">

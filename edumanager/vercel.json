@@ -1,0 +1,8 @@
+{
+  "crons": [
+    {
+      "path": "/api/cron/classhub-auto",
+      "schedule": "15 9 * * 1-6"
+    }
+  ]
+}

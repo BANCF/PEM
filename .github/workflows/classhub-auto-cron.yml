@@ -1,0 +1,27 @@
+name: ClassHub Auto-Attendance Cloud Cron
+
+on:
+  schedule:
+    # Chạy mỗi 10 phút trong khung giờ học tại Việt Nam (07:00 -> 17:50 giờ VN = 00:00 -> 10:50 UTC, Thứ 2 -> Thứ 7)
+    - cron: "*/10 0-10 * * 1-6"
+    # Đảm bảo bắn đúng mốc 16:15 chiều giờ Việt Nam (09:15 UTC)
+    - cron: "15 9 * * 1-6"
+  workflow_dispatch:
+
+jobs:
+  trigger-auto-attendance:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Trigger Server-Side ClassHub Auto-Attendance (Multi-Batch Support for 43+ Teachers)
+        run: |
+          for attempt in 1 2 3 4; do
+            echo "=== Batch attempt #$attempt ==="
+            RESPONSE=$(curl -sS --max-time 65 "https://pem-snowy.vercel.app/api/cron/classhub-auto?key=pem-classhub-auto-cron" || echo '{"error":"timeout"}')
+            echo "$RESPONSE"
+            if echo "$RESPONSE" | grep -q '"processedCount":0'; then
+              echo "✅ All eligible teachers are up to date!"
+              break
+            fi
+            sleep 2
+          done
