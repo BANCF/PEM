@@ -142,7 +142,15 @@ export async function GET(request: Request) {
       }
     });
 
-    tasks.sort((a, b) => a.priority - b.priority);
+    // Ưu tiên giáo viên có ít tiết cần chốt (1-5 tiết hôm nay) chạy trước để xong ngay trong vài giây,
+    // các giáo viên có hàng chục tiết bù tháng cũ sẽ chạy cuốn chiếu phía sau
+    tasks.sort((a, b) => {
+      const aSmall = a.dueCount <= 6 ? 0 : 1;
+      const bSmall = b.dueCount <= 6 ? 0 : 1;
+      if (aSmall !== bSmall) return aSmall - bSmall;
+      if (a.priority !== b.priority) return a.priority - b.priority;
+      return a.dueCount - b.dueCount;
+    });
 
     if (tasks.length === 0) {
       return NextResponse.json({

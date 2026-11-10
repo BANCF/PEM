@@ -15,8 +15,8 @@ import { decodeOhkeText } from './classhub/text';
 import { extractClassDateYmd, getClassUnlockInfo, ymdVN } from './classhub/time';
 
 const IDCLOUD_LOGIN_URL = 'https://idcloud.vn/61892/appstart/digitalismspace/jsonPostSignIn';
-const RUN_LOCK_TTL_MS = 90 * 1000; // Khoá chống chạy chồng 90s
-const TIME_BUDGET_MS = 50 * 1000;  // Ngân sách thực thi 50s (dưới ngưỡng maxDuration 60s)
+const RUN_LOCK_TTL_MS = 65 * 1000; // Khoá chống chạy chồng 65s
+const TIME_BUDGET_MS = 26 * 1000;  // Ngân sách thực thi 26s cho vòng lặp điểm danh (đảm bảo tổng thời gian luôn < 45s, dưới ngưỡng 60s của Vercel)
 
 export interface PushAttendanceParams {
     forceSync?: boolean;
@@ -372,8 +372,24 @@ export class ClassHubService {
                 };
             }
 
+            // Ưu tiên điểm danh các tiết HÔM NAY và tiết mới nhất trước, tiết bù tháng cũ xử lý cuốn chiếu theo từng đợt 10 tiết
+            myClasses.sort((a: any, b: any) => {
+                const aCatch = Boolean(a.isCatchUp);
+                const bCatch = Boolean(b.isCatchUp);
+                if (aCatch !== bCatch) return aCatch ? 1 : -1;
+                const aTs = Number(a.unlockInfo?.unlockTimestamp || 0);
+                const bTs = Number(b.unlockInfo?.unlockTimestamp || 0);
+                return bTs - aTs;
+            });
+
+            const totalReadyCount = myClasses.length;
+            const MAX_CLASSES_PER_BATCH = 10;
+            let stoppedByBudget = totalReadyCount > MAX_CLASSES_PER_BATCH;
+            if (stoppedByBudget) {
+                myClasses = myClasses.slice(0, MAX_CLASSES_PER_BATCH);
+            }
+
             const startTs = Date.now();
-            let stoppedByBudget = false;
             const details: SubmitAttendanceResult[] = [];
             let successCount = 0;
             let skippedCount = 0;
