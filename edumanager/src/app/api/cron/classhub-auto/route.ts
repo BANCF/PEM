@@ -96,38 +96,48 @@ export async function GET(request: Request) {
         return;
       }
 
-      const shouldRunDaily1615 =
-        Boolean(state.dailyCronEnabled) && isPast1615 && state.lastRunDate !== ymd;
+      const hasScoutedToday =
+        state.lastScoutDate === ymd && Array.isArray(state.upcomingClasses?.items);
 
-      const needsDailyScout =
-        Boolean(state.inClassAutoEnabled) &&
-        (state.lastScoutDate !== ymd || !state.upcomingClasses);
-
-      const dueItems =
-        state.inClassAutoEnabled && Array.isArray(state.upcomingClasses?.items)
-          ? state.upcomingClasses.items.filter((it: any) => {
+      const uncompletedItems =
+        hasScoutedToday
+          ? state.upcomingClasses!.items.filter((it: any) => {
               const isDone = Boolean(state.completed?.[it.key]);
               const failCount = state.failures?.[it.key]?.count || 0;
               const isBlocked = failCount >= 3;
-              return !isDone && !isBlocked && ts >= Number(it.triggerTs || 0);
+              return !isDone && !isBlocked;
             })
           : [];
 
-      if (shouldRunDaily1615) {
+      const dueItems = uncompletedItems.filter(
+        (it: any) => ts >= Number(it.triggerTs || 0)
+      );
+
+      // Chỉ kích hoạt lượt quét 16:15 nếu hôm nay chưa quét lịch HOẶC vẫn còn tiết chưa hoàn thành
+      const shouldRunDaily1615 =
+        Boolean(state.dailyCronEnabled) &&
+        isPast1615 &&
+        state.lastRunDate !== ymd &&
+        (!hasScoutedToday || uncompletedItems.length > 0);
+
+      const needsDailyScout =
+        Boolean(state.inClassAutoEnabled) && !hasScoutedToday;
+
+      if (dueItems.length > 0) {
         tasks.push({
           uid: doc.id,
           fullName: data.fullName || data.email || doc.id,
           priority: 1,
-          action: "attend_1615",
+          action: isPast1615 ? "attend_1615" : "attend_in_class",
           dueCount: dueItems.length,
         });
-      } else if (dueItems.length > 0) {
+      } else if (shouldRunDaily1615) {
         tasks.push({
           uid: doc.id,
           fullName: data.fullName || data.email || doc.id,
           priority: 2,
-          action: "attend_in_class",
-          dueCount: dueItems.length,
+          action: "attend_1615",
+          dueCount: 0,
         });
       } else if (needsDailyScout) {
         tasks.push({
@@ -142,12 +152,19 @@ export async function GET(request: Request) {
       }
     });
 
-    // Ưu tiên giáo viên có ít tiết cần chốt (1-5 tiết hôm nay) chạy trước để xong ngay trong vài giây,
-    // các giáo viên có hàng chục tiết bù tháng cũ sẽ chạy cuốn chiếu phía sau
+    // Thứ tự ưu tiên hàng đợi:
+    // 1. Giáo viên đang có 1-6 tiết đến giờ cần điểm danh ngay (ví dụ Tiết 9 vừa mở khoá) -> Chạy ĐẦU TIÊN
+    // 2. Giáo viên chưa quét lịch hôm nay (dueCount = 0, cần scout/16:15) -> Chạy tiếp theo
+    // 3. Giáo viên tồn đọng nhiều tiết bù (> 6 tiết) -> Chạy cuốn chiếu mỗi nhịp 10 tiết ở cuối hàng đợi
+    const getQueueTier = (t: TeacherTask) => {
+      if (t.dueCount > 0 && t.dueCount <= 6) return 0;
+      if (t.dueCount === 0) return 1;
+      return 2;
+    };
     tasks.sort((a, b) => {
-      const aSmall = a.dueCount <= 6 ? 0 : 1;
-      const bSmall = b.dueCount <= 6 ? 0 : 1;
-      if (aSmall !== bSmall) return aSmall - bSmall;
+      const tierA = getQueueTier(a);
+      const tierB = getQueueTier(b);
+      if (tierA !== tierB) return tierA - tierB;
       if (a.priority !== b.priority) return a.priority - b.priority;
       return a.dueCount - b.dueCount;
     });

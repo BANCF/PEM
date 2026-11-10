@@ -232,9 +232,9 @@ export class ClassHubService {
         const params: PushAttendanceParams =
             typeof forceSyncOrParams === 'boolean'
                 ? {
-                      forceSync: forceSyncOrParams,
-                      targetClasses: legacyTargetClasses
-                  }
+                    forceSync: forceSyncOrParams,
+                    targetClasses: legacyTargetClasses
+                }
                 : forceSyncOrParams;
 
         const forceSync = Boolean(params.forceSync);
@@ -353,6 +353,20 @@ export class ClassHubService {
             }
 
             if (myClasses.length === 0) {
+                if (!dryRun) {
+                    const vnParts = new Intl.DateTimeFormat('en-GB', {
+                        timeZone: 'Asia/Ho_Chi_Minh',
+                        hour: '2-digit',
+                        minute: '2-digit',
+                        hour12: false
+                    }).format(new Date()).split(':');
+                    const h = parseInt(vnParts[0], 10) || 0;
+                    const m = parseInt(vnParts[1], 10) || 0;
+                    if (h > 16 || (h === 16 && m >= 15)) {
+                        api.state.lastRunDate = ymdVN();
+                        api.log(`📅 Đã đóng dấu hoàn thành điểm danh cho ngày hôm nay (${api.state.lastRunDate}).`);
+                    }
+                }
                 api.state.runLockUntil = 0;
                 api.state.lastBatchRun = {
                     at: Date.now(),
