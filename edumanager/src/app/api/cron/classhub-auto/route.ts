@@ -105,7 +105,8 @@ export async function GET(request: Request) {
               const isDone = Boolean(state.completed?.[it.key]);
               const failCount = state.failures?.[it.key]?.count || 0;
               const isBlocked = failCount >= 3;
-              return !isDone && !isBlocked;
+              const isTodayOrPast = !it.date || String(it.date).slice(0, 10) <= ymd;
+              return !isDone && !isBlocked && isTodayOrPast;
             })
           : [];
 
