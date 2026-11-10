@@ -155,12 +155,13 @@ export async function GET(request: Request) {
       });
     }
 
-    // 3. Thực thi song song (concurrency = 3) trong ngân sách 46 giây để không chạm ngưỡng timeout 60s của Vercel
-    const TIME_BUDGET_MS = 46 * 1000;
+    // 3. Giới hạn tối đa 4 giáo viên mỗi request (concurrency = 2, ngân sách 34s) để tuyệt đối không bao giờ chạm timeout 60s của Vercel
+    const TIME_BUDGET_MS = 34 * 1000;
+    const batchTasks = tasks.slice(0, 4);
     const summaryDetails: any[] = [];
 
     await runPool(
-      tasks,
+      batchTasks,
       async (task) => {
         if (Date.now() - startTs >= TIME_BUDGET_MS) {
           summaryDetails.push({
@@ -175,11 +176,12 @@ export async function GET(request: Request) {
         try {
           if (task.action === "scout_only") {
             const scoutRes = await ClassHubService.fetchClasses(task.uid, false);
-            const readyCount = Array.isArray(scoutRes.data) ? scoutRes.data.length : 0;
-            // Nếu quét lịch đầu ngày phát hiện có tiết cần điểm danh ngay (hoặc tiết bù) -> điểm danh luôn!
-            if (readyCount > 0 && Date.now() - startTs < TIME_BUDGET_MS) {
+            const readyList = Array.isArray(scoutRes.data) ? scoutRes.data : [];
+            // Nếu quét lịch đầu ngày phát hiện có tiết cần điểm danh ngay -> truyền thẳng targetClasses (không quét lại lần 2!)
+            if (readyList.length > 0 && Date.now() - startTs < TIME_BUDGET_MS) {
               const attendRes = await ClassHubService.pushAttendance(task.uid, {
                 triggerSource: "cron",
+                targetClasses: readyList.map((c: any) => c.raw_classItem).filter(Boolean),
               });
               summaryDetails.push({
                 uid: task.uid,
@@ -194,6 +196,7 @@ export async function GET(request: Request) {
                 fullName: task.fullName,
                 action: "scout_only",
                 success: true,
+                readyDeferred: readyList.length,
                 lockedCount: scoutRes.lockedData?.length || 0,
               });
             }
@@ -221,10 +224,12 @@ export async function GET(request: Request) {
         }
       },
       {
-        concurrency: 3,
+        concurrency: 2,
         shouldContinue: () => Date.now() - startTs < TIME_BUDGET_MS,
       }
     );
+
+    const remainingTasks = Math.max(0, tasks.length - summaryDetails.length);
 
     return NextResponse.json({
       success: true,
@@ -234,6 +239,7 @@ export async function GET(request: Request) {
       upToDateTeachers,
       pendingTasksFound: tasks.length,
       processedCount: summaryDetails.length,
+      remainingTasks,
       details: summaryDetails,
     });
   } catch (error: any) {
@@ -247,3 +253,4 @@ export async function GET(request: Request) {
     );
   }
 }
+
