@@ -15,6 +15,7 @@ export interface UserProfile {
   departmentId?: string;
   department?: string;
   canUseAutoAttendance?: boolean;
+  canUseFanpage?: boolean;
 }
 
 interface AuthContextType {

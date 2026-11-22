@@ -177,6 +177,7 @@ export default function UsersManagementPage() {
                     <th className="p-4 font-semibold w-64">Tổ bộ môn</th>
                     <th className="p-4 font-semibold w-56">Phân Quyền (Role)</th>
                     <th className="p-4 font-semibold w-32 text-center">Auto Attendance</th>
+                    <th className="p-4 font-semibold w-28 text-center">Fanpage</th>
                     <th className="p-4 font-semibold w-24 text-center">THAO TÁC</th>
                   </tr>
                 </thead>
@@ -245,6 +246,22 @@ export default function UsersManagementPage() {
                               disabled={savingId === user.id}
                             />
                             <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div>
+                          </label>
+                        ) : (
+                          <span className="text-xs text-slate-400">Không có quyền</span>
+                        )}
+                      </td>
+                      <td className="p-4 text-center">
+                        {actualProfile?.role === "SUPER_ADMIN" ? (
+                          <label className="relative inline-flex items-center cursor-pointer">
+                            <input 
+                              type="checkbox" 
+                              className="sr-only peer"
+                              checked={!!(user as any).canUseFanpage}
+                              onChange={(e) => handleUpdate(user.id, "canUseFanpage" as any, e.target.checked as any)}
+                              disabled={savingId === user.id}
+                            />
+                            <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
                           </label>
                         ) : (
                           <span className="text-xs text-slate-400">Không có quyền</span>

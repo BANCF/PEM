@@ -1,0 +1,29 @@
+body { width: 340px; margin: 0; padding: 12px; font: 13px/1.4 system-ui, sans-serif; color: #111827; }
+h1 { font-size: 16px; margin: 0 0 10px; color: #8b1d2c; }
+label { display: block; margin: 6px 0; font-weight: 600; }
+label.check { font-weight: 400; display: flex; gap: 6px; align-items: center; margin: 3px 0; }
+input[type=text], input[type=number], select, textarea {
+  width: 100%; box-sizing: border-box; padding: 5px 6px; margin-top: 3px;
+  border: 1px solid #d1d5db; border-radius: 6px; font: inherit;
+}
+textarea { resize: vertical; }
+label.check.sub { margin-left: 22px; font-size: 12px; color: #374151; }
+.row { display: flex; gap: 8px; }
+.row > label { flex: 1; }
+.pair { display: flex; align-items: center; gap: 4px; }
+.pair input { width: 50px; }
+fieldset { border: 1px solid #e5e7eb; border-radius: 8px; margin: 8px 0; padding: 6px 10px; }
+legend { font-weight: 700; padding: 0 4px; }
+button { padding: 7px 10px; border: 0; border-radius: 6px; background: #8b1d2c; color: #fff; cursor: pointer; font: inherit; font-weight: 600; }
+button.secondary { background: #e5e7eb; color: #111827; }
+button.danger { background: #374151; }
+button.link { background: none; color: #6b7280; padding: 2px 0; text-decoration: underline; font-weight: 400; }
+.buttons button { flex: 1; }
+#openPage { width: 100%; margin-bottom: 4px; }
+.warn { background: #fef3c7; color: #92400e; padding: 6px 8px; border-radius: 6px; font-size: 12px; }
+#status { margin-top: 8px; font-size: 12px; color: #374151; min-height: 16px; }
+#logInfo { font-size: 12px; color: #374151; margin-bottom: 6px; }
+button.full { width: 100%; }
+.hint { font-size: 11px; color: #6b7280; margin: 4px 0 2px; }
+.ok { background: #ecfdf5; color: #065f46; padding: 6px 8px; border-radius: 6px; font-size: 12px; margin-bottom: 4px; }
+#pemBox { background: #f8fafc; }

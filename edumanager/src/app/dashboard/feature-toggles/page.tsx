@@ -5,7 +5,7 @@ import ProtectedRoute from "@/components/ProtectedRoute";
 import { db } from "@/lib/firebase/client";
 import { doc, getDoc, setDoc } from "firebase/firestore";
 import toast from "react-hot-toast";
-import { Loader2, Settings, ShieldAlert, GraduationCap, BookOpen, FileText, Calendar, Award, ClipboardCheck } from "lucide-react";
+import { Loader2, Settings, ShieldAlert, GraduationCap, BookOpen, FileText, Calendar, Award, ClipboardCheck, ThumbsUp } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 
 export default function FeatureTogglesPage() {
@@ -16,7 +16,8 @@ export default function FeatureTogglesPage() {
     evaluations: true,
     schedule: true,
     certificates: true,
-    classhubAttendance: false
+    classhubAttendance: false,
+    fanpage: false
   });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -69,7 +70,8 @@ export default function FeatureTogglesPage() {
     { key: "evaluations", name: "Phiếu Đánh giá", icon: FileText, desc: "Đánh giá học sinh hàng tháng và ghi chú của giáo viên." },
     { key: "schedule", name: "Thời khóa biểu", icon: Calendar, desc: "Xem lịch dạy, lịch học và cập nhật thời khóa biểu." },
     { key: "certificates", name: "Giấy Khen & Chứng Nhận", icon: Award, desc: "Cấp phát và in giấy khen cho học sinh." },
-    { key: "classhubAttendance", name: "Hồ sơ cá nhân & ClassHub", icon: ClipboardCheck, desc: "Tính năng hồ sơ cá nhân và đồng bộ điểm danh 1-chạm." }
+    { key: "classhubAttendance", name: "Hồ sơ cá nhân & ClassHub", icon: ClipboardCheck, desc: "Tính năng hồ sơ cá nhân và đồng bộ điểm danh 1-chạm." },
+    { key: "fanpage", name: "Tương tác Fanpage", icon: ThumbsUp, desc: "Tính năng theo dõi Thích, Chia sẻ, Bình luận bài viết fanpage trường." }
   ];
 
   return (

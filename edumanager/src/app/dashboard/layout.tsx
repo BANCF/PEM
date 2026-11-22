@@ -3,7 +3,7 @@
 import React from "react";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import { useAuth } from "@/contexts/AuthContext";
-import { LogOut, Home, FileText, Settings, Users, Menu, X, Bell, Building2, ShieldAlert, GraduationCap, Calendar, Award, User, ClipboardList, ClipboardCheck } from "lucide-react";
+import { LogOut, Home, FileText, Settings, Users, Menu, X, Bell, Building2, ShieldAlert, GraduationCap, Calendar, Award, User, ClipboardList, ClipboardCheck, ThumbsUp } from "lucide-react";
 import { auth, db } from "@/lib/firebase/client";
 import { signOut } from "firebase/auth";
 import toast from "react-hot-toast";
@@ -35,7 +35,8 @@ export default function DashboardLayout({
     evaluations: true,
     schedule: true,
     certificates: true,
-    classhubAttendance: false
+    classhubAttendance: false,
+    fanpage: false
   });
   const [loadingConfig, setLoadingConfig] = useState(true);
 
@@ -52,6 +53,7 @@ export default function DashboardLayout({
             schedule: data.features.schedule ?? true,
             certificates: data.features.certificates ?? true,
             classhubAttendance: data.features.classhubAttendance ?? false,
+            fanpage: data.features.fanpage ?? false,
           });
         }
       }
@@ -122,6 +124,7 @@ export default function DashboardLayout({
     "/dashboard/certificates": "certificates",
     "/dashboard/classhub-attendance": "classhubAttendance",
     "/dashboard/profile": "classhubAttendance",
+    "/dashboard/fanpage": "fanpage",
   };
 
   const currentFeatureKey = Object.keys(featureMap).find(path => pathname.startsWith(path));
@@ -131,6 +134,8 @@ export default function DashboardLayout({
   if (featureName) {
     if (featureName === "classhubAttendance") {
       isFeatureLocked = !(features.classhubAttendance || profile?.canUseAutoAttendance === true || actualProfile?.role === "SUPER_ADMIN");
+    } else if (featureName === "fanpage") {
+      isFeatureLocked = !(features.fanpage || profile?.canUseFanpage === true || actualProfile?.role === "SUPER_ADMIN");
     } else {
       isFeatureLocked = !features[featureName] && actualProfile?.role !== "ADMIN" && actualProfile?.role !== "SUPER_ADMIN";
     }
@@ -183,6 +188,9 @@ export default function DashboardLayout({
             <NavLink href="/dashboard/evaluations" icon={FileText} locked={!features.evaluations && actualProfile?.role !== "ADMIN" && actualProfile?.role !== "SUPER_ADMIN"}>Phiếu Đánh giá</NavLink>
             <NavLink href="/dashboard/schedule" icon={Calendar} locked={!features.schedule && actualProfile?.role !== "ADMIN" && actualProfile?.role !== "SUPER_ADMIN"}>Thời khóa biểu</NavLink>
             <NavLink href="/dashboard/work-schedule" icon={ClipboardList}>Lịch làm việc</NavLink>
+            {(features.fanpage || profile?.canUseFanpage === true || actualProfile?.role === "SUPER_ADMIN") && (
+              <NavLink href="/dashboard/fanpage" icon={ThumbsUp}>Tương tác Fanpage</NavLink>
+            )}
             <NavLink href="/dashboard/certificates" icon={Award} locked={!features.certificates && actualProfile?.role !== "ADMIN" && actualProfile?.role !== "SUPER_ADMIN"}>Giấy Khen & Chứng Nhận</NavLink>
             
             {(profile?.role === "ADMIN" || profile?.role === "BGH" || profile?.role === "SUPER_ADMIN") && (

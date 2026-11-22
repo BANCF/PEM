@@ -1,0 +1,38 @@
+{
+  "manifest_version": 3,
+  "name": "PAS Fanpage Helper",
+  "version": "2.1.0",
+  "description": "Tự động Thích / Chia sẻ / Bình luận bài viết fanpage trường và đồng bộ trực tiếp với PEM.",
+  "permissions": ["storage", "activeTab", "tabs", "alarms"],
+  "host_permissions": [
+    "https://*.facebook.com/*",
+    "https://pem-snowy.vercel.app/*",
+    "http://localhost:3000/*"
+  ],
+  "optional_host_permissions": ["https://*/*"],
+  "externally_connectable": {
+    "matches": [
+      "https://pem-snowy.vercel.app/*",
+      "http://localhost:3000/*"
+    ]
+  },
+  "background": {
+    "service_worker": "background.js"
+  },
+  "action": {
+    "default_title": "PAS Fanpage Helper",
+    "default_popup": "popup.html"
+  },
+  "content_scripts": [
+    {
+      "matches": ["https://*.facebook.com/*"],
+      "js": ["selectors.config.js", "content.js"],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": ["https://pem-snowy.vercel.app/*", "http://localhost:3000/*"],
+      "js": ["pem-bridge.js"],
+      "run_at": "document_idle"
+    }
+  ]
+}
