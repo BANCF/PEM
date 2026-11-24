@@ -78,42 +78,78 @@ function logToItems(log) {
     .map(([url, r]) => ({ postUrl: url, postDate: r.date, liked: !!r.liked, shared: !!r.shared, commented: !!r.commented }));
 }
 
-// ---------------- Chạy ngầm trên tab nền ----------------
-let activeRun = null; // { tabId, startedAt, timeoutId }
+// ---------------- Chạy trên cửa sổ Facebook hiển thị ----------------
+// KHÔNG chạy trên tab ẩn: Chrome ngừng vẽ trang ẩn/bị che nên Facebook không tải thêm bài,
+// không cuộn được, không focus được ô bình luận. Vì vậy mỗi lượt chạy mở 1 cửa sổ riêng ở phía trước.
+//
+// Service worker MV3 bị Chrome tắt sau ~30 giây rảnh, nên trạng thái lượt chạy phải lưu trong
+// chrome.storage.session (không dùng biến toàn cục) và hẹn giờ bằng chrome.alarms (không dùng setTimeout).
+const RUN_KEY = 'pemActiveRun'; // { windowId, tabId, startedAt }
+const RUN_TIMEOUT_ALARM = 'pemFanpageRunTimeout';
+const RUN_TIMEOUT_MIN = 20;
+const REMIND_NOTIF_ID = 'pemFanpageRemind';
+const MAX_REMINDERS_PER_DAY = 3;
+const REMIND_SNOOZE_MIN = 60;
+
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+async function getActiveRun() {
+  const { [RUN_KEY]: run } = await chrome.storage.session.get(RUN_KEY);
+  if (!run) return null;
+  // Cửa sổ có thể đã bị đóng khi service worker đang tắt -> dọn trạng thái cũ
+  try {
+    await chrome.tabs.get(run.tabId);
+    return run;
+  } catch {
+    await chrome.storage.session.remove(RUN_KEY);
+    return null;
+  }
+}
 
 function waitForTabComplete(tabId, timeoutMs = 30000) {
   return new Promise((resolve, reject) => {
-    const timer = setTimeout(() => {
+    const finish = (fn) => {
+      clearTimeout(timer);
       chrome.tabs.onUpdated.removeListener(onUpdated);
-      reject(new Error('Tải trang Facebook quá thời gian'));
-    }, timeoutMs);
-
+      fn();
+    };
+    const timer = setTimeout(() => finish(() => reject(new Error('Tải trang Facebook quá thời gian'))), timeoutMs);
     function onUpdated(id, info) {
-      if (id === tabId && info.status === 'complete') {
-        clearTimeout(timer);
-        chrome.tabs.onUpdated.removeListener(onUpdated);
-        resolve();
-      }
+      if (id === tabId && info.status === 'complete') finish(resolve);
     }
     chrome.tabs.onUpdated.addListener(onUpdated);
+    // Trang có thể đã tải xong trước khi kịp gắn listener
+    chrome.tabs.get(tabId).then((t) => { if (t.status === 'complete') finish(resolve); }).catch(() => {});
   });
 }
 
-async function cleanupActiveRun(statusText) {
-  if (!activeRun) return;
-  const { tabId, timeoutId } = activeRun;
-  activeRun = null;
-  clearTimeout(timeoutId);
-  try { await chrome.tabs.remove(tabId); } catch {}
-  await setAutoCfg({
-    lastRunDate: todayKey(),
-    lastRunAt: new Date().toISOString(),
-    lastRunStatus: statusText
-  });
+async function notify(id, title, message, extra = {}) {
+  try {
+    await chrome.notifications.create(id, { type: 'basic', iconUrl: 'icon.png', title, message, ...extra });
+  } catch (e) {
+    console.warn('[PAS Helper] notify', e);
+  }
 }
 
-async function startBackgroundRun(opts = {}) {
-  if (activeRun) return { alreadyRunning: true };
+async function finishRun(statusText, { closeWindow = true } = {}) {
+  const { [RUN_KEY]: run } = await chrome.storage.session.get(RUN_KEY);
+  if (!run) return;
+  await chrome.storage.session.remove(RUN_KEY);
+  chrome.alarms.clear(RUN_TIMEOUT_ALARM);
+  if (closeWindow) {
+    try { await chrome.windows.remove(run.windowId); } catch {}
+  }
+  await setAutoCfg({ lastRunAt: new Date().toISOString(), lastRunStatus: statusText });
+  notify('pemFanpageDone', 'PAS Fanpage Helper', statusText);
+}
+
+async function startRun(opts = {}) {
+  const existing = await getActiveRun();
+  if (existing) {
+    // Đang chạy rồi -> đưa cửa sổ lên trước cho giáo viên thấy
+    try { await chrome.windows.update(existing.windowId, { focused: true }); } catch {}
+    return { alreadyRunning: true };
+  }
   const conn = await getConn();
   if (!conn) throw new Error('Chưa kết nối PEM');
 
@@ -122,15 +158,20 @@ async function startBackgroundRun(opts = {}) {
   const month = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
   const { campaign } = await pemFetch(`/api/fanpage/config?month=${encodeURIComponent(month)}`, { method: 'GET' }, conn);
 
-  const tab = await chrome.tabs.create({ url: campaign.pageUrl, active: false });
-  const timeoutId = setTimeout(() => cleanupActiveRun('Hết thời gian chờ (10 phút)'), 10 * 60 * 1000);
-  activeRun = { tabId: tab.id, startedAt: Date.now(), timeoutId };
+  chrome.notifications.clear(REMIND_NOTIF_ID);
+  const win = await chrome.windows.create({ url: campaign.pageUrl, focused: true, type: 'normal', width: 1100, height: 900 });
+  const tabId = win.tabs[0].id;
+  await chrome.storage.session.set({ [RUN_KEY]: { windowId: win.id, tabId, startedAt: Date.now() } });
+  chrome.alarms.create(RUN_TIMEOUT_ALARM, { delayInMinutes: RUN_TIMEOUT_MIN });
+  // Ghi ngày chạy NGAY khi bắt đầu để lịch hẹn không mở lại trong cùng ngày, kể cả khi service worker bị tắt giữa chừng
+  await setAutoCfg({ lastRunDate: todayKey(now), lastRunAt: now.toISOString(), lastRunStatus: 'Đang chạy...' });
 
   try {
-    await waitForTabComplete(tab.id, 30000);
+    await waitForTabComplete(tabId, 30000);
     // Chờ Facebook render xong feed
-    await new Promise((r) => setTimeout(r, 3500));
-    if (!activeRun || activeRun.tabId !== tab.id) return { stopped: true };
+    await sleep(3500);
+    const run = await getActiveRun();
+    if (!run || run.tabId !== tabId) return { stopped: true };
 
     const req = campaign.requiredActions || { like: true, share: true, comment: true };
     const cfg = {
@@ -149,16 +190,29 @@ async function startBackgroundRun(opts = {}) {
       maxDelay: 22
     };
 
-    const res = await chrome.tabs.sendMessage(tab.id, { type: 'start', cfg });
-    if (!res?.ok) throw new Error(res?.error || 'Không khởi động được trên tab Facebook');
-    return { started: true, tabId: tab.id };
+    // Content script có thể chưa sẵn sàng ngay khi trang vừa tải xong -> thử lại vài lần
+    let res = null;
+    let lastErr = null;
+    for (let i = 0; i < 4 && !res; i++) {
+      try { res = await chrome.tabs.sendMessage(tabId, { type: 'start', cfg }); }
+      catch (e) { lastErr = e; await sleep(1500); }
+    }
+    if (!res) throw new Error('Không liên lạc được với trang Facebook' + (lastErr ? ` (${lastErr.message})` : ''));
+    if (!res.ok) throw new Error(res.error || 'Không khởi động được trên trang Facebook');
+    return { started: true, tabId };
   } catch (e) {
-    await cleanupActiveRun('Lỗi: ' + (e.message || 'Không rõ'));
+    await finishRun('Lỗi: ' + (e.message || 'Không rõ'));
     throw e;
   }
 }
 
-// ---------------- Lịch hẹn chrome.alarms ----------------
+// Giáo viên tự đóng cửa sổ Facebook -> kết thúc lượt chạy
+chrome.tabs.onRemoved.addListener(async (tabId) => {
+  const { [RUN_KEY]: run } = await chrome.storage.session.get(RUN_KEY);
+  if (run && run.tabId === tabId) await finishRun('Đã đóng cửa sổ Facebook', { closeWindow: false });
+});
+
+// ---------------- Lịch hẹn: tới giờ thì NHẮC, giáo viên bấm mới chạy ----------------
 function ensureAlarm() {
   chrome.alarms.get(ALARM_NAME, (a) => {
     if (!a) chrome.alarms.create(ALARM_NAME, { periodInMinutes: 20 });
@@ -168,23 +222,61 @@ chrome.runtime.onInstalled.addListener(ensureAlarm);
 chrome.runtime.onStartup.addListener(ensureAlarm);
 ensureAlarm();
 
-chrome.alarms.onAlarm.addListener(async (alarm) => {
-  if (alarm.name !== ALARM_NAME) return;
+async function maybeRemind() {
+  const conn = await getConn();
+  const cfg = await getAutoCfg();
+  if (!conn || !cfg.enabled || (await getActiveRun())) return;
+  const now = new Date();
+  const today = todayKey(now);
+  if (cfg.lastRunDate === today) return;
+
+  const nowMins = now.getHours() * 60 + now.getMinutes();
+  const targetMins = (Number(cfg.hour) || 0) * 60 + (Number(cfg.minute) || 0);
+  if (nowMins < targetMins) return;
+
+  // Mỗi ngày nhắc tối đa MAX_REMINDERS_PER_DAY lần, cách nhau ít nhất REMIND_SNOOZE_MIN phút
+  const count = cfg.remindDate === today ? cfg.remindCount || 0 : 0;
+  if (count >= MAX_REMINDERS_PER_DAY) return;
+  if (cfg.remindDate === today && cfg.nextRemindAt && Date.now() < cfg.nextRemindAt) return;
+
+  await setAutoCfg({ remindDate: today, remindCount: count + 1, nextRemindAt: Date.now() + REMIND_SNOOZE_MIN * 60000 });
+  await notify(REMIND_NOTIF_ID, 'Tới giờ tương tác fanpage trường', `Bấm "Chạy ngay" để Thích / Chia sẻ / Bình luận tối đa ${cfg.maxPosts} bài. Cửa sổ Facebook sẽ mở ra, đừng thu nhỏ trong lúc chạy.`, {
+    requireInteraction: true,
+    buttons: [{ title: 'Chạy ngay' }, { title: `Để sau ${REMIND_SNOOZE_MIN} phút` }]
+  });
+}
+
+async function runFromNotification() {
+  chrome.notifications.clear(REMIND_NOTIF_ID);
   try {
-    const conn = await getConn();
     const cfg = await getAutoCfg();
-    if (!conn || !cfg.enabled || activeRun) return;
-    const now = new Date();
-    const today = todayKey(now);
-    if (cfg.lastRunDate === today) return;
-
-    const nowMins = now.getHours() * 60 + now.getMinutes();
-    const targetMins = (Number(cfg.hour) || 0) * 60 + (Number(cfg.minute) || 0);
-    if (nowMins < targetMins) return;
-
-    await startBackgroundRun({ maxPosts: cfg.maxPosts });
+    await startRun({ maxPosts: cfg.maxPosts });
   } catch (e) {
-    console.warn('[PAS Helper] Auto alarm error:', e);
+    notify('pemFanpageError', 'Không chạy được', e.message || 'Lỗi không rõ');
+  }
+}
+
+chrome.notifications.onClicked.addListener((id) => {
+  if (id === REMIND_NOTIF_ID) runFromNotification();
+});
+chrome.notifications.onButtonClicked.addListener((id, btn) => {
+  if (id !== REMIND_NOTIF_ID) return;
+  if (btn === 0) runFromNotification();
+  else chrome.notifications.clear(REMIND_NOTIF_ID); // "Để sau": lần nhắc kế tiếp đã hẹn sẵn trong nextRemindAt
+});
+
+chrome.alarms.onAlarm.addListener(async (alarm) => {
+  try {
+    if (alarm.name === ALARM_NAME) await maybeRemind();
+    else if (alarm.name === RUN_TIMEOUT_ALARM) {
+      const run = await getActiveRun();
+      if (run) {
+        try { await chrome.tabs.sendMessage(run.tabId, { type: 'stop' }); } catch {}
+        await finishRun(`Hết thời gian chờ (${RUN_TIMEOUT_MIN} phút)`);
+      }
+    }
+  } catch (e) {
+    console.warn('[PAS Helper] Alarm error:', e);
   }
 });
 
@@ -196,7 +288,7 @@ const handlers = {
       getConn(),
       getAutoCfg()
     ]);
-    return { version: '2.1.0', conn, queued: pemQueue.length, autoCfg, running: !!activeRun };
+    return { version: '2.2.0', conn, queued: pemQueue.length, autoCfg, running: !!(await getActiveRun()) };
   },
   async pemConnect({ url, token }) {
     const conn = { url: (url || DEFAULT_PEM_URL).trim().replace(/\/+$/, ''), token: (token || '').trim() };
@@ -211,7 +303,7 @@ const handlers = {
   },
   async pemStatus() {
     const { pemQueue = [] } = await chrome.storage.local.get('pemQueue');
-    return { conn: await getConn(), queued: pemQueue.length, autoCfg: await getAutoCfg(), running: !!activeRun };
+    return { conn: await getConn(), queued: pemQueue.length, autoCfg: await getAutoCfg(), running: !!(await getActiveRun()) };
   },
   async pemSetAuto({ enabled, hour, minute, maxPosts }) {
     const autoCfg = await setAutoCfg({
@@ -224,23 +316,27 @@ const handlers = {
     return { autoCfg };
   },
   async pemRunNow({ maxPosts } = {}) {
-    return startBackgroundRun({ maxPosts });
+    return startRun({ maxPosts });
   },
   async pemStopRun() {
-    if (!activeRun) return { stopped: false };
-    try { await chrome.tabs.sendMessage(activeRun.tabId, { type: 'stop' }); } catch {}
-    await cleanupActiveRun('Đã dừng thủ công');
+    const run = await getActiveRun();
+    if (!run) return { stopped: false };
+    try { await chrome.tabs.sendMessage(run.tabId, { type: 'stop' }); } catch {}
+    await finishRun('Đã dừng thủ công');
     return { stopped: true };
   },
   async pemRunFinished({ summary } = {}, sender) {
-    if (activeRun && (!sender?.tab || sender.tab.id === activeRun.tabId)) {
+    const run = await getActiveRun();
+    if (run && sender?.tab?.id === run.tabId) {
       const s = summary?.stats || {};
       const statusText = summary?.error
         ? `Dừng (${summary.error})`
         : summary?.stopped
         ? 'Đã dừng'
         : `Xong: Thích ${s.liked || 0} · Chia sẻ ${s.shared || 0} · Bình luận ${s.commented || 0}`;
-      await cleanupActiveRun(statusText);
+      // Để giáo viên kịp nhìn bảng kết quả trên trang rồi mới đóng cửa sổ
+      await sleep(4000);
+      await finishRun(statusText);
     }
     return {};
   },

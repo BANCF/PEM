@@ -18,7 +18,7 @@ Extension Chrome hỗ trợ **Thích / Chia sẻ / Bình luận** các bài vi�
 Mã kết nối chỉ dùng được cho việc đọc cấu hình và gửi kết quả tương tác, không đăng nhập được vào PEM.
 Tạo mã mới trên PEM sẽ làm mã cũ hết hiệu lực.
 
-## Sử dụng
+## Sử dụng thủ công
 1. Bấm biểu tượng extension → **Mở fanpage** (đợi trang tải xong).
 2. Chọn tháng/năm, các thao tác, sửa danh sách câu bình luận mẫu.
 3. Bấm **▶ Bắt đầu**. Bảng tiến độ hiện ở góc phải trang, có nút Tạm dừng / Dừng.
@@ -26,6 +26,19 @@ Tạo mã mới trên PEM sẽ làm mã cũ hết hiệu lực.
 5. Xong thì mở lại popup → **Copy link** để dán vào Google Sheet KPI, hoặc **Xuất CSV**.
 
 Nếu vừa cài/cập nhật extension mà tab Facebook đang mở sẵn, hãy **F5** tab đó một lần.
+
+## Tương tác tự động & Lịch nhắc hằng ngày
+Khi đã kết nối extension với web PEM:
+1. Bạn có thể bật **Nhắc tôi tương tác fanpage hằng ngày** trên web PEM và chọn giờ nhắc, số lượng bài tối đa mỗi ngày (mặc định 5 bài).
+2. Tới giờ hẹn (khi Chrome đang mở), extension sẽ gửi thông báo hệ thống:
+   - Bấm **"Chạy ngay"**: extension sẽ mở một cửa sổ Facebook riêng ở phía trước để bắt đầu tương tác.
+   - Bấm **"Để sau"**: extension sẽ nhắc lại sau 60 phút (tối đa nhắc 3 lần/ngày).
+3. Bạn cũng có thể bấm nút **"Chạy ngay (mở cửa sổ Facebook)"** trực tiếp trên web PEM bất kỳ lúc nào.
+4. **Cơ chế hoạt động khi chạy:**
+   - **Không thu nhỏ cửa sổ:** Cửa sổ Facebook cần được giữ hiển thị, không thu nhỏ trong lúc chạy để Chrome duy trì hiển thị trang và cuộn bài viết.
+   - **Tự tạm dừng khi bị ẩn:** Nếu cửa sổ Facebook bị ẩn hoặc thu nhỏ, extension sẽ tự động tạm dừng và hiển thị thông báo yêu cầu mở lại cửa sổ để tiếp tục chạy.
+   - **Tự đóng cửa sổ khi xong:** Khi hoàn thành số lượng bài đặt ra hoặc hết bài trong tháng, bảng kết quả hiển thị trên trang vài giây rồi cửa sổ tự động đóng lại.
+   - **Tự ngắt quá thời gian:** Nếu sau 20 phút lượt chạy chưa kết thúc, extension sẽ tự dừng an toàn.
 
 ## Cách hoạt động
 - Áp dụng **Bộ lọc → Năm → Tháng** của Facebook (nếu bỏ tích, extension tự đọc ngày đăng).

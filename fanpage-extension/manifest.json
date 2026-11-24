@@ -1,9 +1,12 @@
 {
   "manifest_version": 3,
   "name": "PAS Fanpage Helper",
-  "version": "2.1.0",
+  "version": "2.2.0",
   "description": "Tự động Thích / Chia sẻ / Bình luận bài viết fanpage trường và đồng bộ trực tiếp với PEM.",
-  "permissions": ["storage", "activeTab", "tabs", "alarms"],
+  "permissions": ["storage", "activeTab", "tabs", "alarms", "notifications"],
+  "icons": {
+    "128": "icon.png"
+  },
   "host_permissions": [
     "https://*.facebook.com/*",
     "https://pem-snowy.vercel.app/*",
@@ -21,7 +24,8 @@
   },
   "action": {
     "default_title": "PAS Fanpage Helper",
-    "default_popup": "popup.html"
+    "default_popup": "popup.html",
+    "default_icon": "icon.png"
   },
   "content_scripts": [
     {

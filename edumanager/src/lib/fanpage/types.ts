@@ -12,6 +12,12 @@ export interface FanpageRequiredActions {
   comment: boolean;
 }
 
+export interface FanpageCampaignPost {
+  url: string;
+  date: string; // "YYYY-MM-DD"
+  note?: string;
+}
+
 export interface FanpageCampaign {
   month: string; // "YYYY-MM"
   pageUrl: string;
@@ -19,6 +25,8 @@ export interface FanpageCampaign {
   pointsPerPost: number;
   maxPoints: number; // 0 = không giới hạn
   requiredActions: FanpageRequiredActions;
+  posts: FanpageCampaignPost[];
+  allowManual: boolean;
   finalizedAt?: string | null;
   finalizedBy?: string | null;
   updatedAt?: string;
@@ -36,6 +44,7 @@ export interface FanpageEngagement {
   liked: boolean;
   shared: boolean;
   commented: boolean;
+  via?: { extension?: boolean; manual?: boolean };
   updatedAt: string;
 }
 
@@ -48,8 +57,19 @@ export interface FanpageTeacherSummary {
   shared: number;
   commented: number;
   completed: number; // số bài đạt đủ thao tác bắt buộc
+  manualPosts: number; // số bài có via.manual mà không có via.extension
   points: number;
   connected: boolean; // đã tạo mã kết nối extension chưa
+}
+
+export interface FanpageChecklistItem {
+  postUrl: string;
+  postDate: string;
+  note?: string;
+  liked: boolean;
+  shared: boolean;
+  commented: boolean;
+  byExtension: boolean;
 }
 
 export const DEFAULT_FANPAGE_URL = "https://www.facebook.com/tieuhoc.thcspascal";
@@ -71,6 +91,8 @@ export function defaultCampaign(month: string): FanpageCampaign {
     pointsPerPost: 1,
     maxPoints: 0,
     requiredActions: { like: true, share: true, comment: true },
+    posts: [],
+    allowManual: true,
     finalizedAt: null,
   };
 }

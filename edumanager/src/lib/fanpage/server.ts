@@ -112,6 +112,8 @@ export async function getCampaign(month: string): Promise<FanpageCampaign> {
     ...d,
     month,
     requiredActions: { ...base.requiredActions, ...(d.requiredActions || {}) },
+    posts: Array.isArray(d.posts) ? d.posts : [],
+    allowManual: typeof d.allowManual === "boolean" ? d.allowManual : true,
   } as FanpageCampaign;
 }
 

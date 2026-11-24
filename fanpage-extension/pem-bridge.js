@@ -6,7 +6,7 @@
   window.__pemBridgeLoaded = true;
 
   // Báo cho trang PEM biết extension đã được cài sẵn
-  window.postMessage({ channel: "PEM_FANPAGE_EXT", type: "PEM_EXT_READY", version: "2.1.0" }, "*");
+  window.postMessage({ channel: "PEM_FANPAGE_EXT", type: "PEM_EXT_READY", version: "2.2.0" }, "*");
 
   window.addEventListener("message", (event) => {
     if (event.source !== window) return;

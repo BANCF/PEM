@@ -59,7 +59,20 @@
       `Bài trong tháng: ${stats.found} · Thích: ${stats.liked} · Bình luận: ${stats.commented} · Chia sẻ: ${stats.shared} · Bỏ qua: ${stats.skipped}`;
   }
 
-  async function waitIfPaused() { while (state.paused && !state.stop) await sleep(500); }
+  async function waitIfPaused() {
+    let wasHidden = false;
+    while ((state.paused || document.hidden) && !state.stop) {
+      if (document.hidden) {
+        if (!wasHidden) {
+          wasHidden = true;
+          say('⏸ Tạm dừng vì cửa sổ Facebook bị ẩn/thu nhỏ — mở lại để chạy tiếp', true);
+        }
+      } else {
+        wasHidden = false;
+      }
+      await sleep(500);
+    }
+  }
   async function humanDelay() { await waitIfPaused(); await sleep(rnd(cfg.minDelay * 1000, cfg.maxDelay * 1000)); }
 
   // ---------------------------------------------------------------
@@ -374,7 +387,7 @@
 
         if (olderStreak >= 3) { say('Đã hết bài trong tháng đã chọn'); break; }
         idle = progressed ? 0 : idle + 1;
-        window.scrollBy({ top: window.innerHeight * 0.8, behavior: 'smooth' });
+        window.scrollBy({ top: window.innerHeight * 0.8, behavior: 'auto' });
         await sleep(rnd(1800, 3000));
       }
       if (!state.stop) say(`HOÀN TẤT ✔ (${processed} bài được xử lý)`);

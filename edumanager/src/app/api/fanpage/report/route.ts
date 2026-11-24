@@ -52,6 +52,7 @@ export async function POST(req: Request) {
         liked: !!prev.liked || it.liked === true,
         shared: !!prev.shared || it.shared === true,
         commented: !!prev.commented || it.commented === true,
+        via: { ...(prev.via || {}), extension: true },
         createdAt: prev.createdAt || now,
         updatedAt: now,
       });

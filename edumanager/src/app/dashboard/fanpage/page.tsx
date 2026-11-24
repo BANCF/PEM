@@ -7,8 +7,9 @@ import {
   Save, Share2, Square, ThumbsUp, Trophy,
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
+import FanpageChecklist from "@/components/fanpage/FanpageChecklist";
 import {
-  currentMonthKey, FanpageCampaign, FanpageEngagement, FanpageTeacherSummary, isPostCompleted,
+  currentMonthKey, FanpageCampaign, FanpageCampaignPost, FanpageChecklistItem, FanpageEngagement, FanpageTeacherSummary, isPostCompleted,
 } from "@/lib/fanpage/types";
 
 interface SummaryResponse {
@@ -28,6 +29,7 @@ interface SummaryResponse {
     points: number;
   };
   mine: FanpageEngagement[];
+  checklist: FanpageChecklistItem[];
   teachers?: FanpageTeacherSummary[];
   posts?: { postUrl: string; postDate: string; teachers: number }[];
 }
@@ -85,6 +87,67 @@ function monthOptions(): string[] {
 const monthLabel = (m: string) => `Tháng ${Number(m.slice(5))}/${m.slice(0, 4)}`;
 const fmtDate = (s: string) => s.split("-").reverse().join("/");
 
+const FB_POST_URL_RE = /^https:\/\/(www\.|web\.|m\.)?facebook\.com\//;
+
+function formatPostsText(posts: FanpageCampaignPost[]): string {
+  return posts
+    .map((p) => {
+      const parts = p.date.split("-");
+      const ddmm = parts.length === 3 ? `${parts[2]}/${parts[1]}` : p.date;
+      return p.note ? `${ddmm} | ${p.url} | ${p.note}` : `${ddmm} | ${p.url}`;
+    })
+    .join("\n");
+}
+
+function parsePostsText(
+  text: string,
+  month: string
+): { posts: FanpageCampaignPost[] } | { error: string } {
+  const year = Number(month.slice(0, 4));
+  const expectedMonth = month.slice(5, 7);
+  const lines = text.split(/\r?\n/);
+  const posts: FanpageCampaignPost[] = [];
+
+  for (let i = 0; i < lines.length; i++) {
+    const raw = lines[i].trim();
+    if (!raw) continue;
+    const lineNum = i + 1;
+    const parts = raw.split("|");
+    if (parts.length < 2) {
+      return { error: `Dòng ${lineNum}: sai định dạng (cần "dd/mm | link | ghi chú")` };
+    }
+    const datePart = parts[0].trim();
+    const urlPart = parts[1].trim();
+    const notePart = parts.slice(2).join("|").trim();
+
+    const m = /^(\d{1,2})\/(\d{1,2})$/.exec(datePart);
+    if (!m) {
+      return { error: `Dòng ${lineNum}: ngày "${datePart}" sai định dạng dd/mm` };
+    }
+    const day = Number(m[1]);
+    const mon = Number(m[2]);
+    const dt = new Date(Date.UTC(year, mon - 1, day));
+    if (dt.getUTCFullYear() !== year || dt.getUTCMonth() !== mon - 1 || dt.getUTCDate() !== day) {
+      return { error: `Dòng ${lineNum}: ngày "${datePart}" không hợp lệ` };
+    }
+    const mm = String(mon).padStart(2, "0");
+    const dd = String(day).padStart(2, "0");
+    if (mm !== expectedMonth) {
+      return { error: `Dòng ${lineNum}: ngày ${dd}/${mm} không thuộc ${monthLabel(month)}` };
+    }
+    if (!FB_POST_URL_RE.test(urlPart)) {
+      return { error: `Dòng ${lineNum}: link bài viết Facebook không hợp lệ` };
+    }
+    const date = `${year}-${mm}-${dd}`;
+    const note = notePart.slice(0, 200);
+    posts.push(note ? { date, url: urlPart, note } : { date, url: urlPart });
+  }
+  if (posts.length > 100) {
+    return { error: "Danh sách bài viết tối đa 100 bài" };
+  }
+  return { posts };
+}
+
 function Mark({ on }: { on: boolean }) {
   return on ? <CheckCircle2 size={18} className="text-emerald-500 mx-auto" /> : <Circle size={18} className="text-slate-300 mx-auto" />;
 }
@@ -97,6 +160,7 @@ export default function FanpagePage() {
   const [code, setCode] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [form, setForm] = useState<FanpageCampaign | null>(null);
+  const [postsText, setPostsText] = useState("");
   const [deptFilter, setDeptFilter] = useState("all");
   const [extState, setExtState] = useState<ExtState | null>(null);
   const [extChecked, setExtChecked] = useState(false);
@@ -151,6 +215,7 @@ export default function FanpagePage() {
         if (cancelled) return;
         setData(json);
         setForm(json.campaign);
+        setPostsText(formatPostsText(json.campaign.posts || []));
       })
       .catch((e: Error) => !cancelled && toast.error(e.message))
       .finally(() => !cancelled && setLoading(false));
@@ -159,7 +224,7 @@ export default function FanpagePage() {
     };
   }, [api, month, user, reloadKey]);
 
-  // Poll extension khi đang chạy ngầm
+  // Poll extension khi đang chạy
   useEffect(() => {
     if (!extState?.running) return;
     const t = setInterval(async () => {
@@ -251,7 +316,7 @@ export default function FanpagePage() {
     try {
       const r = await askExtension("pemRunNow", { maxPosts: extState?.autoCfg?.maxPosts || 5 }, 45000);
       if (!r.ok) throw new Error(r.error || "Không khởi động được");
-      toast.success("Đã bắt đầu chạy ngầm trên tab Facebook! Bạn cứ làm việc bình thường.");
+      toast.success("Đã mở cửa sổ Facebook — đừng thu nhỏ cửa sổ đó trong lúc chạy.");
       await pingExtension();
     } catch (e) {
       toast.error((e as Error).message);
@@ -276,9 +341,22 @@ export default function FanpagePage() {
 
   const saveConfig = async () => {
     if (!form) return;
+    const parsed = parsePostsText(postsText, month);
+    if ("error" in parsed) {
+      toast.error(parsed.error);
+      return;
+    }
     setBusy("config");
     try {
-      await api("/api/fanpage/config", { method: "PUT", body: JSON.stringify({ ...form, month }) });
+      await api("/api/fanpage/config", {
+        method: "PUT",
+        body: JSON.stringify({
+          ...form,
+          month,
+          posts: parsed.posts,
+          allowManual: Boolean(form.allowManual),
+        }),
+      });
       toast.success("Đã lưu cấu hình tháng");
       load();
     } catch (e) {
@@ -312,8 +390,8 @@ export default function FanpagePage() {
   );
 
   const exportCsv = () => {
-    const header = ["Tổ", "Giáo viên", "Số bài", "Thích", "Chia sẻ", "Bình luận", "Bài đạt", "Điểm", "Đã kết nối"];
-    const lines = [header, ...teacherRows.map((t) => [t.department, t.fullName, t.posts, t.liked, t.shared, t.commented, t.completed, t.points, t.connected ? "x" : ""])]
+    const header = ["Tổ", "Giáo viên", "Số bài", "Thích", "Chia sẻ", "Bình luận", "Bài đạt", "Tự khai", "Điểm", "Đã kết nối"];
+    const lines = [header, ...teacherRows.map((t) => [t.department, t.fullName, t.posts, t.liked, t.shared, t.commented, t.completed, t.manualPosts, t.points, t.connected ? "x" : ""])]
       .map((r) => r.map((v) => `"${String(v).replace(/"/g, '""')}"`).join(","));
     const blob = new Blob(["﻿" + lines.join("\n")], { type: "text/csv;charset=utf-8" });
     const a = document.createElement("a");
@@ -359,30 +437,44 @@ export default function FanpagePage() {
         <div className="flex justify-center p-16"><Loader2 className="animate-spin text-blue-600" size={32} /></div>
       ) : data ? (
         <>
-          {/* Thẻ cá nhân + kết nối */}
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
-              <p className="text-sm text-slate-500">Điểm tháng này của bạn</p>
-              <p className="text-4xl font-black text-blue-600 mt-1">+{data.me.points}</p>
-              <p className="text-sm text-slate-600 mt-2">
-                {data.me.completed}/{data.me.posts} bài đạt yêu cầu ({reqText})
+          {/* Thẻ cá nhân */}
+          <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
+            <p className="text-sm text-slate-500">Điểm tháng này của bạn</p>
+            <p className="text-4xl font-black text-blue-600 mt-1">+{data.me.points}</p>
+            <p className="text-sm text-slate-600 mt-2">
+              {data.me.completed}/{data.me.posts} bài đạt yêu cầu ({reqText})
+            </p>
+            <p className="text-xs text-slate-400 mt-1">
+              {data.campaign.pointsPerPost} điểm/bài{data.campaign.maxPoints > 0 ? ` · tối đa ${data.campaign.maxPoints} điểm` : ""}
+            </p>
+            {data.campaign.finalizedAt && (
+              <p className="mt-3 inline-flex items-center gap-1 text-xs font-semibold text-emerald-700 bg-emerald-50 px-2 py-1 rounded-lg">
+                <Lock size={12} /> Đã chốt bởi {data.campaign.finalizedBy}
               </p>
-              <p className="text-xs text-slate-400 mt-1">
-                {data.campaign.pointsPerPost} điểm/bài{data.campaign.maxPoints > 0 ? ` · tối đa ${data.campaign.maxPoints} điểm` : ""}
-              </p>
-              {data.campaign.finalizedAt && (
-                <p className="mt-3 inline-flex items-center gap-1 text-xs font-semibold text-emerald-700 bg-emerald-50 px-2 py-1 rounded-lg">
-                  <Lock size={12} /> Đã chốt bởi {data.campaign.finalizedBy}
-                </p>
-              )}
-            </div>
+            )}
+          </div>
 
-            <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 lg:col-span-2 space-y-4">
+          {/* Checklist tương tác (ưu tiên điện thoại) */}
+          <FanpageChecklist
+            month={month}
+            campaign={data.campaign}
+            items={data.checklist || []}
+            api={api}
+            onChanged={load}
+          />
+
+          {/* Thông báo trên điện thoại thay cho khối Extension */}
+          <p className="md:hidden text-sm text-slate-500 bg-slate-50 border border-slate-200 rounded-xl px-4 py-3">
+            Trên điện thoại hãy dùng danh sách bên trên; extension chỉ dùng trên Chrome máy tính.
+          </p>
+
+          {/* Điều khiển Extension (chỉ hiển thị từ md trở lên) */}
+          <div className="hidden md:block bg-white rounded-2xl border border-slate-200 shadow-sm p-6 space-y-4">
               <div className="flex flex-wrap items-start justify-between gap-4">
                 <div>
                   <h2 className="font-bold text-slate-800 flex items-center gap-2">
                     <Plug size={18} className={extState?.conn ? "text-emerald-600" : "text-blue-600"} />
-                    Điều khiển Extension &amp; Tự động chạy ngầm
+                    Điều khiển Extension &amp; Lịch nhắc tự động
                     {extState?.version && (
                       <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
                         Đã cài v{extState.version}
@@ -395,7 +487,7 @@ export default function FanpagePage() {
                       : !extState
                       ? "Chưa phát hiện extension trên Chrome. Tải bộ cài 1-Click bên cạnh để cài nhanh trong 10 giây."
                       : extState.conn
-                      ? `Đã kết nối tự động (${extState.conn.fullName}). Tự chạy ngầm khi Chrome mở, không cần mở web PEM.`
+                      ? `Đã kết nối tự động (${extState.conn.fullName}). Nhắc tương tác khi Chrome mở, không cần mở web PEM.`
                       : "Extension đã sẵn sàng — bấm Kết nối tự động để liên kết ngay không cần copy mã."}
                   </p>
                 </div>
@@ -426,7 +518,7 @@ export default function FanpagePage() {
                       className="inline-flex items-center gap-2 px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-xl font-medium disabled:opacity-60"
                     >
                       {busy === "stopRun" ? <Loader2 size={16} className="animate-spin" /> : <Square size={16} />}
-                      Đang chạy ngầm... (Bấm để dừng)
+                      Đang chạy trên cửa sổ Facebook... (Bấm để dừng)
                     </button>
                   ) : (
                     <button
@@ -435,13 +527,13 @@ export default function FanpagePage() {
                       className="inline-flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-medium disabled:opacity-60"
                     >
                       {busy === "runNow" ? <Loader2 size={16} className="animate-spin" /> : <Play size={16} />}
-                      Chạy ngay (chạy ngầm)
+                      Chạy ngay (mở cửa sổ Facebook)
                     </button>
                   )}
                 </div>
               </div>
 
-              {/* Cài đặt lịch tự động chạy ngầm khi đã kết nối extension */}
+              {/* Cài đặt lịch nhắc tự động khi đã kết nối extension */}
               {extState?.conn && extState.autoCfg && (
                 <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                   <label className="flex items-center gap-3 cursor-pointer">
@@ -455,12 +547,12 @@ export default function FanpagePage() {
                     <div>
                       <span className="font-semibold text-sm text-slate-800 flex items-center gap-1.5">
                         <Clock size={15} className="text-emerald-600" />
-                        Tự động chạy ngầm hằng ngày (khi Chrome đang mở)
+                        Nhắc tôi tương tác fanpage hằng ngày (khi Chrome đang mở)
                       </span>
                       <p className="text-xs text-slate-500">
                         {extState.autoCfg.lastRunStatus
                           ? `Lần gần nhất (${extState.autoCfg.lastRunDate || ""}): ${extState.autoCfg.lastRunStatus}`
-                          : "Mỗi ngày tự mở tab nền xử lý bài mới rồi tự đóng tab."}
+                          : "Tới giờ sẽ hiện thông báo nhắc, bấm để mở cửa sổ xử lý bài mới rồi tự đóng."}
                       </p>
                     </div>
                   </label>
@@ -536,7 +628,6 @@ export default function FanpagePage() {
                   </div>
                 )}
               </details>
-            </div>
           </div>
 
           {/* Cấu hình tháng — BGH/Admin */}
@@ -588,6 +679,14 @@ export default function FanpagePage() {
                       ))}
                     </div>
                   </div>
+                  <label className="inline-flex items-center gap-2 text-sm font-medium text-slate-700 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={Boolean(form.allowManual)}
+                      onChange={(e) => setForm({ ...form, allowManual: e.target.checked })}
+                    />
+                    Cho phép giáo viên tự khai (điện thoại)
+                  </label>
                 </div>
                 <label className="block text-sm font-medium text-slate-700">
                   Câu bình luận mẫu (mỗi dòng 1 câu — extension tự lấy về)
@@ -599,6 +698,16 @@ export default function FanpagePage() {
                   />
                 </label>
               </div>
+              <label className="block text-sm font-medium text-slate-700 mt-4">
+                Danh sách bài trong tháng (mỗi dòng: <span className="font-mono font-normal text-xs text-slate-500">dd/mm | link | ghi chú (tuỳ chọn)</span>)
+                <textarea
+                  rows={5}
+                  value={postsText}
+                  onChange={(e) => setPostsText(e.target.value)}
+                  placeholder={`05/${month.slice(5)} | https://www.facebook.com/... | Ghi chú bài viết`}
+                  className="mt-1 w-full border border-slate-200 rounded-xl px-3 py-2 font-normal font-mono text-xs sm:text-sm"
+                />
+              </label>
               <div className="mt-5 flex flex-wrap gap-3 justify-end">
                 <button
                   onClick={saveConfig}
@@ -654,6 +763,7 @@ export default function FanpagePage() {
                       <th className="px-3 py-3"><Share2 size={14} className="mx-auto" /></th>
                       <th className="px-3 py-3"><MessageCircle size={14} className="mx-auto" /></th>
                       <th className="px-3 py-3">Bài đạt</th>
+                      <th className="px-3 py-3">Tự khai</th>
                       <th className="px-3 py-3">Điểm</th>
                       <th className="px-3 py-3">Extension</th>
                     </tr>
@@ -667,6 +777,7 @@ export default function FanpagePage() {
                         <td className="px-3 py-3 text-center">{t.shared}</td>
                         <td className="px-3 py-3 text-center">{t.commented}</td>
                         <td className="px-3 py-3 text-center font-semibold">{t.completed}</td>
+                        <td className="px-3 py-3 text-center text-slate-600">{t.manualPosts}</td>
                         <td className="px-3 py-3 text-center font-bold text-blue-600">{t.points > 0 ? `+${t.points}` : "0"}</td>
                         <td className="px-3 py-3 text-center">
                           {t.connected
@@ -676,7 +787,7 @@ export default function FanpagePage() {
                       </tr>
                     ))}
                     {!teacherRows.length && (
-                      <tr><td colSpan={8} className="px-5 py-10 text-center text-slate-400">Chưa có giáo viên</td></tr>
+                      <tr><td colSpan={9} className="px-5 py-10 text-center text-slate-400">Chưa có giáo viên</td></tr>
                     )}
                   </tbody>
                 </table>
